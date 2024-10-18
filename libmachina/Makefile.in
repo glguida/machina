@@ -1,0 +1,8 @@
+LIBRARY=machina
+
+CFLAGS+= -I$(SRCDIR) -Wno-prio-ctor-dtor
+
+SRCS+= syscalls.c
+
+@COMPILE_LIBNUX_USER@
+@COMPILE_LIBEC@

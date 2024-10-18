@@ -1,0 +1,2 @@
+INCDIR=include/machina
+INCS+= vm_param.h

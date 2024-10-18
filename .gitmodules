@@ -1,0 +1,3 @@
+[submodule "nux"]
+	path = nux
+	url = git@github.com:glguida/nux

@@ -1,0 +1,41 @@
+SUBDIRS= nux libmachina kern bootstrap
+
+NUX_DIR=@NUXBUILDROOT@
+APXH_DIR=$(NUX_DIR)/apxh
+TOOLS= $(NUX_DIR)/tools
+AR50= $(TOOLS)/ar50/ar50
+OBJAPPEND= $(TOOLS)/objappend/objappend
+
+ifeq (@MACHINE@,riscv64)
+APXH=$(APXH_DIR)/sbi/apxh
+QEMU_CMD=qemu-system-riscv64 -M virt
+endif
+
+ifeq (@MACHINE@,amd64)
+APXH=$(APXH_DIR)/multiboot/apxh
+QEMU_CMD=qemu-system-x86_64
+endif
+
+ifeq (@MACHINE@,i386)
+APXH=$(APXH_DIR)/multiboot/apxh
+QEMU_CMD=qemu-system-i386
+endif
+
+bootstrap: libmachina
+
+kern bootstrap: nux
+
+machina_qemu: subdirs
+	cp $(APXH) $@
+	$(AR50) -m nux-payload -c $@.ar50 kern/machina bootstrap/bootstrap
+	$(OBJAPPEND) -a $@ $@.ar50
+
+qemu: machina_qemu
+	$(QEMU_CMD) -kernel machina_qemu -serial mon:stdio -nographic
+
+qemu_dbg: machina_qemu
+	$(QEMU_CMD) -kernel machina_qemu -serial mon:stdio -nographic -S -s
+
+
+ALL_TARGET += machina_qemu
+CLEAN_FILES += machina_qemu machina_qemu.ar50
