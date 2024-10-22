@@ -1,0 +1,8 @@
+This is a fork of Mach3 MIG, modified to use Machina interface.
+
+It is outdated compared to modern MIG implementations, but it's very
+simple and easy to hack. The main interface is the 'mig' shell script,
+that calls 'migcom' for the actual interface generation.
+
+It supports both Machina and Mach 3 types.
+

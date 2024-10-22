@@ -11,4 +11,12 @@
 
 #define KERN_NO_SPACE 3
 
+
+/*
+  Made up error code.
+*/
+#define KERN_PORT_INVALID 50
+#define KERN_NOT_FOUND 51
+#define KERN_PORTID_BUSY 52
+
 #endif

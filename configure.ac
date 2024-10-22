@@ -29,20 +29,27 @@ if test x"${TOOLCHAIN}" != x ; then
    tool_prefix="${TOOLCHAIN}"
 fi
 
-AC_CHECK_TOOL(CC, ${tool_prefix}-gcc, :)
-if test x"${CC}" = 'x:' ; then
+AC_PROG_CC
+AC_PROG_YACC
+AC_PROG_LEX([])
+# This is used by the mig script. Behaviour of CPP and GCC -E are
+# different, so let's stick to a standard one.
+AC_SUBST(CPP, "${CC} -E")
+
+AC_CHECK_TOOL(TARGET_CC, ${tool_prefix}-gcc, :)
+if test x"${TARGET_CC}" = 'x:' ; then
   AC_MSG_ERROR([${tool_prefix}-gcc not found])
 fi
-AC_CHECK_TOOL(LD, ${tool_prefix}-ld, :)
-if test x"${LD}" = 'x:' ; then
+AC_CHECK_TOOL(TARGET_LD, ${tool_prefix}-ld, :)
+if test x"${TARGET_LD}" = 'x:' ; then
   AC_MSG_ERROR([${tool_prefix}-ld not found])
 fi
-AC_CHECK_TOOL(AR, ${tool_prefix}-ar, :)
-if test x"${AR}" = 'x:' ; then
+AC_CHECK_TOOL(TARGET_AR, ${tool_prefix}-ar, :)
+if test x"${TARGET_AR}" = 'x:' ; then
   AC_MSG_ERROR([${tool_prefix}-ar not found])
 fi
-AC_CHECK_TOOL(OBJCOPY, ${tool_prefix}-objcopy, :)
-if test x"${OBJCOPY}" = 'x:' ; then
+AC_CHECK_TOOL(TARGET_OBJCOPY, ${tool_prefix}-objcopy, :)
+if test x"${TARGET_OBJCOPY}" = 'x:' ; then
   AC_MSG_ERROR([${tool_prefix}-objcopy not found])
 fi
 
@@ -64,11 +71,14 @@ AC_SUBST(MACHINE, ${machine})
 AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
 AC_SUBST(APXH_SUBDIRS, [${apxh_subdirs}])
 
+AC_CONFIG_FILES([tools/mig/mig:tools/mig/mig.in], [chmod +x tools/mig/mig])
+
 AC_MK_CONFIG_FILES([
 	Makefile
 	libmachina/Makefile
 	kern/Makefile
 	bootstrap/Makefile
+	tools/mig/Makefile
 ])
 
 AC_OUTPUT

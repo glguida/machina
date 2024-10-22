@@ -1,11 +1,13 @@
-
+#include <stdio.h>
 #include <nux/syscalls.h>
+#include <machina/message.h>
+#include <machina/syscalls.h>
 
-int
-putchar (const char c)
+
+void
+putchar (int c)
 {
   (void) syscall1 (4096, c);
-  return 0;
 }
 
 void
@@ -43,6 +45,19 @@ main (void)
   puts ("Hello from userspace, NUX!\n");
 
   test();
+
+  printf("msgbuf: %p", syscall_msgbuf());
+  volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
+
+  msgh->msgs_flag = MCN_MSGFLAG_REMOTE_COPYSEND;
+  msgh->msgs_size = 0;
+  msgh->msgs_remote = 1;
+  msgh->msgs_local = MCN_PORTID_NULL;
+  msgh->msgs_msgid = 101;
+  asm volatile ("" ::: "memory");
+
+  printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
+  
 
   return 42;
 }

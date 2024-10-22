@@ -20,7 +20,7 @@ task_bootstrap(void)
   
   vmmap_bootstrap (&t->vmmap);
   spinlock_init (&t->lock);
-  //  rb_tree_init(&t->portright, &portright_ops);
+  portspace_setup(&t->portspace);
   t->refcount = 0;
   hal_umap_load(NULL);
 
@@ -30,24 +30,53 @@ task_bootstrap(void)
 void
 task_enter(struct task *t)
 {
+  cur_cpu()->task = t;
 
   spinlock(&t->lock);
-  t->refcount++;
   vmmap_enter (&t->vmmap);
   spinunlock(&t->lock);
 }
 
-/*
-static mcn_portid_t
-_alloc_id(struct task *t)
+struct portspace *
+task_getportspace(struct task *t)
 {
-  struct portcap *last;
+  spinlock(&t->lock);
+  portspace_lock(&t->portspace);
+  spinunlock(&t->lock);
 
-  last = (struct portcap *)RB_TREE_MAX(&t->portright);
-
-  return last ? last->id + 1 : 0;
+  return &t->portspace;
 }
 
+void
+task_putportspace(struct task *t, struct portspace *ps)
+{
+  spinlock(&t->lock);
+  assert(&t->portspace == ps);
+  portspace_unlock(&t->portspace);
+  spinunlock(&t->lock);
+}
+
+mcn_return_t
+task_addsendright(struct task *t, struct sendright *sr)
+{
+  mcn_portid_t id;
+  mcn_return_t rc;
+  struct portspace *ps;
+
+  ps = task_getportspace(t);
+  rc = portspace_allocid (ps, &id);
+  if (rc)
+    {
+      task_putportspace(t, ps);
+      return rc;
+    }
+  printf("Allocated id %ld\n", id);
+  rc = portspace_addsendright(ps, id, sr);
+  task_putportspace(t, ps);
+  return rc;
+}
+
+/*
 mcn_return_t
 task_allocate_port(struct task *t, mcn_portid_t *newid)
 {

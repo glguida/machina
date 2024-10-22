@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <nux/nux.h>
 #include <nux/hal.h>
+#include <machina/syscall_sw.h>
 
 #include "internal.h"
 
@@ -18,6 +19,12 @@ entry_sysc (uctxt_t * u,
 {
   switch (a1)
     {
+    case __syscall_msgbuf:
+      uctxt_setret(u, cur_umsgbuf());
+      break;
+    case __syscall_msgio:
+      uctxt_setret(u, ipc_msgio((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
+      break;
     case 0:
       info("SYSC%ld test passed.", a1);
       break;

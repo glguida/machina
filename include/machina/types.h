@@ -9,6 +9,7 @@
 
 typedef unsigned long mcn_portid_t;
 #define MCN_PORTID_NULL 0
+#define MCN_PORTID_DEAD -1
 
 typedef unsigned mcn_portright_t;
 #define MCN_PORTRIGHT_SEND 0

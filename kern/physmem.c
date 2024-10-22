@@ -93,7 +93,7 @@ _pfndb_inittype (pfn_t pfn, unsigned type)
 
 static void pfndb_init(void)
 {
-  unsigned long maxpfn = hal_physmem_maxpfn ();
+  unsigned long maxpfn = hal_physmem_maxrampfn ();
   unsigned long l0_entries = NUM_ENTRIES;
   unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
   size_t l1_size = sizeof (struct physpage *) * l1_entries;
@@ -119,22 +119,12 @@ static void pfndb_init(void)
 	  info ("\tMMIO: %016" PRIx64 " : %016" PRIx64,
 		(uint64_t) r->pfn << PAGE_SHIFT,
 		(r->pfn + r->len) << PAGE_SHIFT);
-
-	  for (j = r->pfn; j <= (r->pfn + r->len); j++)
-	    {
-	      _pfndb_inittype (j, TYPE_NONRAM);
-	    }
 	  break;
 	case APXH_REGION_BSY:
 	  info ("\tBIOS: %016" PRIx64 " : %016" PRIx64,
 		(uint64_t) r->pfn << PAGE_SHIFT,
 		(r->pfn + r->len) << PAGE_SHIFT);
-	  for (j = r->pfn; j <= (r->pfn + r->len); j++)
-	    {
-	      _pfndb_inittype (j, TYPE_NONRAM);
-	    }
 	  break;
-
 	case APXH_REGION_RAM:
 	  info ("\tRAM : %016" PRIx64 " : %016" PRIx64,
 		(uint64_t) r->pfn << PAGE_SHIFT,

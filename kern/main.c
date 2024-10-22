@@ -10,16 +10,28 @@
 
 #include "internal.h"
 
+__thread char test_2[40];
 
 struct thread *bootstrap;
+
+mcn_return_t testport_send(void *ctx, mcn_msgid_t id, void *data, size_t size, struct portref reply)
+{
+  printf("Received message: context %p id %d, data is at %p with size %ld\n",
+	 ctx, id, data, size);
+
+  return 0;
+}
 
 int
 main (int argc, char *argv[])
 {
   info ("MACHINA Started.");
   physmem_init();
+  msgbuf_init();
   task_init();
   thread_init();
+  port_init();
+  portspace_init();
 
   /* Initialise per-CPU data. */
   cpu_setdata((void *)kmem_alloc(0, sizeof(struct mcncpu)));
@@ -28,9 +40,15 @@ main (int argc, char *argv[])
   printf("task = %p\n", t);
   struct thread *th = thread_bootstrap(t);
   printf("thread = %p\n", th);
+  struct portref testport = port_alloc_kernel(testport_send, NULL);
+  struct sendright testsr;
+  sendright_init(&testsr, SENDTYPE_SEND, testport);
+  task_addsendright(t, &testsr);
 
   bootstrap = th;
   cpu_ipi (cpu_id ());
+
+  printf("cpu id %d\n", cpu_id());
 
   return EXIT_IDLE;
 }
