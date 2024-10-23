@@ -1,4 +1,4 @@
-SUBDIRS= nux libmachina kern bootstrap
+SUBDIRS= nux libmachina kern bootstrap tests
 
 NUX_DIR=@NUXBUILDROOT@
 APXH_DIR=$(NUX_DIR)/apxh
@@ -23,19 +23,28 @@ endif
 
 bootstrap: libmachina
 
-kern bootstrap: nux
+tests kern bootstrap: nux
 
-machina_qemu: subdirs
+machina_qemu: kern bootstrap
 	cp $(APXH) $@
 	$(AR50) -m nux-payload -c $@.ar50 kern/machina bootstrap/bootstrap
 	$(OBJAPPEND) -a $@ $@.ar50
 
+.PHONY: qemu qemu_dbg
 qemu: machina_qemu
 	$(QEMU_CMD) -kernel machina_qemu -serial mon:stdio -nographic
 
 qemu_dbg: machina_qemu
 	$(QEMU_CMD) -kernel machina_qemu -serial mon:stdio -nographic -S -s
 
+tests_qemu: kern tests
+	cp $(APXH) $@
+	$(AR50) -m nux_payload -c $@.ar50 kern/machina tests/test/test
+	$(OBJAPPEND) -a $@ $@.ar50
 
-ALL_TARGET += machina_qemu
-CLEAN_FILES += machina_qemu machina_qemu.ar50
+.PHONY: test
+test: tests_qemu
+	$(QEMU_CMD) -kernel tests_qemu -serial mon:stdio -nographic
+
+ALL_TARGET += machina_qemu tests_qemu
+CLEAN_FILES += machina_qemu machina_qemu.ar50 tests_qemu tests_qemu.ar50

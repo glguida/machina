@@ -77,6 +77,8 @@ AC_MK_CONFIG_FILES([
 	Makefile
 	libmachina/Makefile
 	kern/Makefile
+	tests/Makefile
+	tests/test/Makefile
 	bootstrap/Makefile
 	tools/mig/Makefile
 ])
