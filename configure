@@ -4081,7 +4081,7 @@ fi
 
 MACHINE=${machine}
 
-CONFIGURE_FLAGS="${optflags} ${wflags} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
+CONFIGURE_FLAGS="${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
 
 APXH_SUBDIRS=${apxh_subdirs}
 
@@ -4098,6 +4098,12 @@ ac_config_files="$ac_config_files tools/mig/mig:tools/mig/mig.in"
 
 
 	ac_config_files="$ac_config_files kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/test/Makefile:${mk_dir}/top.mk:tests/test/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files bootstrap/Makefile:${mk_dir}/top.mk:bootstrap/Makefile.in:${mk_dir}/bottom.mk"
@@ -4821,6 +4827,8 @@ do
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile:${mk_dir}/top.mk:Makefile.in:${mk_dir}/bottom.mk" ;;
     "libmachina/Makefile") CONFIG_FILES="$CONFIG_FILES libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk" ;;
     "kern/Makefile") CONFIG_FILES="$CONFIG_FILES kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/test/Makefile") CONFIG_FILES="$CONFIG_FILES tests/test/Makefile:${mk_dir}/top.mk:tests/test/Makefile.in:${mk_dir}/bottom.mk" ;;
     "bootstrap/Makefile") CONFIG_FILES="$CONFIG_FILES bootstrap/Makefile:${mk_dir}/top.mk:bootstrap/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tools/mig/Makefile") CONFIG_FILES="$CONFIG_FILES tools/mig/Makefile:${mk_dir}/top.mk:tools/mig/Makefile.in:${mk_dir}/bottom.mk" ;;
 
