@@ -68,7 +68,7 @@ AS_IF([test "x$enable_relax" != "xno"],
 	[wflags=''])
 
 AC_SUBST(MACHINE, ${machine})
-AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
+AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
 AC_SUBST(APXH_SUBDIRS, [${apxh_subdirs}])
 
 AC_CONFIG_FILES([tools/mig/mig:tools/mig/mig.in], [chmod +x tools/mig/mig])
