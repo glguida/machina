@@ -228,7 +228,7 @@ parseArgs(int argc, char **argv)
 	    fatal("bad argument: '%s'", *argv);
 }
 
-void
+int
 main(int argc, char **argv)
 {
     FILE *uheader, *server, *user;

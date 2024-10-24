@@ -379,7 +379,7 @@ WriteStaticDecl(FILE *file, const ipc_type_t *it, dealloc_t dealloc,
  * and %f are recognized.
  */
 static void
-SkipVFPrintf(FILE *file, register const char *fmt, va_list pvar)
+_SkipVFPrintf(FILE *file, register const char *fmt, va_list pvar)
 {
     if (*fmt == 0)
 	return;	/* degenerate case */
@@ -433,39 +433,43 @@ SkipVFPrintf(FILE *file, register const char *fmt, va_list pvar)
     (void) vfprintf(file, fmt, pvar);
 }
 
+#define SkipVFPrintf(_file, _fmt, _pvar)	\
+  do {						\
+    va_list ap;					\
+    va_start(ap, _pvar);			\
+    _SkipVFPrintf(_file, _fmt, ap);		\
+    va_end(ap);					\
+  } while(0)
+
 void
 WriteCopyType(FILE *file, const ipc_type_t *it, const char *left,
 	      const char *right, ...)
 {
-    va_list pvar;
-    va_start(pvar, right);
-
     if (it->itStruct)
     {
 	fprintf(file, "\t");
-	SkipVFPrintf(file, left, pvar);
+	SkipVFPrintf(file, left, right);
 	fprintf(file, " = ");
-	SkipVFPrintf(file, right, pvar);
+	SkipVFPrintf(file, right, right);
 	fprintf(file, ";\n");
     }
     else if (it->itString)
     {
 	fprintf(file, "\t(void) mig_strncpy(");
-	SkipVFPrintf(file, left, pvar);
+	SkipVFPrintf(file, left, right);
 	fprintf(file, ", ");
-	SkipVFPrintf(file, right, pvar);
+	SkipVFPrintf(file, right, right);
 	fprintf(file, ", %d);\n", it->itTypeSize);
     }
     else
     {
 	fprintf(file, "\t{ typedef struct { char data[%d]; } *sp; * (sp) ",
 		it->itTypeSize);
-	SkipVFPrintf(file, left, pvar);
+	SkipVFPrintf(file, left, right);
 	fprintf(file, " = * (sp) ");
-	SkipVFPrintf(file, right, pvar);
+	SkipVFPrintf(file, right, right);
 	fprintf(file, "; }\n");
     }
-    va_end(pvar);
 }
 
 void
@@ -473,14 +477,9 @@ WritePackMsgType(FILE *file, const ipc_type_t *it, dealloc_t dealloc,
 		 bool longform, bool inname, const char *left,
 		 const char *right, ...)
 {
-    va_list pvar;
-    va_start(pvar, right);
-
     fprintf(file, "\t");
-    SkipVFPrintf(file, left, pvar);
+    SkipVFPrintf(file, left, right);
     fprintf(file, " = ");
-    SkipVFPrintf(file, right, pvar);
+    SkipVFPrintf(file, right, right);
     fprintf(file, ";\n");
-
-    va_end(pvar);
 }

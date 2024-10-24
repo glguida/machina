@@ -184,6 +184,14 @@
 
 static const char *import_name(statement_kind_t sk);
 
+void
+yyerror(const char *s)
+{
+    error("%s", s);
+}
+
+
+
 %}
 
 %union
@@ -725,12 +733,6 @@ LookQString		:	/* empty */
 			;
 
 %%
-
-void
-yyerror(const char *s)
-{
-    error(s);
-}
 
 static const char *
 import_name(statement_kind_t sk)

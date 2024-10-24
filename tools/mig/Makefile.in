@@ -4,7 +4,7 @@ vpath %.c $(BUILDDIR) $(SRCDIR)
 vpath %.h $(BUILDDIR) $(SRCDIR)
 
 CFLAGS=-I$(SRCDIR) -I$(BUILDDIR)
-CFLAGS+=-Wno-extra-tokens -Wno-main-return-type -Wno-dangling-else -Wno-implicit-int -Wno-angbrackets
+CFLAGS+=-Wno-extra-tokens -Wno-dangling-else -Wno-implicit-int -Wno-implicit-function-declaration -Wno-endif-labels
 CFLAGS+=-I$(SRCROOT)/include
 
 MIG_SOURCES=error.c global.c header.c migcom.c routine.c server.c statement.c string.c type.c user.c utils.c
@@ -12,7 +12,7 @@ MIG_GENSOURCES=lexxer.c parser.c
 MIG_INCS=alloc.h cross64.h error.h global.h lexxer.h parser.h routine.h statement.h str.h type.h utils.h write.h
 
 lexxer.c: $(SRCDIR)/lexxer.l
-	$(LEX) -d -o $@ $<
+	$(LEX) -o $@ $<
 
 parser.h: parser.c
 
