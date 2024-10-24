@@ -54,15 +54,14 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include "global.h"
 #include "error.h"
 
-#ifndef	__386BSD__
 extern int yylineno;
 extern char *yyinname;
-#endif
 
 static const char *program;
 int errors = 0;
@@ -114,16 +113,7 @@ error(const char *format, ...)
 const char *
 unix_error_string(int error_num)
 {
-    static char buffer[256];
-    const char *error_mess;
-
-    if ((0 <= error_num) && (error_num < sys_nerr))
-	error_mess = sys_errlist[error_num];
-    else
-	error_mess = "strange errno";
-
-    sprintf(buffer, "%s (%d)", error_mess, error_num);
-    return buffer;
+  return strerror(error_num);
 }
 
 void
