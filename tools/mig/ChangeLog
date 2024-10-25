@@ -1,3 +1,7 @@
+2024-10-25  Gianluca Guida  <glguida@Z8-G4-Workstation>
+
+	* migcom: Add -32 argument to select word size to 32 bit.
+
 2024-10-24  Gianluca Guida  <glguida@Z8-G4-Workstation>
 
 	* BUG: Fixed SkipVFPrintf, incompatbile with modern va args.

@@ -92,6 +92,7 @@ extern bool BeQuiet;	/* no warning messages */
 extern bool BeVerbose;	/* summarize types, routines */
 extern bool UseMsgRPC;
 extern bool GenSymTab;
+extern bool Is32Bit;	/* generate for a 32bit word */
 
 extern bool IsKernelUser;
 extern bool IsKernelServer;

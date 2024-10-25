@@ -92,6 +92,8 @@
  *			as an external data structure -- main use is
  *			for protection system's specification of rights
  *			and for protection dispatch code.  Default is -s.
+ * 		-32	Assume word is 32-bit in generated code. Default
+ *			is 64 bit.
  *		-i <prefix>
  *			Put each user routine in its own file.  The
  *			file is named <prefix><routine-name>.c.
@@ -219,6 +221,11 @@ parseArgs(int argc, char **argv)
 		else
 		    fatal("unknown flag: '%s'", argv[0]);
 		break;
+	    case '3':
+		if (streql(argv[0], "-32"))
+		{
+		    Is32Bit = TRUE;
+		}
 	      default:
 		fatal("unknown flag: '%s'", argv[0]);
 		/*NOTREACHED*/
