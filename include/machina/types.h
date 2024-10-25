@@ -7,6 +7,8 @@
 #ifndef _MACHINA_TYPES_H_
 #define _MACHINA_TYPES_H_
 
+typedef unsigned long ulong_t;
+
 typedef unsigned long mcn_portid_t;
 #define MCN_PORTID_NULL 0
 #define MCN_PORTID_DEAD -1
@@ -29,5 +31,7 @@ typedef unsigned mcn_msgopt_t;
 #define MCN_MSGOPT_SEND_CANCEL		0x080
 #define MCN_MSGOPT_RECV_TIMEOUT		0x100
 #define MCN_MSGOPT_RECV_NOTIFY		0x200
+
+#define MCN_MSGTIMEOUT_NONE 0
 
 #endif

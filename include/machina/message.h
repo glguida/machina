@@ -29,7 +29,6 @@ typedef	struct	{
 } mcn_msgtype_long_t;
 
 typedef uint8_t mcn_msgtype_name_t;
-
 #define MCN_MSGTYPE_UNSTRUCTURED	0x00
 #define MCN_MSGTYPE_BIT			0x00
 #define MCN_MSGTYPE_BOOLEAN		0x00
@@ -44,16 +43,17 @@ typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_CSTRING		0x0c
 
 #define MCN_MSGTYPE_PORTNAME		0x0f
-#define MCN_MSGTYPE_PORTRECV		0x10
 #define MCN_MSGTYPE_MOVERECV		0x10
-#define MCN_MSGTYPE_PORTSEND		0x11
 #define MCN_MSGTYPE_MOVESEND		0x11
-#define MCN_MSGTYPE_PORTONCE		0x12
 #define MCN_MSGTYPE_MOVEONCE		0x12
 #define MCN_MSGTYPE_COPYSEND		0x13
 #define MCN_MSGTYPE_MAKESEND		0x14
 #define MCN_MSGTYPE_MAKEONCE		0x15
 #define MCN_MSGTYPE_LAST		0x17
+
+#define MCN_MSGTYPE_PORTRECV		0x10
+#define MCN_MSGTYPE_PORTONCE		0x12
+#define MCN_MSGTYPE_PORTSEND		0x11
 
 #define MCN_MSGTYPE_POLYMORPHIC		((mcn_msgtype_name_t)-1)
 
@@ -66,41 +66,77 @@ typedef uint8_t mcn_msgtype_name_t;
    ((_x) <= MCN_MSGTYPE_MAKEONCE))
 
 
-typedef uint32_t mcn_msgflag_t;
-#define MCN_MSGFLAG_NONE	0x00000
-#define MCN_MSGFLAG_REMOTE_MASK	0x0000f
-#define MCN_MSGFLAG_LOCAL_MASK	0x000f0
-#define MCN_MSGFLAG_COMPLEX	0x80000
+typedef uint32_t mcn_msgbits_t;
+#define MCN_MSGBITS_NONE	0x00000
+#define MCN_MSGBITS_REMOTE_MASK	0x000ff
+#define MCN_MSGBITS_LOCAL_MASK	0x0ff00
+#define MCN_MSGBITS_COMPLEX	0x80000
 
-#define MCN_MSGFLAG_LOCAL_NONE		0x00
-#define MCN_MSGFLAG_LOCAL_MOVERECV	0x10
-#define MCN_MSGFLAG_LOCAL_MOVESEND	0x20
-#define MCN_MSGFLAG_LOCAL_MOVEONCE	0x30
-#define MCN_MSGFLAG_LOCAL_COPYSEND	0x40
-#define MCN_MSGFLAG_LOCAL_MAKESEND	0x50
-#define MCN_MSGFLAG_LOCAL_MAKEONCE	0x60
-
-#define MCN_MSGFLAG_REMOTE_NONE		0x00
-#define MCN_MSGFLAG_REMOTE_MOVERECV	0x01
-#define MCN_MSGFLAG_REMOTE_MOVESEND	0x02
-#define MCN_MSGFLAG_REMOTE_MOVEONCE	0x03
-#define MCN_MSGFLAG_REMOTE_COPYSEND	0x04
-#define MCN_MSGFLAG_REMOTE_MAKESEND	0x05
-#define MCN_MSGFLAG_REMOTE_MAKEONCE	0x06
-
-#define MCN_MSGFLAG_REMOTE(_b) ((_b) & MCN_MSGFLAG_REMOTE_MASK)
-#define MCN_MSGFLAG_LOCAL(_b) ((_b) & MCN_MSGFLAG_LOCAL_MASK)
+#define MCN_MSGBITS_REMOTE(_b) ((_b) & MCN_MSGBITS_REMOTE_MASK)
+#define MCN_MSGBITS_LOCAL(_b) (((_b) & MCN_MSGBITS_LOCAL_MASK) >> 8)
+#define MCN_MSGBITS(_remote,_local) ((_remote)|((_local) << 8))
 
 typedef uint32_t mcn_msgsize_t;
 
 typedef unsigned long mcn_msgid_t;
 
-struct mcn_msgsend {
-  mcn_msgflag_t msgs_flag;
+typedef unsigned long mcn_seqno_t;
+
+typedef mcn_return_t mcn_msgioret_t;
+#define MSGIO_SUCCESS  0x00000000
+
+#define MSGIO_MSG_MASK   0x00003c00
+#define MSGIO_MSG_IPC_SPACE  0x00002000
+#define MSGIO_MSG_VM_SPACE  0x00001000
+#define MSGIO_MSG_IPC_KERNEL  0x00000800
+#define MSGIO_MSG_VM_KERNEL  0x00000400
+
+#define MSGIO_SEND_IN_PROGRESS  0x10000001
+#define MSGIO_SEND_INVALID_DATA  0x10000002
+#define MSGIO_SEND_INVALID_DEST  0x10000003
+#define MSGIO_SEND_TIMED_OUT  0x10000004
+#define MSGIO_SEND_WILL_NOTIFY  0x10000005
+#define MSGIO_SEND_NOTIFY_IN_PROGRESS 0x10000006
+#define MSGIO_SEND_INTERRUPTED  0x10000007
+#define MSGIO_SEND_MSG_TOO_SMALL  0x10000008
+#define MSGIO_SEND_INVALID_REPLY  0x10000009
+#define MSGIO_SEND_INVALID_RIGHT  0x1000000a
+#define MSGIO_SEND_INVALID_NOTIFY 0x1000000b
+#define MSGIO_SEND_INVALID_MEMORY 0x1000000c
+#define MSGIO_SEND_NO_BUFFER  0x1000000d
+#define MSGIO_SEND_NO_NOTIFY  0x1000000e
+#define MSGIO_SEND_INVALID_TYPE  0x1000000f
+#define MSGIO_SEND_INVALID_HEADER 0x10000010
+
+#define MSGIO_RCV_IN_PROGRESS  0x10004001
+#define MSGIO_RCV_INVALID_NAME  0x10004002
+#define MSGIO_RCV_TIMED_OUT  0x10004003
+#define MSGIO_RCV_TOO_LARGE  0x10004004
+#define MSGIO_RCV_INTERRUPTED  0x10004005
+#define MSGIO_RCV_PORT_CHANGED  0x10004006
+#define MSGIO_RCV_INVALID_NOTIFY  0x10004007
+#define MSGIO_RCV_INVALID_DATA  0x10004008
+#define MSGIO_RCV_PORT_DIED  0x10004009
+#define MSGIO_RCV_IN_SET   0x1000400a
+#define MSGIO_RCV_HEADER_ERROR  0x1000400b
+#define MSGIO_RCV_BODY_ERROR  0x1000400c
+
+
+typedef struct mcn_msgsend {
+  mcn_msgbits_t msgs_bits;
   mcn_msgsize_t msgs_size;
   mcn_portid_t msgs_remote;
   mcn_portid_t msgs_local;
   mcn_msgid_t msgs_msgid;
-};
+} mcn_msgsend_t;
+
+typedef struct mcn_msgrecv {
+  mcn_msgbits_t msgr_bits;
+  mcn_msgsize_t msgr_size;
+  mcn_portid_t msgr_remote;
+  mcn_portid_t msgr_local;
+  mcn_seqno_t msgr_seqno;
+  mcn_msgid_t msgr_msgid;
+} mcn_msgrecv_t;
 
 #endif
