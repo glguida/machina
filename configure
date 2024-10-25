@@ -615,6 +615,8 @@ PACKAGE_URL=''
 enable_option_checking=no
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+MIGCOM
+MIG
 APXH_SUBDIRS
 CONFIGURE_FLAGS
 MACHINE
@@ -4088,6 +4090,10 @@ APXH_SUBDIRS=${apxh_subdirs}
 
 ac_config_files="$ac_config_files tools/mig/mig:tools/mig/mig.in"
 
+MIG='$(BUILDROOT)/tools/mig/mig'
+
+MIGCOM='$(BUILDROOT)/tools/mig/migcom'
+
 
 
 
@@ -4101,6 +4107,15 @@ ac_config_files="$ac_config_files tools/mig/mig:tools/mig/mig.in"
 
 
 	ac_config_files="$ac_config_files tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkstest/kern/Makefile:${mk_dir}/top.mk:tests/libkstest/kern/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files tests/test/Makefile:${mk_dir}/top.mk:tests/test/Makefile.in:${mk_dir}/bottom.mk"
@@ -4828,6 +4843,9 @@ do
     "libmachina/Makefile") CONFIG_FILES="$CONFIG_FILES libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk" ;;
     "kern/Makefile") CONFIG_FILES="$CONFIG_FILES kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkstest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkstest/user/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkstest/kern/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/kern/Makefile:${mk_dir}/top.mk:tests/libkstest/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/test/Makefile") CONFIG_FILES="$CONFIG_FILES tests/test/Makefile:${mk_dir}/top.mk:tests/test/Makefile.in:${mk_dir}/bottom.mk" ;;
     "bootstrap/Makefile") CONFIG_FILES="$CONFIG_FILES bootstrap/Makefile:${mk_dir}/top.mk:bootstrap/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tools/mig/Makefile") CONFIG_FILES="$CONFIG_FILES tools/mig/Makefile:${mk_dir}/top.mk:tools/mig/Makefile.in:${mk_dir}/bottom.mk" ;;

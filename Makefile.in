@@ -1,4 +1,4 @@
-SUBDIRS= nux libmachina kern bootstrap tests
+SUBDIRS= tools/mig nux libmachina kern bootstrap tests
 
 NUX_DIR=@NUXBUILDROOT@
 APXH_DIR=$(NUX_DIR)/apxh
@@ -22,6 +22,8 @@ QEMU_CMD=qemu-system-i386
 endif
 
 bootstrap: libmachina
+
+tests: tools/mig
 
 tests kern bootstrap: nux
 

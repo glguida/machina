@@ -72,12 +72,17 @@ AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(
 AC_SUBST(APXH_SUBDIRS, [${apxh_subdirs}])
 
 AC_CONFIG_FILES([tools/mig/mig:tools/mig/mig.in], [chmod +x tools/mig/mig])
+AC_SUBST(MIG, '$(BUILDROOT)/tools/mig/mig')
+AC_SUBST(MIGCOM, '$(BUILDROOT)/tools/mig/migcom')
 
 AC_MK_CONFIG_FILES([
 	Makefile
 	libmachina/Makefile
 	kern/Makefile
 	tests/Makefile
+	tests/libkstest/Makefile
+	tests/libkstest/user/Makefile
+	tests/libkstest/kern/Makefile
 	tests/test/Makefile
 	bootstrap/Makefile
 	tools/mig/Makefile

@@ -130,7 +130,6 @@ void unshare_kva(struct umap *umap, uaddr_t uaddr, size_t size);
 */
 #define REF_GET(_r) ((_r).obj)
 
-
 struct portref {
   struct port *obj;
 };
@@ -232,26 +231,6 @@ struct port {
 void port_init(void);
 struct portref port_alloc_kernel(fn_msgsend_t send, void *ctx);
 
-static inline mcn_return_t
-port_send(struct portref portref, mcn_msgid_t id, void *data, size_t size, struct portref reply)
-{
-  mcn_return_t rc;
-  struct port *p  = REF_GET(portref);
-
-  /* XXX: TMP */assert(p->type == PORT_KERNEL);
-  switch (p->type)
-    {
-    case PORT_KERNEL:
-      printf("msgsend is %p\n", p->kernel.msgsend);
-      rc = p->kernel.msgsend(p->kernel.ctx, id, data, size, reply);
-      break;
-    case PORT_MESSAGE:
-      fatal ("Unsupported type");
-    }
-
-  return rc;
-}
-
 /*
   Send Rights.
 
@@ -277,6 +256,14 @@ static inline void
 sendright_destroy(struct sendright *sr)
 {
   /* XXX: DELETE IF */REF_DESTROY(sr->portref);
+}
+
+static inline struct port *
+sendright_consume(struct sendright *sr)
+{
+  struct port *p = REF_GET(sr->portref);
+  /* XXX: DELETE IF */REF_DESTROY(sr->portref);
+  return p;
 }
 
 

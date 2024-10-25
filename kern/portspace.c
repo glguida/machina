@@ -95,7 +95,7 @@ portspace_movesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
 
   pr = rb_tree_find_node(&ps->rb_tree, &id);
   if (pr == NULL)
-    return KERN_NOT_FOUND;
+    return KERN_INVALID_NAME;
 
   switch (pr->type)
     {
@@ -105,7 +105,7 @@ portspace_movesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
       sr->portref = REF_MOVE(pr->send.portref);
       break;
     default:
-      return KERN_PORT_INVALID;
+      return KERN_INVALID_CAPABILITY;
     }
 
   return KERN_SUCCESS;
@@ -119,7 +119,7 @@ portspace_copysend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
   pr = rb_tree_find_node(&ps->rb_tree, &id);
   printf("ps: %p id: %ld pr = %p", &ps->rb_tree, id, pr);
   if (pr == NULL)
-    return KERN_NOT_FOUND;
+    return KERN_INVALID_NAME;
 
   switch (pr->type)
     {
@@ -128,7 +128,7 @@ portspace_copysend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
       sr->portref = REF_DUP(pr->send.portref);
       break;
     default:
-      return KERN_PORT_INVALID;
+      return KERN_INVALID_CAPABILITY;
     }
 
   return KERN_SUCCESS;
@@ -141,7 +141,7 @@ portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
 
   pr = rb_tree_find_node(&ps->rb_tree, &id);
   if (pr == NULL)
-    return KERN_NOT_FOUND;
+    return KERN_INVALID_NAME;
 
   switch (pr->type)
     {
@@ -153,7 +153,7 @@ portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
       break;
 
     default:
-      return KERN_PORT_INVALID;
+      return KERN_INVALID_CAPABILITY;
     }
 
   return KERN_SUCCESS;
@@ -166,7 +166,7 @@ portspace_makesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
 
   pr = rb_tree_find_node(&ps->rb_tree, &id);
   if (pr == NULL)
-    return KERN_NOT_FOUND;
+    return KERN_INVALID_NAME;
 
   switch (pr->type)
     {
@@ -176,7 +176,7 @@ portspace_makesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
       break;
 
     default:
-      return KERN_PORT_INVALID;
+      return KERN_INVALID_CAPABILITY;
     }
 
   return KERN_SUCCESS;
@@ -189,7 +189,7 @@ portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
 
   pr = rb_tree_find_node(&ps->rb_tree, &id);
   if (pr == NULL)
-    return KERN_NOT_FOUND;
+    return KERN_INVALID_NAME;
 
   switch (pr->type)
     {
@@ -199,7 +199,7 @@ portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr)
       break;
 
     default:
-      return KERN_PORT_INVALID;
+      return KERN_INVALID_CAPABILITY;
     }
 
   return KERN_SUCCESS;
@@ -225,15 +225,14 @@ portspace_addsendright(struct portspace *ps, mcn_portid_t id, struct sendright *
     pr->once.portref = REF_MOVE(sr->portref);
     break;
   default:
-    fatal ("Wrong SENDTYPE.");
+    return KERN_INVALID_RIGHT;
   }
 
-  printf("Inserting in tree %p node at %ld", &ps->rb_tree, pr->id);
   tmp = rb_tree_insert_node(&ps->rb_tree, pr);
   if (tmp != pr)
     {
       slab_free(pr);
-      rc = KERN_PORTID_BUSY;
+      rc = KERN_RIGHT_EXISTS;
     }
   else
     rc = KERN_SUCCESS;

@@ -1,0 +1,45 @@
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
+#ifndef _MACHINA_STD_TYPES_H_
+#define _MACHINA_STD_TYPES_H_
+
+#if MCN_MACHINE==amd64
+#include "std_types_amd64.defs"
+#endif
+
+type boolean_t = MCN_MSGTYPE_BOOLEAN;
+type kern_return_t = int;
+type pointer_t = ulong;
+
+type mcn_port_t = MCN_MSGTYPE_COPYSEND
+     ctype : mcn_portid_t;
+
+type mcn_port_moverecv_t = MCN_MSGTYPE_MOVERECV
+     ctype : mcn_portid_t;
+type mcn_port_movesend_t = MCN_MSGTYPE_MOVESEND
+     ctype : mcn_portid_t;
+type mcn_port_moveonce_t = MCN_MSGTYPE_MOVEONCE
+     ctype : mcn_portid_t;
+type mcn_port_copysend_t = MCN_MSGTYPE_COPYSEND
+     ctype : mcn_portid_t;
+type mcn_port_makesend_t = MCN_MSGTYPE_MAKESEND
+     ctype : mcn_portid_t;
+type mcn_port_makeonce_t = MCN_MSGTYPE_MAKEONCE
+     ctype : mcn_portid_t;
+
+type mcn_port_recv_t = MCN_MSGTYPE_PORTRECV
+     ctype : mcn_portid_t;
+type mcn_port_send_t = MCN_MSGTYPE_PORTSEND
+     ctype : mcn_portid_t;
+type mcn_port_once_t = MCN_MSGTYPE_PORTONCE
+     ctype : mcn_portid_t;
+
+type mcn_port_poly_t = polymorphic
+     ctype : mcn_portid_t;
+
+
+#endif

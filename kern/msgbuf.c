@@ -148,7 +148,7 @@ msgbuf_alloc(struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb)
       zone_free(z, uidx, 1);
       return false;
     }
-  if (kmap_ensure_range(kaddr, MSGBUF_SIZE, HAL_PTE_P))
+  if (kmap_ensure_range(kaddr, MSGBUF_SIZE, HAL_PTE_W|HAL_PTE_P))
     {
       kva_free(kaddr, MSGBUF_SIZE);
       zone_free(z, uidx, 1);

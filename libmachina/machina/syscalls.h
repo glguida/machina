@@ -9,6 +9,8 @@
 
 #include <machina/types.h>
 
+extern void *__local_msgbuf; /* GIANLUCA: MAKE THIS PER THREAD */
+
 void *syscall_msgbuf(void);
 
 mcn_return_t syscall_msgio(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);

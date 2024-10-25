@@ -3,6 +3,7 @@
 #include <machina/message.h>
 #include <machina/syscalls.h>
 
+#include <ks.h>
 
 void
 putchar (int c)
@@ -47,17 +48,32 @@ main (void)
   test();
 
   printf("msgbuf: %p", syscall_msgbuf());
-  volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
 
-  msgh->msgs_flag = MCN_MSGFLAG_REMOTE_COPYSEND;
+  {
+  volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
+  msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
   msgh->msgs_size = 0;
   msgh->msgs_remote = 1;
   msgh->msgs_local = MCN_PORTID_NULL;
   msgh->msgs_msgid = 101;
   asm volatile ("" ::: "memory");
-
   printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
+  }
+
+    {
+  volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
+  msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
+  msgh->msgs_size = 0;
+  msgh->msgs_remote = 1;
+  msgh->msgs_local = MCN_PORTID_NULL;
+  msgh->msgs_msgid = 101;
+  asm volatile ("" ::: "memory");
+  printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
+  }
+
   
+
+  printf("Calling simple! %d\n", simple(1));
 
   return 42;
 }

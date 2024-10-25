@@ -14,18 +14,18 @@
 #include <stdio.h>
 
 /* XXX: Make this per-thread. */
-static void *__sys_msgbuf = NULL;
+void *__local_msgbuf = NULL;
 
 void __attribute__((constructor (0))) __machina_sysinit (void)
 {
-  __sys_msgbuf = (void *)syscall0(__syscall_msgbuf);
-  printf("constructor! %p\n", __sys_msgbuf);
+  __local_msgbuf = (void *)syscall0(__syscall_msgbuf);
+  printf("constructor! %p\n", __local_msgbuf);
 }
 
 void *
 syscall_msgbuf(void)
 {
-  return __sys_msgbuf;
+  return __local_msgbuf;
 }
 
 mcn_return_t
@@ -41,6 +41,6 @@ syscall_mach_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_
 
   r = syscall2(__syscall_mach_port_allocate, task, right);
   if (r == KERN_SUCCESS)
-    *name = *(mcn_portid_t *)__sys_msgbuf;
+    *name = *(mcn_portid_t *)__local_msgbuf;
   return r;
 }

@@ -12,6 +12,12 @@ ifeq ($(HAL_MACHINE),riscv64)
 ARCH_DIR=riscv64
 endif
 
+# Add libkstest
+CFLAGS+=-I$(BUILDROOT)/tests/libkstest/user -I$(SRCROOT)/tests/libkstest/user
+LDFLAGS+=-L$(BUILDROOT)/tests/libkstest/user/$(OBJDIR)
+LDADD+=-lks_user
+LIBDEPS+=$(BUILDROOT)/tests/libkstest/user/$(OBJDIR)/libks_user.a
+
 NOINST=y
 PROGRAM=test
 

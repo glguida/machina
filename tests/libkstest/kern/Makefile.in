@@ -1,0 +1,6 @@
+LIBRARY=ks_kern
+SRCS+= ks.c
+
+@COMPILE_LIBEC@
+@COMPILE_LIBNUX@
+

@@ -46,18 +46,5 @@ main (void)
 
   test();
 
-  printf("msgbuf: %p", syscall_msgbuf());
-  volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
-
-  msgh->msgs_flag = MCN_MSGFLAG_REMOTE_COPYSEND;
-  msgh->msgs_size = 0;
-  msgh->msgs_remote = 1;
-  msgh->msgs_local = MCN_PORTID_NULL;
-  msgh->msgs_msgid = 101;
-  asm volatile ("" ::: "memory");
-
-  printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
-  
-
   return 42;
 }
