@@ -214,14 +214,15 @@
 static void
 WriteIncludes(FILE *file)
 {
-    fprintf(file, "#define EXPORT_BOOLEAN\n");
-    fprintf(file, "#include <mach/boolean.h>\n");
-    fprintf(file, "#include <mach/kern_return.h>\n");
-    fprintf(file, "#include <mach/message.h>\n");
-    fprintf(file, "#include <mach/mig_errors.h>\n");
-    fprintf(file, "#include <mach/mig_support.h>\n");
+
+    fprintf(file, "#include <stdbool.h>\n");
+    fprintf(file, "#include <machina/types.h>\n");
+    fprintf(file, "#include <machina/message.h>\n");
+    fprintf(file, "#include <machina/mig_errors.h>\n");
+    /*
     if (IsKernelServer)
-	fprintf(file, "#include <ipc/ipc_port.h>\n");
+        fprintf(file, "#include <ipc/ipc_port.h>\n");
+    */
     fprintf(file, "\n");
 }
 
@@ -231,26 +232,37 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_server"), RCSId);
 
+    if (IsKernelServer)
+      {
+	fprintf(file, "struct port;\n");
+	fprintf(file, "typedef void (*mig_routine_t)(struct port *port, mcn_msgsend_t *, mcn_msgrecv_t *);\n");
+      }
+    else
+      {
+	fprintf(file, "typedef void (*mig_routine_t)(mcn_msgsend_t *, mcn_msgrecv_t *);\n");
+      }
+    fprintf(file, "\n");
+
     /* Used for locations in the request message, *not* reply message.
        Reply message locations aren't dependent on IsKernelServer. */
 
     if (IsKernelServer)
     {
-	fprintf(file, "#define msgh_request_port\tmsgh_remote_port\n");
+	fprintf(file, "#define msgh_request_port\tmsgs_remote\n");
 	fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-	fprintf(file, "\tMACH_MSGH_BITS_REMOTE(bits)\n");
-	fprintf(file, "#define msgh_reply_port\t\tmsgh_local_port\n");
+	fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgs_local\n");
 	fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-	fprintf(file, "\tMACH_MSGH_BITS_LOCAL(bits)\n");
+	fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
     }
     else
     {
-	fprintf(file, "#define msgh_request_port\tmsgh_local_port\n");
+	fprintf(file, "#define msgh_request_port\tmsgs_local\n");
 	fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-	fprintf(file, "\tMACH_MSGH_BITS_LOCAL(bits)\n");
-	fprintf(file, "#define msgh_reply_port\t\tmsgh_remote_port\n");
+	fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgs_remote\n");
 	fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-	fprintf(file, "\tMACH_MSGH_BITS_REMOTE(bits)\n");
+	fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
     }
     fprintf(file, "\n");
 }
@@ -326,13 +338,16 @@ WriteEpilog(FILE *file, const statement_t *stats)
      /*
       * Then, the server routine
       */
-    fprintf(file, "mig_external boolean_t %s\n", ServerDemux);
-    fprintf(file, "\t(mach_msg_header_t *InHeadP, mach_msg_header_t *OutHeadP)\n");
+    fprintf(file, "mig_external bool %s\n", ServerDemux);
+    if (IsKernelServer)
+      fprintf(file, "\t(struct port *SendPort, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+    else
+      fprintf(file, "\t(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
-    fprintf(file, "\tregister mach_msg_header_t *InP =  InHeadP;\n");
+    fprintf(file, "\tmcn_msgsend_t *InP =  InHeadP;\n");
 
-    fprintf(file, "\tregister mig_reply_header_t *OutP = (mig_reply_header_t *) OutHeadP;\n");
+    fprintf(file, "\tmig_reply_header_t *OutP = (mig_reply_header_t *) OutHeadP;\n");
 
     fprintf(file, "\n");
 
@@ -344,30 +359,33 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "\tregister mig_routine_t routine;\n");
     fprintf(file, "\n");
 
-    fprintf(file, "\tOutP->Head.msgh_bits = ");
-    fprintf(file, "MACH_MSGH_BITS(MACH_MSGH_BITS_REPLY(InP->msgh_bits), 0);\n");
-    fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
-    fprintf(file, "\tOutP->Head.msgh_remote_port = InP->msgh_reply_port;\n");
-    fprintf(file, "\tOutP->Head.msgh_local_port = MACH_PORT_NULL;\n");
-    fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
-    fprintf(file, "\tOutP->Head.msgh_id = InP->msgh_id + 100;\n");
+    fprintf(file, "\tOutP->Head.msgr_bits = ");
+    fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgs_bits), 0);\n");
+    fprintf(file, "\tOutP->Head.msgr_size = sizeof *OutP;\n");
+    fprintf(file, "\tOutP->Head.msgr_remote = InP->msgh_reply_port;\n");
+    fprintf(file, "\tOutP->Head.msgr_local = MCN_PORTID_NULL;\n");
+    fprintf(file, "\tOutP->Head.msgr_seqno = 0;\n");
+    fprintf(file, "\tOutP->Head.msgr_msgid = InP->msgs_msgid + 100;\n");
     fprintf(file, "\n");
     WritePackMsgType(file, itRetCodeType,
 		     itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
 		     !IsKernelServer, "OutP->RetCodeType", "RetCodeType");
     fprintf(file, "\n");
 
-    fprintf(file, "\tif ((InP->msgh_id > %d) || (InP->msgh_id < %d) ||\n",
+    fprintf(file, "\tif ((InP->msgs_msgid > %d) || (InP->msgs_msgid < %d) ||\n",
 	    SubsystemBase + rtNumber - 1, SubsystemBase);
-    fprintf(file, "\t    ((routine = %s_routines[InP->msgh_id - %d]) == 0)) {\n",
+    fprintf(file, "\t    ((routine = %s_routines[InP->msgs_msgid - %d]) == 0)) {\n",
 	    ServerDemux, SubsystemBase);
     fprintf(file, "\t\tOutP->RetCode = MIG_BAD_ID;\n");
-    fprintf(file, "\t\treturn FALSE;\n");
+    fprintf(file, "\t\treturn false;\n");
     fprintf(file, "\t}\n");
 
     /* Call appropriate routine */
-    fprintf(file, "\t(*routine) (InP, &OutP->Head);\n");
-    fprintf(file, "\treturn TRUE;\n");
+    if (IsKernelServer)
+      fprintf(file, "\t(*routine) (SendPort, InP, &OutP->Head);\n");
+    else
+      fprintf(file, "\t(*routine) (InP, &OutP->Head);\n");
+    fprintf(file, "\treturn true;\n");
     fprintf(file, "}\n");
     fprintf(file, "\n");
 
@@ -375,12 +393,12 @@ WriteEpilog(FILE *file, const statement_t *stats)
      * Then, the <subsystem>_server_routine routine
      */
     fprintf(file, "mig_external mig_routine_t %s_routine\n", ServerDemux);
-    fprintf(file, "\t(const mach_msg_header_t *InHeadP)\n");
+    fprintf(file, "\t(const mcn_msgsend_t *InHeadP)\n");
 
     fprintf(file, "{\n");
     fprintf(file, "\tregister int msgh_id;\n");
     fprintf(file, "\n");
-    fprintf(file, "\tmsgh_id = InHeadP->msgh_id - %d;\n", SubsystemBase);
+    fprintf(file, "\tmsgh_id = InHeadP->msgs_msgid - %d;\n", SubsystemBase);
     fprintf(file, "\n");
     fprintf(file, "\tif ((msgh_id > %d) || (msgh_id < 0))\n",
 	    rtNumber - 1);
@@ -471,11 +489,11 @@ WriteVarDecls(FILE *file, const routine_t *rt)
     fprintf(file, "\n");
 
     if (!rt->rtSimpleFixedReply)
-	fprintf(file, "\tboolean_t msgh_simple;\n");
+	fprintf(file, "\tbool msgh_simple;\n");
     else if (!rt->rtSimpleCheckRequest)
     {
 	fprintf(file, "#if\tTypeCheck\n");
-	fprintf(file, "\tboolean_t msgh_simple;\n");
+	fprintf(file, "\tbool msgh_simple;\n");
 	fprintf(file, "#endif\t/* TypeCheck */\n");
 	fprintf(file, "\n");
     }
@@ -520,7 +538,7 @@ WriteReplyInit(FILE *file, const routine_t *rt)
 	    printed_nl = TRUE;
 	    fprintf(file, "\n");
 	    fprintf(file,
-		"\tOutP->Head.msgh_bits |= MACH_MSGH_BITS_COMPLEX;\n");
+		"\tOutP->Head.msgr_bits |= MCN_MSGBITS_COMPLEX;\n");
 	}
     }
     else
@@ -535,7 +553,7 @@ WriteReplyInit(FILE *file, const routine_t *rt)
     {
 	if (!printed_nl)
 	    fprintf(file, "\n");
-	fprintf(file, "\tOutP->Head.msgh_size = %d;\n", rt->rtReplySize);
+	fprintf(file, "\tOutP->Head.msgr_size = %d;\n", rt->rtReplySize);
     }
 }
 
@@ -554,10 +572,10 @@ WriteReplyHead(FILE *file, const routine_t *rt)
     {
 	fprintf(file, "\tif (!msgh_simple)\n");
 	fprintf(file,
-		"\t\tOutP->Head.msgh_bits |= MACH_MSGH_BITS_COMPLEX;\n");
+		"\t\tOutP->Head.msgr_bits |= MCN_MSGBITS_COMPLEX;\n");
     }
     if (rt->rtNumReplyVar > 1)
-	fprintf(file, "\tOutP->Head.msgh_size = msgh_size;\n");
+	fprintf(file, "\tOutP->Head.msgr_size = msgh_size;\n");
 }
 
 static void
@@ -565,19 +583,19 @@ WriteCheckHead(FILE *file, const routine_t *rt)
 {
     fprintf(file, "#if\tTypeCheck\n");
     if (rt->rtNumRequestVar > 0)
-	fprintf(file, "\tmsgh_size = In0P->Head.msgh_size;\n");
+	fprintf(file, "\tmsgh_size = In0P->Head.msgs_size;\n");
     if (!rt->rtSimpleCheckRequest)
-	fprintf(file, "\tmsgh_simple = !(In0P->Head.msgh_bits & MACH_MSGH_BITS_COMPLEX);\n");
+	fprintf(file, "\tmsgh_simple = !(In0P->Head.msgs_bits & MCN_MSGBITS_COMPLEX);\n");
 
     if (rt->rtNumRequestVar > 0)
 	fprintf(file, "\tif ((msgh_size < %d)",
 		rt->rtRequestSize);
     else
-	fprintf(file, "\tif ((In0P->Head.msgh_size != %d)",
+	fprintf(file, "\tif ((In0P->Head.msgs_size != %d)",
 		rt->rtRequestSize);
 
     if (rt->rtSimpleCheckRequest)
-	fprintf(file, " ||\n\t    %s(In0P->Head.msgh_bits & MACH_MSGH_BITS_COMPLEX)",
+	fprintf(file, " ||\n\t    %s(In0P->Head.msgs_bits & MCN_MSGBITS_COMPLEX)",
 		rt->rtSimpleReceiveRequest ? "" : "!");
     fprintf(file, ")\n");
     WriteMsgError(file, "MIG_BAD_ARGUMENTS");
@@ -599,12 +617,12 @@ WriteTypeCheck(FILE *file, register const argument_t *arg)
     {
 	fprintf(file, "\tif (");
 	if (!it->itIndefinite) {
-	    fprintf(file, "(((mach_msg_type_t*)&In%dP->%s%s)->msgt_inline != %s) ||\n\t    ",
+	    fprintf(file, "(((mcn_msgtype_t*)&In%dP->%s%s)->msgt_inline != %s) ||\n\t    ",
 		arg->argRequestPos, arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "",
-		strbool(it->itInLine));
-	}
-	fprintf(file, "(((mach_msg_type_t*)&In%dP->%s%s)->msgt_longform != %s) ||\n",
+		strbool(it->itInLine));	}
+
+	fprintf(file, "(((mcn_msg_ype_t*)&In%dP->%s%s)->msgt_longform != %s) ||\n",
 		arg->argRequestPos, arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "",
 		strbool(arg->argLongForm));
@@ -612,27 +630,27 @@ WriteTypeCheck(FILE *file, register const argument_t *arg)
 	{
 	    if (!rt->rtSimpleCheckRequest)
 		fprintf(file, "\t    (MCN_MSGTYPE_PORT_ANY(%sIn%dP->%s%smsgt%s_name) && msgh_simple) ||\n",
-			arg->argLongForm ? "" : "((mach_msg_type_t*)&",
+			arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 			arg->argRequestPos, arg->argTTName,
 			arg->argLongForm ? "." : ")->",
 			arg->argLongForm ? "l" : "");
 	}
 	else
 	    fprintf(file, "\t    (%sIn%dP->%s%smsgt%s_name != %s) ||\n",
-		    arg->argLongForm ? "" : "((mach_msg_type_t*)&",
+		    arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 		    arg->argRequestPos, arg->argTTName,
 		    arg->argLongForm ? "." : ")->",
 		    arg->argLongForm ? "l" : "",
 		    it->itOutNameStr);
 	if (!it->itVarArray)
 	    fprintf(file, "\t    (%sIn%dP->%s%smsgt%s_number != %d) ||\n",
-		    arg->argLongForm ? "" : "((mach_msg_type_t*)&",
+		    arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 		    arg->argRequestPos, arg->argTTName,
 		    arg->argLongForm ? "." : ")->",
 		    arg->argLongForm ? "l" : "",
 		    it->itNumber);
 	fprintf(file, "\t    (%sIn%dP->%s%smsgt%s_size != %d))\n",
-		arg->argLongForm ? "" : "((mach_msg_type_t*)&",
+		arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 		arg->argRequestPos, arg->argTTName,
 		arg->argLongForm ? "." : ")->",
 		arg->argLongForm ? "l" : "",
@@ -651,7 +669,7 @@ WriteMsgFieldRef(
     const_string_t	fldname)
 {
     if (arg->argSuffix && !arg->argParent->argLongForm)
-	fprintf(file, "((mach_msg_type_t*)&%s%s)->%s",
+	fprintf(file, "((mcn_msgtype_t*)&%s%s)->%s",
 		fmt, fldname, arg->argSuffix);
     else
 	fprintf(file, "%s%s", fmt, arg->argMsgField);
@@ -669,7 +687,7 @@ WriteCheckArgSize(FILE *file, register const argument_t *arg)
 	/*
 	 * Check descriptor.  If out-of-line, use standard size.
 	 */
-	fprintf(file, "(((mach_msg_type_t*)&In%dP->%s%s)->msgt_inline) ? ",
+	fprintf(file, "(((mcn_msgtype_t*)&In%dP->%s%s)->msgt_inline) ? ",
 		arg->argRequestPos,
 		arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "");
@@ -682,7 +700,7 @@ WriteCheckArgSize(FILE *file, register const argument_t *arg)
 	fprintf(file, "%d * ", multiplier);
 
     if (count->argSuffix && !arg->argLongForm)
-	fprintf(file, "(((mach_msg_type_t*)&(In%dP->%s))->%s)",
+	fprintf(file, "(((mcn_msgtype_t*)&(In%dP->%s))->%s)",
 		arg->argRequestPos, /*yech!*/arg->argTTName, count->argSuffix);
     else
 	fprintf(file, "In%dP->%s", arg->argRequestPos, count->argMsgField);
@@ -766,13 +784,14 @@ InArgMsgField(register const argument_t *arg)
      *	Hence we must cast the values.
      */
 
-    if (IsKernelServer &&
+    /*    if (IsKernelServer &&
 	((akIdent(arg->argKind) == akeRequestPort) ||
 	 (akIdent(arg->argKind) == akeReplyPort)))
 	sprintf(buffer, "(ipc_port_t) In%dP->%s",
 		arg->argRequestPos, arg->argMsgField);
-    else if (arg->argSuffix && !arg->argParent->argLongForm)
-	sprintf(buffer, "((mach_msg_type_t*)&(In%dP->%s))->%s",
+		else */
+    if (arg->argSuffix && !arg->argParent->argLongForm)
+	sprintf(buffer, "((mcn_msgtype_t*)&(In%dP->%s))->%s",
 		arg->argRequestPos, arg->argParent->argTTName, arg->argSuffix);
     else
 	sprintf(buffer, "In%dP->%s",
@@ -936,7 +955,7 @@ WriteServerCallArg(FILE *file, register const argument_t *arg)
 	fprintf(file, "%s", arg->argVarName);
     else if (akCheck(arg->argKind, akbSendRcv)) {
 	if (akCheck(arg->argKind, akbIndefinite)) {
-	    fprintf(file, "(((mach_msg_type_t*)&In%dP->%s%s)->msgt_inline) ",
+	    fprintf(file, "(((mcn_msgtype_t*)&In%dP->%s%s)->msgt_inline) ",
 		    arg->argRequestPos,
 		    arg->argTTName,
 		    arg->argLongForm ? ".msgtl_header" : "");
@@ -971,7 +990,7 @@ WriteDestroyArg(FILE *file, register const argument_t *arg)
 	ipc_type_t *btype = it->itElement;
 	int	multiplier = btype->itTypeSize / btype->itNumber;
 
-	fprintf(file, "\tif (!((mach_msg_type_t*)&In%dP->%s%s)->msgt_inline)\n",
+	fprintf(file, "\tif (!((mcn_msgtype_t*)&In%dP->%s%s)->msgt_inline)\n",
 		arg->argRequestPos,
 		arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "");
@@ -1075,8 +1094,6 @@ WriteCheckReturnValue(FILE *file, register const routine_t *rt)
 static void
 WritePackArgType(FILE *file, register const argument_t *arg)
 {
-    fprintf(file, "\n");
-
     WritePackMsgType(file, arg->argType,
 		     arg->argType->itIndefinite ? d_NO : arg->argDeallocate,
 		     arg->argLongForm, !IsKernelServer,
@@ -1119,15 +1136,15 @@ WritePackArgValue(FILE *file, register const argument_t *arg)
 		fprintf(file, "\tif (%sP != %s) {\n",
 			arg->argVarName,
 			arg->argVarName);
-		fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_inline = FALSE;\n",
+		fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_inline = false;\n",
 			arg->argTTName,
 			arg->argLongForm ? ".msgtl_header" : "");
 		if (arg->argDeallocate == d_YES)
-		    fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_deallocate = TRUE;\n",
+		    fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_deallocate = true;\n",
 			    arg->argTTName,
 			    arg->argLongForm ? ".msgtl_header" : "");
 		else if (arg->argDeallocate == d_MAYBE)
-		    fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_deallocate = %s;\n",
+		    fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_deallocate = %s;\n",
 			    arg->argTTName,
 			    arg->argLongForm ? ".msgtl_header" : "",
 			    arg->argDealloc->argVarName);
@@ -1136,7 +1153,7 @@ WritePackArgValue(FILE *file, register const argument_t *arg)
 			arg->argMsgField,
 			arg->argVarName);
 		if (!arg->argRoutine->rtSimpleFixedReply)
-		    fprintf(file, "\t\tmsgh_simple = FALSE;\n");
+		    fprintf(file, "\t\tmsgh_simple = false;\n");
 		fprintf(file, "\t}\n\telse {\n\t");
 	    }
 	    fprintf(file, "\tmemcpy(OutP->%s, %s, ",
@@ -1180,7 +1197,7 @@ WriteAdjustMsgSimple(FILE *file, register const argument_t *arg)
     {
 	fprintf(file, "\n");
 	fprintf(file, "\tif (MCN_MSGTYPE_PORT_ANY(%s))\n", arg->argVarName);
-	fprintf(file, "\t\tmsgh_simple = FALSE;\n");
+	fprintf(file, "\t\tmsgh_simple = false;\n");
     }
 }
 
@@ -1204,10 +1221,10 @@ WriteAdjustMsgCircular(FILE *file, register const argument_t *arg)
      *	because of the variable-sized messages.
      */
 
-    fprintf(file, "\tif (IP_VALID((ipc_port_t) InHeadP->msgh_reply_port) &&\n");
+    fprintf(file, "\tif (IP_VALID((ipc_port_t) InHeadP->msgs_reply_port) &&\n");
     fprintf(file, "\t    IP_VALID((ipc_port_t) OutP->%s) &&\n", arg->argMsgField);
-    fprintf(file, "\t    ipc_port_check_circularity((ipc_port_t) OutP->%s, (ipc_port_t) InHeadP->msgh_reply_port))\n", arg->argMsgField);
-    fprintf(file, "\t\tOutHeadP->msgh_bits |= MACH_MSGH_BITS_CIRCULAR;\n");
+    fprintf(file, "\t    ipc_port_check_circularity((ipc_port_t) OutP->%s, (ipc_port_t) InHeadP->msgs_reply_port))\n", arg->argMsgField);
+    fprintf(file, "\t\tOutHeadP->msgr_bits |= MACH_MSGH_BITS_CIRCULAR;\n");
 }
 
 /*
@@ -1228,12 +1245,12 @@ WriteArgSize(
 	/*
 	 * Check descriptor.  If out-of-line, use standard size.
 	 */
-	fprintf(file, "(((mach_msg_type_t*)&OutP->%s%s)->msgt_inline) ? ",
+	fprintf(file, "(((mcn_msgtype_t*)&OutP->%s%s)->msgt_inline) ? ",
 		arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "");
     }
 
-    needs_rounding = (longalign) ? (bsize % word_size != 0) : (bsize % sizeof_mach_msg_type_t != 0);
+    needs_rounding = (longalign) ? (bsize % word_size != 0) : (bsize % sizeof_mcn_msgtype_t != 0);
     if (needs_rounding)
 	fprintf(file, "(");
 
@@ -1253,7 +1270,7 @@ WriteArgSize(
      * "longalign" tells us wether this is a short or long one.
      */
     if (needs_rounding) {
-	char *l = (longalign) ? "natural_t" : "mach_msg_type_t";
+	char *l = (longalign) ? "natural_t" : "mcn_msgtype_t";
 	fprintf(file, " + (sizeof(%s)-1)) & ~(sizeof(%s)-1)", l, l);
     }
 
@@ -1276,7 +1293,7 @@ WriteArgSizeStright(
 	/*
 	 * Check descriptor.  If out-of-line, use standard size.
 	 */
-	fprintf(file, "(((mach_msg_type_t*)&OutP->%s%s)->msgt_inline) ? ",
+	fprintf(file, "(((mcn_msgtype_t*)&OutP->%s%s)->msgt_inline) ? ",
 		arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "");
     }
@@ -1327,12 +1344,12 @@ WriteAdjustMsgSize(
        code in the kernel uses as trigger... */
 
     if (!arg->argLongForm && next_arg->argLongForm) {
-	fprintf(file, "\tif (sizeof(natural_t) > sizeof(mach_msg_type_t)) {\n");
+	fprintf(file, "\tif (sizeof(natural_t) > sizeof(mcn_msgtype_t)) {\n");
 	fprintf(file, "\t\tint nb = ");
 	WriteArgSizeStright(file, arg);
 	fprintf(file,
 	    ";\n\t\tint fractal = sizeof(natural_t) - (nb & (sizeof(natural_t)-1));\n");
-	fprintf(file, "\t\tif (fractal > (sizeof(natural_t) - sizeof(mach_msg_type_t)))\n");
+	fprintf(file, "\t\tif (fractal > (sizeof(natural_t) - sizeof(mcn_msgtype_t)))\n");
 	fprintf(file, "#if 0 /* couldbe */\n");
 	fprintf(file, "\t\t\tmemset(&OutP->%s[nb], -1, fractal);\n", arg->argMsgField);
 	fprintf(file, "#else /* couldbe */\n");
@@ -1412,15 +1429,15 @@ WritePackArg(FILE *file, register const argument_t *arg)
 	    fprintf(file, "\tif (%sP != OutP->%s) {\n",
 			arg->argVarName,
 			arg->argMsgField);
-	    fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_inline = FALSE;\n",
+	    fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_inline = false;\n",
 		    arg->argTTName,
 		    arg->argLongForm ? ".msgtl_header" : "");
 	    if (arg->argDeallocate == d_YES)
-		fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_deallocate = TRUE;\n",
+		fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_deallocate = true;\n",
 			arg->argTTName,
 			arg->argLongForm ? ".msgtl_header" : "");
 	    else if (arg->argDeallocate == d_MAYBE)
-		fprintf(file, "\t\t((mach_msg_type_t*)&OutP->%s%s)->msgt_deallocate = %s;\n",
+		fprintf(file, "\t\t((mcn_msgtype_t*)&OutP->%s%s)->msgt_deallocate = %s;\n",
 			arg->argTTName,
 			arg->argLongForm ? ".msgtl_header" : "",
 			arg->argDealloc->argVarName);
@@ -1429,7 +1446,7 @@ WritePackArg(FILE *file, register const argument_t *arg)
 			arg->argMsgField,
 			arg->argVarName);
 	    if (!arg->argRoutine->rtSimpleFixedReply)
-		fprintf(file, "\t\tmsgh_simple = FALSE;\n");
+		fprintf(file, "\t\tmsgh_simple = false;\n");
 	    fprintf(file, "\t}\n");
 	}
     }
@@ -1509,7 +1526,10 @@ WriteRoutine(FILE *file, register const routine_t *rt)
 
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     fprintf(file, "mig_internal void _X%s\n", rt->rtName);
-    fprintf(file, "\t(mach_msg_header_t *InHeadP, mach_msg_header_t *OutHeadP)\n");
+    if (IsKernelServer)
+      fprintf(file, "\t(struct port *port, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+    else
+      fprintf(file, "\t(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
     WriteStructDecl(file, rt->rtArgs, WriteFieldDecl, akbRequest, "Request");

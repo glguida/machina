@@ -111,9 +111,9 @@ const char *
 strbool(bool b)
 {
     if (b)
-	return "TRUE";
+	return "true";
     else
-	return "FALSE";
+	return "false";
 }
 
 const char *

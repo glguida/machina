@@ -481,7 +481,12 @@ static u_int
 rtFindSize(const argument_t *args, u_int mask)
 {
     register const argument_t *arg;
-    u_int size = 0;//sizeof_mach_msg_header_t;
+    u_int size;
+
+    if (mask == akbRequest)
+      size = sizeof_mcn_msgsend_t;
+    else if (mask == akbReply)
+      size = sizeof_mcn_msgrecv_t;
 
     for (arg = args; arg != argNULL; arg = arg->argNext)
 	if (akCheck(arg->argKind, mask))
@@ -491,16 +496,16 @@ rtFindSize(const argument_t *args, u_int mask)
 	    if (arg->argLongForm) {
 		/* The long type itself needs proper alignment on 64bit archies */
 		size = (size + word_size-1) & ~(word_size-1);
-		size += sizeof_mach_msg_type_long_t;
+		size += sizeof_mcn_msgtype_long_t;
 	    } else {
 #if 1
 		register bs = (it->itSize / 8); /* in bytes */
-		if (bs > sizeof_mach_msg_type_t && it->itAlignment != it->itSize)
+		if (bs > sizeof_mcn_msgtype_t && it->itAlignment != it->itSize)
 		    warn("Alignment: new scheme is %d old scheme was %d\n",
 			 it->itAlignment, bs);
-/*		size += (bs > sizeof_mach_msg_type_t) ? bs : sizeof_mach_msg_type_t; */
+/*		size += (bs > sizeof_mcn_msgtype_t) ? bs : sizeof_mcn_msgtype_t; */
 #endif
-		size += sizeof_mach_msg_type_t;
+		size += sizeof_mcn_msgtype_t;
 	    }
 	    if (it->itAlignment) {
 		register bs = it->itAlignment / 8; /* in bytes */
@@ -1392,7 +1397,7 @@ rtCheckRoutine(register routine_t *rt)
 
     if (rt->rtMsgOption == argNULL)
 	if (MsgOption == strNULL)
-	    rtAddMsgOption(rt, "MACH_MSG_OPTION_NONE");
+	    rtAddMsgOption(rt, "MCN_MSGOPT_NONE");
 	else
 	    rtAddMsgOption(rt, MsgOption);
 

@@ -300,7 +300,7 @@ SubsystemBase		:	syNumber	{ SubsystemBase = $1; }
 
 MsgOption		:	LookString syMsgOption syString
 {
-    if (streql($3, "MACH_MSG_OPTION_NONE"))
+    if ((streql($3, "MACH_MSG_OPTION_NONE")) || (streql($3, "MCN_MSGOPT_NONE")))
     {
 	MsgOption = strNULL;
 	if (BeVerbose)

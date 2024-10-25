@@ -1,0 +1,16 @@
+2024-10-24  Gianluca Guida  <glguida@Z8-G4-Workstation>
+
+	* BUG: Fixed SkipVFPrintf, incompatbile with modern va args.
+	* server: Support Machina Interface [ongoing]
+	* user: Support Machina Interface [ongoing]
+	* header: Support Machina Interface [ongoing]
+	* sheader: Add union types for request and replies.
+	* sheader: Declare Server Routine.
+
+2024-10-23  Gianluca Guida <glguida@tlbflush.org>
+
+	* language: Added MCN_MSGTYPE Machina equivalent to MACH_MSG_TYPE Mach types.
+	* language: KernelClient as an alias for KernelUser.
+
+
+NOTE: This is an actual log of changes for the interface of MIG, not a log of commits.

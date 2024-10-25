@@ -111,9 +111,8 @@
 static void
 WriteIncludes(FILE *file)
 {
-    fprintf(file, "#include <mach/kern_return.h>\n");
-    fprintf(file, "#include <mach/port.h>\n");
-    fprintf(file, "#include <mach/message.h>\n");
+    fprintf(file, "#include <machina/types.h>\n");
+    fprintf(file, "#include <machina/message.h>\n");
     fprintf(file, "\n");
 }
 
@@ -125,11 +124,7 @@ WriteDefines(FILE *file)
 static void
 WriteMigExternal(FILE *file)
 {
-    fprintf(file, "#ifdef\tmig_external\n");
-    fprintf(file, "mig_external\n");
-    fprintf(file, "#else\n");
-    fprintf(file, "extern\n");
-    fprintf(file, "#endif\n");
+    /* MCN: Nothing to do */
 }
 
 static void
@@ -164,22 +159,9 @@ WriteUserRoutine(FILE *file, const routine_t *rt)
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     WriteMigExternal(file);
     fprintf(file, "%s %s\n", ReturnTypeStr(rt), rt->rtUserName);
-    fprintf(file, "#if\t%s\n", LintLib);
-    fprintf(file, "    (");
-    WriteList(file, rt->rtArgs, WriteNameDecl, akbUserArg, ", " , "");
-    fprintf(file, ")\n");
-    WriteList(file, rt->rtArgs, WriteUserVarDecl, akbUserArg, ";\n", ";\n");
-    fprintf(file, "{ ");
-    if (!rt->rtProcedure)
-	fprintf(file, "return ");
-    fprintf(file, "%s(", rt->rtUserName);
-    WriteList(file, rt->rtArgs, WriteNameDecl, akbUserArg, ", ", "");
-    fprintf(file, "); }\n");
-    fprintf(file, "#else\n");
     fprintf(file, "(\n");
     WriteList(file, rt->rtArgs, WriteUserVarDecl, akbUserArg, ",\n", "\n");
     fprintf(file, ");\n");
-    fprintf(file, "#endif\n");
 }
 
 void
@@ -215,24 +197,97 @@ WriteServerRoutine(FILE *file, const routine_t *rt)
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     WriteMigExternal(file);
     fprintf(file, "%s %s\n", ReturnTypeStr(rt), rt->rtServerName);
-    fprintf(file, "#if\t%s\n", LintLib);
-    fprintf(file, "    (");
-    WriteList(file, rt->rtArgs, WriteNameDecl, akbServerArg, ", " , "");
-    fprintf(file, ")\n");
-    WriteList(file, rt->rtArgs, WriteServerVarDecl,
-	      akbServerArg, ";\n", ";\n");
-    fprintf(file, "{ ");
-    if (!rt->rtProcedure)
-	fprintf(file, "return ");
-    fprintf(file, "%s(", rt->rtServerName);
-    WriteList(file, rt->rtArgs, WriteNameDecl, akbServerArg, ", ", "");
-    fprintf(file, "); }\n");
-    fprintf(file, "#else\n");
     fprintf(file, "(\n");
     WriteList(file, rt->rtArgs, WriteServerVarDecl,
 	      akbServerArg, ",\n", "\n");
     fprintf(file, ");\n");
-    fprintf(file, "#endif\n");
+}
+
+static void
+WriteFieldDecl(FILE *file, const argument_t *arg)
+{
+    WriteFieldDeclPrim(file, arg, FetchServerType);
+}
+
+void
+WriteStructInst(FILE *file, const argument_t *args, write_list_fn_t *func,
+		u_int mask, const char *name)
+{
+    fprintf(file, "\tstruct {\n");
+    if (mask == akbRequest)
+      fprintf(file, "\t\tmcn_msgsend_t Head;\n");
+    if (mask == akbReply)
+      fprintf(file, "\t\tmcn_msgrecv_t Head;\n");
+    WriteList(file, args, func, mask, "\n", "\n");
+    fprintf(file, "\t} %s;\n", name);
+    fprintf(file, "\n");
+}
+
+void
+WriteReplyUnion(FILE *file, const statement_t *stats)
+{
+    const statement_t *stat;
+    const routine_t *rt;
+
+    fprintf(file, "\n");
+    fprintf(file, "\n");
+    fprintf(file, "typedef union {\n");
+    fprintf(file, "\n");
+    for (stat = stats; stat != stNULL; stat = stat->stNext)
+	switch (stat->stKind)
+	{
+	  case skRoutine:
+	    rt = stat->stRoutine;
+	    WriteStructInst(file, rt->rtArgs, WriteFieldDecl, akbReply, rt->rtName);
+	    break;
+	  case skImport:
+	  case skSImport:
+	  case skUImport:
+	    break;
+	  default:
+	    fatal("WriteServerHeader(): bad statement_kind_t (%d)",
+		  (int) stat->stKind);
+	}
+    fprintf(file, "} %s_replies_t;\n", SubsystemName);
+}
+
+void
+WriteRequestUnion(FILE *file, const statement_t *stats)
+{
+    const statement_t *stat;
+    const routine_t *rt;
+
+    fprintf(file, "\n");
+    fprintf(file, "\n");
+    fprintf(file, "typedef union {\n");
+    fprintf(file, "\n");
+    for (stat = stats; stat != stNULL; stat = stat->stNext)
+	switch (stat->stKind)
+	{
+	  case skRoutine:
+	    rt = stat->stRoutine;
+	    WriteStructInst(file, rt->rtArgs, WriteFieldDecl, akbRequest, rt->rtName);
+	    break;
+	  case skImport:
+	  case skSImport:
+	  case skUImport:
+	    break;
+	  default:
+	    fatal("WriteServerHeader(): bad statement_kind_t (%d)",
+		  (int) stat->stKind);
+	}
+    fprintf(file, "} %s_requests_t;\n", SubsystemName);
+}
+
+void
+WriteServerRoutineDecl(FILE *file)
+{
+  fprintf(file, "\n");
+  if (IsKernelServer)
+      fprintf(file, "bool %s(struct port *port, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP);\n", ServerDemux);
+  else
+      fprintf(file, "bool %s(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP);\n", ServerDemux);
+  fprintf(file, "\n");
 }
 
 void
@@ -258,6 +313,9 @@ WriteServerHeader(FILE *file, const statement_t *stats)
 	    fatal("WriteServerHeader(): bad statement_kind_t (%d)",
 		  (int) stat->stKind);
 	}
+    WriteReplyUnion(file, stats);
+    WriteRequestUnion(file, stats);
+    WriteServerRoutineDecl(file);
     WriteEpilog(file, protect);
 }
 

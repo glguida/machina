@@ -301,7 +301,7 @@ itCalculateNameInfo(register ipc_type_t *it)
      */
 
     if (IsKernelServer &&
-	streql(it->itServerType, "mach_port_t") &&
+	streql(it->itServerType, "mcn_port_t") &&
 	(((it->itInName == MCN_MSGTYPE_POLYMORPHIC) &&
 	  (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)) ||
 	 MCN_MSGTYPE_IS_PORT(it->itInName) ||
@@ -309,7 +309,7 @@ itCalculateNameInfo(register ipc_type_t *it)
 	it->itServerType = "ipc_port_t";
 
     if (IsKernelUser &&
-	streql(it->itUserType, "mach_port_t") &&
+	streql(it->itUserType, "mcn_port_t") &&
 	(((it->itInName == MCN_MSGTYPE_POLYMORPHIC) &&
 	  (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)) ||
 	 MCN_MSGTYPE_IS_PORT(it->itInName) ||
@@ -909,7 +909,7 @@ void
 init_type(void)
 {
     itRetCodeType = itAlloc();
-    itRetCodeType->itName = "kern_return_t";
+    itRetCodeType->itName = "mcn_return_t";
     itRetCodeType->itInName = MCN_MSGTYPE_INT32;
     itRetCodeType->itInNameStr = "MCN_MSGTYPE_INT32";
     itRetCodeType->itOutName = MCN_MSGTYPE_INT32;
@@ -930,7 +930,7 @@ init_type(void)
     itCalculateNameInfo(itDummyType);
 
     itRequestPortType = itAlloc();
-    itRequestPortType->itName = "mach_port_t";
+    itRequestPortType->itName = "mcn_port_t";
     itRequestPortType->itInName = MCN_MSGTYPE_COPYSEND;
     itRequestPortType->itInNameStr = "MCN_MSGTYPE_COPYSEND";
     itRequestPortType->itOutName = MCN_MSGTYPE_PORTSEND;
@@ -941,7 +941,7 @@ init_type(void)
     itCalculateNameInfo(itRequestPortType);
 
     itZeroReplyPortType = itAlloc();
-    itZeroReplyPortType->itName = "mach_port_t";
+    itZeroReplyPortType->itName = "mcn_port_t";
     itZeroReplyPortType->itInName = 0;
     itZeroReplyPortType->itInNameStr = "0";
     itZeroReplyPortType->itOutName = 0;
@@ -952,7 +952,7 @@ init_type(void)
     itCalculateNameInfo(itZeroReplyPortType);
 
     itRealReplyPortType = itAlloc();
-    itRealReplyPortType->itName = "mach_port_t";
+    itRealReplyPortType->itName = "mcn_port_t";
     itRealReplyPortType->itInName = MCN_MSGTYPE_MAKEONCE;
     itRealReplyPortType->itInNameStr = "MCN_MSGTYPE_MAKEONCE";
     itRealReplyPortType->itOutName = MCN_MSGTYPE_PORTONCE;

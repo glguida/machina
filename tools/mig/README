@@ -6,3 +6,4 @@ that calls 'migcom' for the actual interface generation.
 
 It supports both Machina and Mach 3 types.
 
+See ChangeLog for more detailed changes.

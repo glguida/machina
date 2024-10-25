@@ -247,13 +247,13 @@ WriteCheckDecl(FILE *file, register const argument_t *arg)
        Note we use itOutNameStr instead of itInNameStr, because
        this declaration will be used to check received types. */
 
-    fprintf(file, "\tstatic mach_msg_type_t %sCheck = {\n", arg->argVarName);
+    fprintf(file, "\tstatic mcn_msgtype_t %sCheck = {\n", arg->argVarName);
     fprintf(file, "\t\t/* msgt_name = */\t\t%s,\n", it->itOutNameStr);
     fprintf(file, "\t\t/* msgt_size = */\t\t%d,\n", it->itSize);
     fprintf(file, "\t\t/* msgt_number = */\t\t%d,\n", it->itNumber);
     fprintf(file, "\t\t/* msgt_inline = */\t\t%s,\n",
 	    strbool(it->itInLine));
-    fprintf(file, "\t\t/* msgt_longform = */\t\tFALSE,\n");
+    fprintf(file, "\t\t/* msgt_longform = */\t\tfalse,\n");
     fprintf(file, "\t\t/* msgt_deallocate = */\t\t%s,\n",
 	    strbool(!it->itInLine));
     fprintf(file, "\t\t/* msgt_unused = */\t\t0\n");
@@ -287,7 +287,7 @@ WriteFieldDeclPrim(FILE *file, const argument_t *arg,
 {
     register const ipc_type_t *it = arg->argType;
 
-    fprintf(file, "\t\tmach_msg_type_%st %s;\n",
+    fprintf(file, "\t\tmcn_msgtype_%st %s;\n",
 	    arg->argLongForm ? "long_" : "", arg->argTTName);
 
     if (it->itInLine && it->itVarArray)
@@ -316,7 +316,10 @@ WriteStructDecl(FILE *file, const argument_t *args, write_list_fn_t *func,
 		u_int mask, const char *name)
 {
     fprintf(file, "\ttypedef struct {\n");
-    fprintf(file, "\t\tmach_msg_header_t Head;\n");
+    if (mask == akbRequest)
+      fprintf(file, "\t\tmcn_msgsend_t Head;\n");
+    if (mask == akbReply)
+      fprintf(file, "\t\tmcn_msgrecv_t Head;\n");
     WriteList(file, args, func, mask, "\n", "\n");
     fprintf(file, "\t} %s;\n", name);
     fprintf(file, "\n");
@@ -326,14 +329,14 @@ static void
 WriteStaticLongDecl(FILE *file, register const ipc_type_t *it,
 		    dealloc_t dealloc, bool inname, identifier_t name)
 {
-    fprintf(file, "\tstatic mach_msg_type_long_t %s = {\n", name);
+    fprintf(file, "\tstatic mcn_msgtype_long_t %s = {\n", name);
     fprintf(file, "\t{\n");
     fprintf(file, "\t\t/* msgt_name = */\t\t0,\n");
     fprintf(file, "\t\t/* msgt_size = */\t\t0,\n");
     fprintf(file, "\t\t/* msgt_number = */\t\t0,\n");
     fprintf(file, "\t\t/* msgt_inline = */\t\t%s,\n",
 	    strbool(it->itInLine));
-    fprintf(file, "\t\t/* msgt_longform = */\t\tTRUE,\n");
+    fprintf(file, "\t\t/* msgt_longform = */\t\ttrue,\n");
     fprintf(file, "\t\t/* msgt_deallocate = */\t\t%s,\n",
 	    strdealloc(dealloc));
     fprintf(file, "\t\t/* msgt_unused = */\t\t0\n");
@@ -349,14 +352,14 @@ static void
 WriteStaticShortDecl(FILE *file, register const ipc_type_t *it,
 		     dealloc_t dealloc, bool inname, identifier_t name)
 {
-    fprintf(file, "\tstatic mach_msg_type_t %s = {\n", name);
+    fprintf(file, "\tstatic mcn_msgtype_t %s = {\n", name);
     fprintf(file, "\t\t/* msgt_name = */\t\t%s,\n",
 	    inname ? it->itInNameStr : it->itOutNameStr);
     fprintf(file, "\t\t/* msgt_size = */\t\t%d,\n", it->itSize);
     fprintf(file, "\t\t/* msgt_number = */\t\t%d,\n", it->itNumber);
     fprintf(file, "\t\t/* msgt_inline = */\t\t%s,\n",
 	    strbool(it->itInLine));
-    fprintf(file, "\t\t/* msgt_longform = */\t\tFALSE,\n");
+    fprintf(file, "\t\t/* msgt_longform = */\t\tfalse,\n");
     fprintf(file, "\t\t/* msgt_deallocate = */\t\t%s,\n",
 	    strdealloc(dealloc));
     fprintf(file, "\t\t/* msgt_unused = */\t\t0\n");

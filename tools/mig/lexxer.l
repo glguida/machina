@@ -191,6 +191,7 @@ static void doSharp(const char *body); /* process body of # directives */
 <Normal>[Tt][Yy][Pp][Ee]			RETURN(syType);
 <Normal>[Kk][Ee][Rr][Nn][Ee][Ll][Ss][Ee][Rr][Vv][Ee][Rr] RETURN(syKernelServer);
 <Normal>[Kk][Ee][Rr][Nn][Ee][Ll][Uu][Ss][Ee][Rr]	RETURN(syKernelUser);
+<Normal>[Kk][Ee][Rr][Nn][El][Ll][Cc][Ll][Ii][Ee][Nn][Tt]	RETURN(syKernelUser);
 <Normal>[Ss][Kk][Ii][Pp]			RETURN(sySkip);
 <Normal>[Ss][Tt][Rr][Uu][Cc][Tt]		RETURN(syStruct);
 <Normal>[Ii][Nn][Tt][Rr][Aa][Nn]		RETURN(syInTran);
@@ -228,7 +229,7 @@ static void doSharp(const char *body); /* process body of # directives */
 <Normal>"MACH_MSG_TYPE_INTEGER_64"     	TRETURN(MCN_MSGTYPE_INT64,64,64);
 <Normal>"MCN_MSGTYPE_INT64"		TRETURN(MCN_MSGTYPE_INT64,64,64);
 
-<Normal>"MACH_MSG_TYPE_CHAR"		TRETURN(MCN_MSGTYPE_CHAR,8,0);
+<Normal>"MACHO_MSG_TYPE_CHAR"		TRETURN(MCN_MSGTYPE_CHAR,8,0);
 <Normal>"MCN_MSGTYPE_CHAR"		TRETURN(MCN_MSGTYPE_CHAR,8,0);
 
 <Normal>"MACH_MSG_TYPE_BYTE"		TRETURN(MCN_MSGTYPE_BYTE,8,0);
