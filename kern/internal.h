@@ -211,7 +211,8 @@ void vmmap_setup(struct vmmap *map);
 */
 enum port_type {
   PORT_KERNEL,
-  PORT_MESSAGE,
+  PORT_QUEUE,
+  PORT_DEAD,
 };
 
 typedef mcn_return_t (*fn_msgsend_t)(void *ctx, mcn_msgid_t id, void *data, size_t size, struct portref reply);
@@ -219,51 +220,73 @@ typedef mcn_return_t (*fn_msgsend_t)(void *ctx, mcn_msgid_t id, void *data, size
 struct port {
   unsigned long _ref_count; /* Handled by portref. */
 
+  lock_t lock;
   enum port_type type;
   union {
     struct {
       void *ctx;
       fn_msgsend_t msgsend;
     } kernel;
+    struct {
+    } queue;
   };
 };
 
 void port_init(void);
-struct portref port_alloc_kernel(fn_msgsend_t send, void *ctx);
+bool port_dead(struct port *);
+bool port_kernel(struct port *);
+mcn_return_t port_alloc_kernel(fn_msgsend_t send, void *ctx, struct portref *portref);
+mcn_return_t port_alloc_queue(struct portref *portref);
 
 /*
-  Send Rights.
+  Port Rights.
 
 */
-enum sendright_type {
-  SENDTYPE_SEND,
-  SENDTYPE_ONCE,
+enum portright_type {
+  RIGHT_INVALID,
+  RIGHT_SEND,
+  RIGHT_RECV,
+  RIGHT_ONCE,
 };
 
-struct sendright {
-  enum sendright_type type;
+struct portright {
+  enum portright_type type;
   struct portref portref;
 };
 
-static inline void
-sendright_init(struct sendright *sr, enum sendright_type type, struct portref portref)
+#define portright_from_portref(_type, _portref)	\
+  ({						\
+    struct portright pr;			\
+    pr.type = (_type);				\
+    pr.portref = REF_MOVE(_portref);		\
+    pr;						\
+  })
+
+
+static inline struct portref
+portright_movetoportref(struct portright *pr)
 {
-  sr->type = type;
-  sr->portref = portref;
+  pr->type = RIGHT_INVALID;
+  return REF_MOVE(pr->portref);
 }
 
 static inline void
-sendright_destroy(struct sendright *sr)
+portright_consume(struct portright *pr)
 {
-  /* XXX: DELETE IF */REF_DESTROY(sr->portref);
+  pr->type = RIGHT_INVALID;
+  /* XXX: DELETE IF */REF_DESTROY(pr->portref);
 }
 
 static inline struct port *
-sendright_consume(struct sendright *sr)
+portright_unsafe_get(struct portright *pr)
 {
-  struct port *p = REF_GET(sr->portref);
-  /* XXX: DELETE IF */REF_DESTROY(sr->portref);
-  return p;
+  return REF_GET(pr->portref);
+}
+
+static inline void
+portright_unsafe_put(struct port **port)
+{
+  *port = NULL;
 }
 
 
@@ -273,23 +296,23 @@ sendright_consume(struct sendright *sr)
 */
 struct portspace {
   lock_t lock;
-  struct rb_tree rb_tree;
+  struct rb_tree idsearch_rb_tree;
+  struct rb_tree portsearch_rb_tree;
 };
 
-struct sendright;
 struct portright;
 
 void portspace_init(void);
 void portspace_setup(struct portspace *ps);
 void portspace_lock (struct portspace *ps);
 void portspace_unlock (struct portspace *ps);
-mcn_return_t portspace_allocid (struct portspace *ps, mcn_portid_t *id);
-mcn_return_t portspace_addsendright(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
-mcn_return_t portspace_movesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
-mcn_return_t portspace_copysend(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
-mcn_return_t portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
-mcn_return_t portspace_makesend(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
-mcn_return_t portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct sendright *sr);
+mcn_return_t portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout);
+mcn_return_t portspace_movesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_copysend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_makesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+void portspace_print(struct portspace *ps);
 
 
 /*
@@ -302,6 +325,7 @@ struct task {
   unsigned refcount;
   LIST_HEAD(,thread) threads;
   struct portspace portspace;
+  mcn_portid_t task_self;
 };
 
 void task_init(void);
@@ -309,7 +333,8 @@ struct task *task_bootstrap(void);
 void task_enter(struct task *t);
 struct portspace * task_getportspace(struct task *t);
 void task_putportspace(struct task *t, struct portspace *ps);
-mcn_return_t task_addsendright(struct task *t, struct sendright *sr);
+mcn_return_t task_addportright(struct task *t, struct portright *pr, mcn_portid_t *id);
+mcn_return_t task_allocate_port(struct task *t, mcn_portid_t *newid);
 
 
 /*
@@ -357,6 +382,39 @@ static inline struct task *
 cur_task(void)
 {
   return cur_cpu()->task;
+}
+
+
+/*
+  Dual locks.
+
+  Lock ordering here is implied by the pointer value.
+
+*/
+#define MIN(_a,_b) ((_a) < (_b) ? (_a) : (_b))
+#define MAX(_a,_b) ((_a) > (_b) ? (_a) : (_b))
+
+static inline void spinlock_dual(lock_t *a, lock_t *b)
+{
+  if (a == b)
+    spinlock(a);
+  else
+    {
+      /* Pointer value defines lock ordering. */
+      spinlock(MIN(a,b));
+      spinlock(MAX(a,b));
+    }
+}
+
+static inline void spinunlock_dual(lock_t *a, lock_t *b)
+{
+  if (a == b)
+    spinunlock(a);
+  else
+    {
+      spinunlock(MAX(a,b));
+      spinunlock(MIN(a,b));
+    }
 }
 
 #endif

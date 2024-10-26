@@ -41,11 +41,9 @@ port_send(struct portref *portref, mcn_msgid_t id, void *data, size_t size, stru
 #endif
 
 static inline bool
-sendright_iskernel(struct sendright *sr)
+portright_iskernel(struct portright *pr)
 {
-  struct port *p  = REF_GET(sr->portref);
-
-  return p->type == PORT_KERNEL;
+  return port_kernel(REF_GET(pr->portref));
 }
 
 mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_portid_t notify)
@@ -54,7 +52,7 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
   //  const bool recv = !!(opt & MCN_MSGOPT_RECV);
   mcn_return_t rc;
   struct portspace *ps;
-  struct sendright send_right, reply_right;
+  struct portright send_right, reply_right;
 
   /* Copy from user-accessible memory. */
   kstest_requests_t req = *(volatile kstest_requests_t *)cur_kmsgbuf();
@@ -110,23 +108,11 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 
 	  switch (MCN_MSGBITS_LOCAL(reqh->msgs_bits))
 	    {
-	    case MCN_MSGTYPE_MOVESEND:
-	      rc = portspace_movesend(ps, reqh->msgs_local, &reply_right);
-	      if (rc)
-		goto error_reply_port;
-	      break;
-	    case MCN_MSGTYPE_COPYSEND:
-	      rc = portspace_copysend(ps, reqh->msgs_local, &reply_right);
-	      if (rc)
-		goto error_reply_port;
-	      break;
+	      /*
+		In Machina, you can only reply to a make-once port.
+	      */
 	    case MCN_MSGTYPE_MOVEONCE:
 	      rc = portspace_moveonce(ps, reqh->msgs_local, &reply_right);
-	      if (rc)
-		goto error_reply_port;
-	      break;
-	    case MCN_MSGTYPE_MAKESEND:
-	      rc = portspace_makesend(ps, reqh->msgs_local, &reply_right);
 	      if (rc)
 		goto error_reply_port;
 	      break;
@@ -147,12 +133,13 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 		{
 		case MCN_MSGTYPE_MOVESEND:
 		case MCN_MSGTYPE_MOVEONCE:
-		  assert(portspace_addsendright(ps, reqh->msgs_remote, &send_right) == KERN_SUCCESS);
+		  warn("GIANLUCA: READD THIS");
+		  //		  assert(portspace_addsendright(ps, reqh->msgs_remote, &send_right) == KERN_SUCCESS);
 		  break;
 		case MCN_MSGTYPE_COPYSEND:
 		case MCN_MSGTYPE_MAKESEND:
 		case MCN_MSGTYPE_MAKEONCE:
-		  sendright_destroy(&send_right);
+		  portright_consume(&send_right);
 		  break;
 		}
 	      task_putportspace(cur_task(), ps);
@@ -164,16 +151,13 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 
   printf("Here!\n");
   
-  if (send && sendright_iskernel(&send_right))
+  if (send && portright_iskernel(&send_right))
     {
       struct port *send;/*, *reply; */
       /*
 	This is a Kernel Server IPC.
       */
 
-      /* Consume the Send Right. */
-      send = sendright_consume(&send_right);
-      
       if (reply_port_valid && (reqh->msgs_local == recv_port))
 	{
 	  /*
@@ -184,8 +168,11 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 	    This catches the default behaviour for Kernel Server
 	    interfaces in MIG.
 	  */
-	  (void)sendright_consume(&reply_right);
-	  kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)cur_kmsgbuf());
+
+	  send = portright_unsafe_get(&send_right);
+      	  kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)cur_kmsgbuf());
+	  portright_consume(&send_right);
+	  portright_consume(&reply_right);
 	  /*
 	    MIG_BAD_ID set in reply return code.
 	  */
@@ -196,7 +183,10 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 	  /* Ignore reply. */
 	  kstest_replies_t reply;
 
+	  send = portright_unsafe_get(&send_right);
 	  kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)&reply);
+	  portright_consume(&send_right);
+	  portright_consume(&reply_right);
 	  /*
 	    MIG_BAD_ID set in reply return code. Which will be ignored here.
 	  */

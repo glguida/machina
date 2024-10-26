@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <nux/nux.h>
 #include <nux/hal.h>
+#include <machina/error.h>
 
 #include "internal.h"
 
@@ -25,6 +26,9 @@ mcn_return_t testport_send(void *ctx, mcn_msgid_t id, void *data, size_t size, s
 int
 main (int argc, char *argv[])
 {
+  mcn_return_t rc;
+  struct portref portref;
+
   info ("MACHINA Started.");
   physmem_init();
   msgbuf_init();
@@ -40,10 +44,13 @@ main (int argc, char *argv[])
   printf("task = %p\n", t);
   struct thread *th = thread_bootstrap(t);
   printf("thread = %p\n", th);
-  struct portref testport = port_alloc_kernel(testport_send, NULL);
-  struct sendright testsr;
-  sendright_init(&testsr, SENDTYPE_SEND, testport);
-  task_addsendright(t, &testsr);
+  rc = port_alloc_kernel(testport_send, NULL, &portref);
+  assert(rc == KERN_SUCCESS);
+  struct portright testpr = portright_from_portref(RIGHT_SEND, portref);
+  mcn_portid_t id;
+  rc = task_addportright(t, &testpr, &id);
+  printf("Test id is %ld\n", id);
+  assert(rc == KERN_SUCCESS);
 
   bootstrap = th;
   cpu_ipi (cpu_id ());

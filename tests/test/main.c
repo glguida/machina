@@ -2,6 +2,7 @@
 #include <nux/syscalls.h>
 #include <machina/message.h>
 #include <machina/syscalls.h>
+#include <machina/machina.h>
 
 #include <ks.h>
 
@@ -71,7 +72,11 @@ main (void)
   printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
   }
 
-  
+
+    printf("ALlocated port %ld\n", mcn_reply_port());
+    printf("ALlocated port %ld\n", mcn_reply_port());
+    printf("ALlocated port %ld\n", mcn_reply_port());
+    printf("ALlocated port %ld\n", mcn_reply_port());
 
   printf("Calling simple! %d\n", simple(1));
 

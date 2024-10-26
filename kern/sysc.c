@@ -25,6 +25,19 @@ entry_sysc (uctxt_t * u,
     case __syscall_msgio:
       uctxt_setret(u, ipc_msgio((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
       break;
+    case __syscall_reply_port: {
+      mcn_return_t rc;
+      mcn_portid_t id;
+
+      rc = task_allocate_port(cur_task(), &id);
+      printf("Allocated port %d [%ld]\n", rc, id);
+      if (rc)
+	uctxt_setret(u, MCN_PORTID_NULL);
+      else
+	uctxt_setret(u, id);
+      portspace_print(&cur_task()->portspace);
+    }
+      break;
     case 0:
       info("SYSC%ld test passed.", a1);
       break;

@@ -6,4 +6,7 @@
 
 #define __syscall_msgbuf -1L
 #define __syscall_msgio -2L
+
+#define __syscall_reply_port -26L
+
 #define __syscall_mach_port_allocate -72L

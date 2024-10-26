@@ -13,3 +13,9 @@ mcn_msgio(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_por
 {
   return (mcn_msgioret_t)syscall_msgio(option, recv, timeout, notify);
 }
+
+mcn_portid_t
+mcn_reply_port(void)
+{
+  return (mcn_portid_t)syscall_reply_port();
+}

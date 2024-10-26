@@ -35,6 +35,12 @@ syscall_msgio(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn
 }
 
 mcn_return_t
+syscall_reply_port(void)
+{
+  return syscall0(__syscall_reply_port);
+}
+
+mcn_return_t
 syscall_mach_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_t *name)
 {
   mcn_return_t r;

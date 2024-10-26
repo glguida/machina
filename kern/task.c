@@ -5,6 +5,7 @@
 */
 
 #include <nux/slab.h>
+#include <machina/error.h>
 
 #include "internal.h"
 
@@ -57,22 +58,34 @@ task_putportspace(struct task *t, struct portspace *ps)
 }
 
 mcn_return_t
-task_addsendright(struct task *t, struct sendright *sr)
+task_addportright(struct task *t, struct portright *pr, mcn_portid_t *idout)
 {
   mcn_portid_t id;
   mcn_return_t rc;
   struct portspace *ps;
 
   ps = task_getportspace(t);
-  rc = portspace_allocid (ps, &id);
-  if (rc)
-    {
-      task_putportspace(t, ps);
-      return rc;
-    }
-  printf("Allocated id %ld\n", id);
-  rc = portspace_addsendright(ps, id, sr);
+  rc = portspace_insertright(ps, pr, &id);
   task_putportspace(t, ps);
+  printf("TASK: Allocated id %d\n", id);
+  if (rc == KERN_SUCCESS)
+    *idout = id;
+  return rc;
+}
+
+mcn_return_t
+task_allocate_port(struct task *t, mcn_portid_t *newid)
+{
+  struct portref portref;
+  struct portright pr;
+  mcn_return_t rc;
+
+  rc = port_alloc_queue(&portref);
+  if (rc)
+    return rc;
+
+  pr = portright_from_portref(RIGHT_RECV, portref);
+  rc = task_addportright(t, &pr, newid);
   return rc;
 }
 
