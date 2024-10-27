@@ -2,7 +2,9 @@ SUBDIRS+=user kern
 
 KERNEL_SERVER_DEFS=ks.defs
 
-kern/%.c user/%.c kern/%.h user/%.h: $(SRCDIR)/%.defs @MIG@ @MIGCOM@
+.PHONY: always_mig
+
+kern/%.c user/%.c kern/%.h user/%.h: $(SRCDIR)/%.defs @MIG@ @MIGCOM@ always_mig
 	@MIG@ -isystem $(SRCROOT)/include -server kern/$*.c -user user/$*.c -header user/$*.h -sheader kern/$*.h $<
 
 

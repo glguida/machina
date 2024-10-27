@@ -3,6 +3,7 @@
 #include <machina/message.h>
 #include <machina/syscalls.h>
 #include <machina/machina.h>
+#include <machina/mig.h>
 
 #include <ks.h>
 
@@ -64,7 +65,7 @@ main (void)
     {
   volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
   msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
-  msgh->msgs_size = 0;
+  msgh->msgs_size = 32;
   msgh->msgs_remote = 1;
   msgh->msgs_local = MCN_PORTID_NULL;
   msgh->msgs_msgid = 101;
@@ -79,6 +80,35 @@ main (void)
     printf("ALlocated port %ld\n", mcn_reply_port());
 
   printf("Calling simple! %d\n", simple(1));
+
+  long cnt;
+  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("cnt: %ld\n", cnt);
+
+  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("cnt: %ld\n", cnt);
+
+  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("cnt: %ld\n", cnt);
+
+  printf("Calling add 3! %d\n", add(1, 3, &cnt));
+  printf("cnt: %ld\n", cnt);
+
+  printf("Calling mul 4! %d\n", mul(1, 4, &cnt));
+  printf("cnt: %ld\n", cnt);
+
+
+    {
+        mcn_portid_t tmp_port = mcn_reply_port();
+	volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
+	msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, MCN_MSGTYPE_MAKEONCE);
+	msgh->msgs_size = 32;
+	msgh->msgs_remote = 1;
+	msgh->msgs_local = tmp_port;
+	msgh->msgs_msgid = 2000;
+	asm volatile ("" ::: "memory");
+	printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, mig_get_reply_port(), 0, MCN_PORTID_NULL));
+    }
 
   return 42;
 }

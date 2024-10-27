@@ -218,11 +218,11 @@ WriteIncludes(FILE *file)
     fprintf(file, "#include <stdbool.h>\n");
     fprintf(file, "#include <machina/types.h>\n");
     fprintf(file, "#include <machina/message.h>\n");
-    fprintf(file, "#include <machina/mig_errors.h>\n");
-    /*
+    fprintf(file, "#include <machina/error.h>\n");
     if (IsKernelServer)
-        fprintf(file, "#include <ipc/ipc_port.h>\n");
-    */
+        fprintf(file, "#include <machina/mig_errors.h>\n");
+    else
+        fprintf(file, "#include <machina/mig.h>\n");
     fprintf(file, "\n");
 }
 

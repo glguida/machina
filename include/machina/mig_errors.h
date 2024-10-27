@@ -7,6 +7,9 @@
 #ifndef _MACHINA_MIG_ERRORS_H_
 #define _MACHINA_MIG_ERRORS_H_
 
+#include <machina/types.h>
+#include <machina/message.h>
+
 #define MIG_TYPE_ERROR -300
 #define MIG_REPLY_MISMATCH -301
 #define MIG_REMOTE_ERROR -302

@@ -32,6 +32,17 @@ port_kernel(struct port *port)
   return r;
 }
 
+mcn_return_t port_enqueue(struct port *port, struct msgq_entry *msg, size_t size)
+{
+  assert (size >= (sizeof(struct msgq_entry) + sizeof(mcn_msgrecv_t)));
+
+  spinlock(&port->lock);
+  assert(port->type == PORT_QUEUE);
+  LIST_INSERT_HEAD(&port->queue.msgq, msg, list);
+  spinunlock(&port->lock);
+  return KERN_SUCCESS;
+}
+
 void
 port_double_lock(struct port *porta, struct port *portb)
 {
@@ -87,6 +98,8 @@ port_alloc_queue(struct portref *portref)
   spinlock_init(&p->lock);
   p->type = PORT_QUEUE;
 
+  LIST_INIT(&p->queue.msgq);
+  portspace_setup(&p->queue.portspace);
   portref->obj = p;
   p->_ref_count = 1;
   return KERN_SUCCESS;

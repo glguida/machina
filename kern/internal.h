@@ -130,10 +130,6 @@ void unshare_kva(struct umap *umap, uaddr_t uaddr, size_t size);
 */
 #define REF_GET(_r) ((_r).obj)
 
-struct portref {
-  struct port *obj;
-};
-
 
 /* Message Buffers.
 
@@ -206,6 +202,31 @@ void vmmap_setup(struct vmmap *map);
 
 
 /*
+  Port Space: a collection of port rights.
+
+*/
+struct portspace {
+  lock_t lock;
+  struct rb_tree idsearch_rb_tree;
+  struct rb_tree portsearch_rb_tree;
+};
+
+struct portright;
+
+void portspace_init(void);
+void portspace_setup(struct portspace *ps);
+void portspace_lock (struct portspace *ps);
+void portspace_unlock (struct portspace *ps);
+mcn_return_t portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout);
+mcn_return_t portspace_movesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_copysend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_makesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+void portspace_print(struct portspace *ps);
+
+
+/*
   Ports.
 
 */
@@ -215,7 +236,13 @@ enum port_type {
   PORT_DEAD,
 };
 
+struct portref;
+
 typedef mcn_return_t (*fn_msgsend_t)(void *ctx, mcn_msgid_t id, void *data, size_t size, struct portref reply);
+
+struct msgq_entry {
+  LIST_ENTRY(msgq_entry) list;
+};
 
 struct port {
   unsigned long _ref_count; /* Handled by portref. */
@@ -228,6 +255,9 @@ struct port {
       fn_msgsend_t msgsend;
     } kernel;
     struct {
+      struct portspace portspace;
+      unsigned long entries;
+      LIST_HEAD(, msgq_entry) msgq;
     } queue;
   };
 };
@@ -235,15 +265,21 @@ struct port {
 void port_init(void);
 bool port_dead(struct port *);
 bool port_kernel(struct port *);
+mcn_return_t port_enqueue(struct port *p, struct msgq_entry *, size_t size);
 mcn_return_t port_alloc_kernel(fn_msgsend_t send, void *ctx, struct portref *portref);
 mcn_return_t port_alloc_queue(struct portref *portref);
+
+struct port;
+struct portref {
+  struct port *obj;
+};
 
 /*
   Port Rights.
 
 */
 enum portright_type {
-  RIGHT_INVALID,
+  RIGHT_INVALID = 0,
   RIGHT_SEND,
   RIGHT_RECV,
   RIGHT_ONCE,
@@ -288,31 +324,6 @@ portright_unsafe_put(struct port **port)
 {
   *port = NULL;
 }
-
-
-/*
-  Task Port Space.
-
-*/
-struct portspace {
-  lock_t lock;
-  struct rb_tree idsearch_rb_tree;
-  struct rb_tree portsearch_rb_tree;
-};
-
-struct portright;
-
-void portspace_init(void);
-void portspace_setup(struct portspace *ps);
-void portspace_lock (struct portspace *ps);
-void portspace_unlock (struct portspace *ps);
-mcn_return_t portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout);
-mcn_return_t portspace_movesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_copysend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_makesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-void portspace_print(struct portspace *ps);
 
 
 /*

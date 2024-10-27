@@ -5,7 +5,6 @@ subsystem kernelserver kstest 2000;
 simpleroutine simple(
 		test: mcn_port_t);
 
-/*
 
 routine inc(
 		test : mcn_port_t;
@@ -21,4 +20,3 @@ routine mul(
 		test:	mcn_port_t;
 		b:	int;
 	out	c:	long);
-*/

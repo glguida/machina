@@ -289,7 +289,16 @@ WriteIncludes(FILE *file)
     fprintf(file, "#include <machina/types.h>\n");
     fprintf(file, "#include <machina/message.h>\n");
     fprintf(file, "#include <machina/syscalls.h>\n");
-    fprintf(file, "#include <machina/machina.h>\n");
+    fprintf(file, "#include <machina/error.h>\n");
+    if (IsKernelUser)
+      {
+          fprintf(file, "#include <machina/mig_errors.h>\n");
+      }
+    else
+      {
+	  fprintf(file, "#include <machina/machina.h>\n");
+	  fprintf(file, "#include <machina/mig.h>\n");
+      }
     fprintf(file, "\n");
 }
 
@@ -518,10 +527,10 @@ WriteMsgCheckReceive(FILE *file, const routine_t *rt, const char *success)
 	   deallocate the reply port when it is invalid or
 	   for TIMED_OUT errors. */
 
-	fprintf(file, "\t\tif ((msg_result == MACH_SEND_INVALID_REPLY) ||\n");
+	fprintf(file, "\t\tif ((msg_result == MSGIO_SEND_INVALID_REPLY) ||\n");
 	if (rt->rtWaitTime != argNULL)
-	    fprintf(file, "\t\t    (msg_result == MACH_RCV_TIMED_OUT) ||\n");
-	fprintf(file, "\t\t    (msg_result == MACH_RCV_INVALID_NAME))\n");
+	    fprintf(file, "\t\t    (msg_result == MSGIO_RCV_TIMED_OUT) ||\n");
+	fprintf(file, "\t\t    (msg_result == MSGIO_RCV_INVALID_NAME))\n");
 	fprintf(file, "\t\t\tmig_dealloc_reply_port();\n");
     }
     WriteMsgError(file, rt, "msg_result");
@@ -579,7 +588,7 @@ WriteMsgRPC(FILE *file, const routine_t *rt)
     if (IsKernelUser)
 	fprintf(file, "\tmsg_result = mach_msg_rpc_from_kernel(&InP->Head, %s, sizeof(Reply));\n", SendSize);
     else
-	fprintf(file, "\tmsg_result = mach_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV|%s%s, InP->Head.msgh_reply_port, %s, MACH_PORT_NULL);\n",
+	fprintf(file, "\tmsg_result = mcn_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV|%s%s, InP->Head.msgh_reply_port, %s, MCN_PORTID_NULL);\n",
 	    rt->rtMsgOption->argVarName,
 	    rt->rtWaitTime != argNULL ? "|MCN_RECV_TIMEOUT" : "",
 	    rt->rtWaitTime != argNULL? rt->rtWaitTime->argVarName : "MCN_MSGTIMEOUT_NONE");
@@ -1000,11 +1009,14 @@ WriteRequestArgs(FILE *file, register const routine_t *rt)
 static void
 WriteCheckIdentity(FILE *file, const routine_t *rt)
 {
-    fprintf(file, "\tif (OutP->Head.msgh_id != %d) {\n",
+    fprintf(file, "\tif (OutP->Head.msgr_msgid != %d) {\n",
 	    rt->rtNumber + SubsystemBase + 100);
-    fprintf(file, "\t\tif (OutP->Head.msgh_id == MACH_NOTIFY_SEND_ONCE)\n");
-    WriteMsgError(file, rt, "MIG_SERVER_DIED");
-    fprintf(file, "\t\telse\n");
+    /*
+      XXX: PORT THIS TO MACHINA
+      fprintf(file, "\t\tif (OutP->Head.msgh_id == MACH_NOTIFY_SEND_ONCE)\n");
+      WriteMsgError(file, rt, "MIG_SERVER_DIED");
+      fprintf(file, "\t\telse\n");
+    */
     WriteMsgError(file, rt, "MIG_REPLY_MISMATCH");
     fprintf(file, "\t}\n");
     fprintf(file, "\n");
@@ -1017,12 +1029,12 @@ WriteCheckIdentity(FILE *file, const routine_t *rt)
 	   */
 
 	if (!rt->rtNoReplyArgs)
-	    fprintf(file, "\tmsgh_size = OutP->Head.msgh_size;\n\n");
+	    fprintf(file, "\tmsgh_size = OutP->Head.msgr_size;\n\n");
 
 	fprintf(file,
-	    "\tif ((OutP->Head.msgh_bits & MACH_MSGH_BITS_COMPLEX) ||\n");
+	    "\tif ((OutP->Head.msgr_bits & MCN_MSGBITS_COMPLEX) ||\n");
 	if (rt->rtNoReplyArgs)
-	    fprintf(file, "\t    (OutP->Head.msgh_size != %d))\n",
+	    fprintf(file, "\t    (OutP->Head.msgr_size != %d))\n",
 			rt->rtReplySize);
 	else {
 	    fprintf(file, "\t    ((msgh_size %s %d) &&\n",
@@ -1035,8 +1047,8 @@ WriteCheckIdentity(FILE *file, const routine_t *rt)
     else {
 	/* Expecting a complex message, or may vary at run time. */
 
-	fprintf(file, "\tmsgh_size = OutP->Head.msgh_size;\n");
-	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgh_bits & MACH_MSGH_BITS_COMPLEX);\n");
+	fprintf(file, "\tmsgh_size = OutP->Head.msgr_size;\n");
+	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgr_bits & MCN_MSBITS_COMPLEX);\n");
 	fprintf(file, "\n");
 
 	fprintf(file, "\tif (((msgh_size %s %d)",

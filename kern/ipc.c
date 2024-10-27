@@ -16,7 +16,28 @@ mcn_return_t simple
 )
 {
   info("SIMPLE MESSAGE RECEIVED (test: %ld)\n", test);
-  return true;
+  return KERN_SUCCESS;
+}
+
+static int counter = 0;
+mcn_return_t inc(mcn_portid_t test, long *new)
+{
+  *new = ++counter;
+  return KERN_SUCCESS;
+}
+
+mcn_return_t add(mcn_portid_t test, long b, long *c)
+{
+  counter += b;
+  *c = counter;
+  return KERN_SUCCESS;
+}
+
+mcn_return_t mul(mcn_portid_t test, int b, long *c)
+{
+  counter *= b;
+  *c = counter;
+  return KERN_SUCCESS;
 }
 
 #if 0
@@ -40,6 +61,7 @@ port_send(struct portref *portref, mcn_msgid_t id, void *data, size_t size, stru
 }
 #endif
 
+
 static inline bool
 portright_iskernel(struct portright *pr)
 {
@@ -52,17 +74,21 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
   //  const bool recv = !!(opt & MCN_MSGOPT_RECV);
   mcn_return_t rc;
   struct portspace *ps;
-  struct portright send_right, reply_right;
 
   /* Copy from user-accessible memory. */
   kstest_requests_t req = *(volatile kstest_requests_t *)cur_kmsgbuf();
   mcn_msgsend_t *reqh = (mcn_msgsend_t *)&req;
-  const bool reply_port_valid = (reqh->msgs_local != MCN_PORTID_NULL);
 
-  printf("\n");
-  printf("send = %d\n", send);
   if (send)
     {
+      const bool reply_port_valid = (reqh->msgs_local != MCN_PORTID_NULL);
+      struct portright send_right = {0}, reply_right = {0};
+  
+      if (reqh->msgs_size < sizeof(mcn_msgsend_t))
+	return MSGIO_SEND_INVALID_DATA;
+      if (reqh->msgs_size >= sizeof(mcn_msgsend_t))
+	return MSGIO_SEND_INVALID_DATA;
+
       ps = task_getportspace(cur_task());
 
       switch (MCN_MSGBITS_REMOTE(reqh->msgs_bits))
@@ -147,53 +173,79 @@ mcn_msgioret_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long
 	    }
 	}
         task_putportspace(cur_task(), ps);
-    }
 
-  printf("Here!\n");
-  
-  if (send && portright_iskernel(&send_right))
+	
+	if (portright_iskernel(&send_right))
+	  {
+  struct port *send;/*, *reply; */
+  /*
+    This is a Kernel Server IPC.
+  */
+
+  if (reply_port_valid && (reqh->msgs_local == recv_port))
     {
-      struct port *send;/*, *reply; */
       /*
-	This is a Kernel Server IPC.
+	Caller waits on the same receive port it expects a
+	reply from.  Write the reply directly on the thread
+	message buffer and return.
+
+	This catches the default behaviour for Kernel Server
+	interfaces in MIG.
       */
 
-      if (reply_port_valid && (reqh->msgs_local == recv_port))
-	{
-	  /*
-	    A Kernel Server IPC waits on the same receive port it
-	    expects a reply from.  Write the reply directly on the
-	    thread message buffer and return.
-
-	    This catches the default behaviour for Kernel Server
-	    interfaces in MIG.
-	  */
-
-	  send = portright_unsafe_get(&send_right);
-      	  kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)cur_kmsgbuf());
-	  portright_consume(&send_right);
-	  portright_consume(&reply_right);
-	  /*
-	    MIG_BAD_ID set in reply return code.
-	  */
-	  return MSGIO_SUCCESS;
-	}
-      else if (!reply_port_valid)
-	{
-	  /* Ignore reply. */
-	  kstest_replies_t reply;
-
-	  send = portright_unsafe_get(&send_right);
-	  kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)&reply);
-	  portright_consume(&send_right);
-	  portright_consume(&reply_right);
-	  /*
-	    MIG_BAD_ID set in reply return code. Which will be ignored here.
-	  */
-	  return MSGIO_SUCCESS;
-	}
-      else fatal("IMPLEMENT KIPC WITH PORT QUEUEING.");
+      send = portright_unsafe_get(&send_right);
+      kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)cur_kmsgbuf());
+      portright_consume(&send_right);
+      portright_consume(&reply_right);
+      return MSGIO_SUCCESS;
     }
+  else if (!reply_port_valid)
+    {
+      /* Ignore reply. */
+      kstest_replies_t reply;
+
+      send = portright_unsafe_get(&send_right);
+      kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)&reply);
+      portright_consume(&send_right);
+      /* reply_right NOT VALID. DO NOT CONSUME. */
+      return MSGIO_SUCCESS;
+    }
+  else
+    {
+      struct port *p;
+      void *b;
+      size_t size;
+      kstest_replies_t reply;
+
+      /*
+	Kernel IPC reply has to be queued in a port.
+      */
+      assert(reply_port_valid);
+      send = portright_unsafe_get(&send_right);
+      kstest_server(send, (mcn_msgsend_t *)&req, (mcn_msgrecv_t *)&reply);
+      portright_consume(&send_right);
+
+      size = ((mcn_msgrecv_t *)&reply)->msgr_size;
+      if (size > sizeof(reply))
+	{
+	  fatal ("Kernel IPC produced a suspicious size %ld\n",
+		 (unsigned long)size);
+	}
+      size += sizeof(struct msgq_entry);
+      b = (void *)kmem_alloc(0, size);
+      if (b == NULL)
+	return KERN_RESOURCE_SHORTAGE;
+
+      memcpy(b + sizeof(struct msgq_entry), &reply, size);
+      p = portright_unsafe_get(&reply_right);
+      port_enqueue(p, (struct msgq_entry *)b, size);
+      portright_unsafe_put(&p);
+      portright_consume(&reply_right);
+    }
+	  }
+    }
+
+    
   
   fatal("Implement me");
   
