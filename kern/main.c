@@ -44,7 +44,7 @@ main (int argc, char *argv[])
   printf("task = %p\n", t);
   struct thread *th = thread_bootstrap(t);
   printf("thread = %p\n", th);
-  rc = port_alloc_kernel(testport_send, NULL, &portref);
+  rc = port_alloc_kernel(NULL, &portref);
   assert(rc == KERN_SUCCESS);
   struct portright testpr = portright_from_portref(RIGHT_SEND, portref);
   mcn_portid_t id;

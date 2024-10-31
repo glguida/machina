@@ -211,6 +211,7 @@ struct portspace {
   struct rb_tree portsearch_rb_tree;
 };
 
+struct portref;
 struct portright;
 
 void portspace_init(void);
@@ -218,11 +219,12 @@ void portspace_setup(struct portspace *ps);
 void portspace_lock (struct portspace *ps);
 void portspace_unlock (struct portspace *ps);
 mcn_return_t portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout);
-mcn_return_t portspace_movesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_copysend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_moveonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_makesend(struct portspace *ps, mcn_portid_t id, struct portright *pr);
-mcn_return_t portspace_makeonce(struct portspace *ps, mcn_portid_t id, struct portright *pr);
+mcn_return_t portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct portright *right);
+mcn_msgioret_t portspace_resolve_sendmsg(struct portspace *ps,
+					 uint8_t rembits, mcn_portid_t remid, struct portright *remright,
+					 uint8_t locbits, mcn_portid_t locid, struct portright *locright);
+mcn_return_t portspace_resolve_receive(struct portspace *ps, mcn_portid_t id, struct portref *portref);
+
 void portspace_print(struct portspace *ps);
 
 
@@ -230,18 +232,16 @@ void portspace_print(struct portspace *ps);
   Ports.
 
 */
+
 enum port_type {
   PORT_KERNEL,
   PORT_QUEUE,
   PORT_DEAD,
 };
 
-struct portref;
-
-typedef mcn_return_t (*fn_msgsend_t)(void *ctx, mcn_msgid_t id, void *data, size_t size, struct portref reply);
 
 struct msgq_entry {
-  LIST_ENTRY(msgq_entry) list;
+  TAILQ_ENTRY(msgq_entry) queue;
 };
 
 struct port {
@@ -252,12 +252,10 @@ struct port {
   union {
     struct {
       void *ctx;
-      fn_msgsend_t msgsend;
     } kernel;
     struct {
       struct portspace portspace;
-      unsigned long entries;
-      LIST_HEAD(, msgq_entry) msgq;
+      TAILQ_HEAD(, msgq_entry) msgq;
     } queue;
   };
 };
@@ -265,14 +263,28 @@ struct port {
 void port_init(void);
 bool port_dead(struct port *);
 bool port_kernel(struct port *);
-mcn_return_t port_enqueue(struct port *p, struct msgq_entry *, size_t size);
-mcn_return_t port_alloc_kernel(fn_msgsend_t send, void *ctx, struct portref *portref);
+enum port_type port_type(struct port *);
+//mcn_return_t port_enqueue(struct port *p, struct msgq_entry *, size_t size);
+mcn_return_t port_alloc_kernel(void *ctx, struct portref *portref);
 mcn_return_t port_alloc_queue(struct portref *portref);
+struct portspace * port_getportspace(struct port *port);
+void port_putportspace(struct port *port, struct portspace *ps);
+mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
+			  struct portright *local_right, struct portright *remote_right,
+			  volatile void *body, size_t bodysize);
+mcn_return_t port_dequeue(mcn_portid_t recvid, struct port *port, struct portspace *outps, mcn_msgrecv_t *outmsgh, size_t outsize);
 
 struct port;
 struct portref {
   struct port *obj;
 };
+
+static inline struct portspace *
+portref_get_portspace(struct portref *pr)
+{
+  return port_getportspace(REF_GET(*pr));
+}
+
 
 /*
   Port Rights.
@@ -290,6 +302,7 @@ struct portright {
   struct portref portref;
 };
 
+
 #define portright_from_portref(_type, _portref)	\
   ({						\
     struct portright pr;			\
@@ -298,6 +311,12 @@ struct portright {
     pr;						\
   })
 
+
+static inline enum port_type
+portright_porttype(struct portright *pr)
+{
+  return port_type(REF_GET(pr->portref));
+}
 
 static inline struct portref
 portright_movetoportref(struct portright *pr)

@@ -13,6 +13,7 @@ struct slab portentry;
 
 struct portentry {
   mcn_portid_t id;
+  unsigned long send_refs;
   struct portright portright;
 };
 
@@ -51,6 +52,36 @@ void
 portspace_unlock (struct portspace *ps)
 {
   spinunlock (&ps->lock);
+}
+
+static struct portentry *
+_portentry_get_dual(struct portspace *ps, mcn_portid_t id1, mcn_portid_t id2)
+{
+  struct portentry *send_pe, *reply_pe;
+
+  send_pe = rb_tree_find_node(&ps->rb_tree, &send_portid);
+  if (send_pe == NULL)
+    return MSGIO_SEND_INVALID_DEST;
+
+  reply_pe = rb_tree_find_node(&ps->rb_tree, &reply_portid);
+  if (reply_pe == NULL)
+    return MSGIO_SEND_INVALID_REPLY;
+
+  struct port *send_port = REF_GET(send_pe->portref);
+  struct port *reply_port = REF_GET(reply_pe->portref);
+  spinlock_dual(send_port, reply_port);
+  switch(send_port->
+  spiunlock_dual(REF_GET(send_pe->portref), REF_GET(reply_pe->portref));
+}
+
+mcn_msgioret_t
+portspace_get_msg_ports(struct portspace *ps,
+			uint8_t reply_bits, mcn_portid_t reply_portid, struct portright *reply_right,
+			uint8_t send_bits, mcn_portid_t send_portid, struct portright *send_righ)
+{
+
+
+  
 }
 
 mcn_return_t

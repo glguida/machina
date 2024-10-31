@@ -101,13 +101,21 @@ main (void)
     {
         mcn_portid_t tmp_port = mcn_reply_port();
 	volatile struct mcn_msgsend *msgh = (struct mcn_msgsend *) syscall_msgbuf();
-	msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, MCN_MSGTYPE_MAKEONCE);
+	msgh->msgs_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKEONCE, MCN_MSGTYPE_MAKEONCE);
 	msgh->msgs_size = 32;
-	msgh->msgs_remote = 1;
+	msgh->msgs_remote = 2;
 	msgh->msgs_local = tmp_port;
 	msgh->msgs_msgid = 2000;
 	asm volatile ("" ::: "memory");
-	printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, mig_get_reply_port(), 0, MCN_PORTID_NULL));
+	printf("MSGIORET: %d", syscall_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, 2, 0, MCN_PORTID_NULL));
+
+	volatile struct mcn_msgrecv *msgr = (struct mcn_msgrecv *) syscall_msgbuf();
+	printf("BITS: %lx\n", msgr->msgr_bits);
+	printf("LOCAL: %lx\n", msgr->msgr_local);
+	printf("REMOTE: %lx\n", msgr->msgr_remote);
+	printf("SEQNO: %lx\n", msgr->msgr_seqno);
+	printf("MSGID: %ld\n", msgr->msgr_msgid);
+	
     }
 
   return 42;
