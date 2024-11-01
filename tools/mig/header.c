@@ -111,6 +111,7 @@
 static void
 WriteIncludes(FILE *file)
 {
+    fprintf(file, "#include <stdbool.h>\n");
     fprintf(file, "#include <machina/types.h>\n");
     fprintf(file, "#include <machina/message.h>\n");
     fprintf(file, "\n");
@@ -214,10 +215,7 @@ WriteStructInst(FILE *file, const argument_t *args, write_list_fn_t *func,
 		u_int mask, const char *name)
 {
     fprintf(file, "\tstruct {\n");
-    if (mask == akbRequest)
-      fprintf(file, "\t\tmcn_msgsend_t Head;\n");
-    if (mask == akbReply)
-      fprintf(file, "\t\tmcn_msgrecv_t Head;\n");
+    fprintf(file, "\t\tmcn_msgheader_t Head;\n");
     WriteList(file, args, func, mask, "\n", "\n");
     fprintf(file, "\t} %s;\n", name);
     fprintf(file, "\n");
@@ -284,9 +282,9 @@ WriteServerRoutineDecl(FILE *file)
 {
   fprintf(file, "\n");
   if (IsKernelServer)
-      fprintf(file, "bool %s(struct port *port, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP);\n", ServerDemux);
+      fprintf(file, "bool %s(struct port *port, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP);\n", ServerDemux);
   else
-      fprintf(file, "bool %s(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP);\n", ServerDemux);
+      fprintf(file, "bool %s(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP);\n", ServerDemux);
   fprintf(file, "\n");
 }
 

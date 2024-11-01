@@ -9,7 +9,7 @@
 
 #include <machina/types.h>
 
-mcn_msgioret_t mcn_msgio(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);
+mcn_msgioret_t mcn_msg(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);
 mcn_portid_t mcn_reply_port(void);
 
 #endif

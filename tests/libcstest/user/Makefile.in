@@ -1,0 +1,6 @@
+LIBRARY=cs_user
+SRCS+= cs.c cs_server.c
+
+@COMPILE_LIBMACHINA@
+@COMPILE_LIBNUX_USER@
+@COMPILE_LIBEC@

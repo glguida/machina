@@ -18,6 +18,12 @@ LDFLAGS+=-L$(BUILDROOT)/tests/libkstest/user/$(OBJDIR)
 LDADD+=-lks_user
 LIBDEPS+=$(BUILDROOT)/tests/libkstest/user/$(OBJDIR)/libks_user.a
 
+# Add libcstest
+CFLAGS+=-I$(BUILDROOT)/tests/libcstest/user -I$(SRCROOT)/tests/libcstest/user
+LDFLAGS+=-L$(BUILDROOT)/tests/libcstest/user/$(OBJDIR)
+LDADD+=-lcs_user
+LIBDEPS+=$(BUILDROOT)/tests/libcstest/user/$(OBJDIR)/libcs_user.a
+
 NOINST=y
 PROGRAM=test
 

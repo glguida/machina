@@ -235,35 +235,23 @@ WriteGlobalDecls(FILE *file)
     if (IsKernelServer)
       {
 	fprintf(file, "struct port;\n");
-	fprintf(file, "typedef void (*mig_routine_t)(struct port *port, mcn_msgsend_t *, mcn_msgrecv_t *);\n");
+	fprintf(file, "typedef void (*mig_routine_t)(struct port *port, mcn_msgheader_t *, mcn_msgheader_t *);\n");
       }
     else
       {
-	fprintf(file, "typedef void (*mig_routine_t)(mcn_msgsend_t *, mcn_msgrecv_t *);\n");
+	fprintf(file, "typedef void (*mig_routine_t)(mcn_msgheader_t *, mcn_msgheader_t *);\n");
       }
     fprintf(file, "\n");
 
     /* Used for locations in the request message, *not* reply message.
        Reply message locations aren't dependent on IsKernelServer. */
 
-    if (IsKernelServer)
-    {
-	fprintf(file, "#define msgh_request_port\tmsgs_remote\n");
-	fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-	fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
-	fprintf(file, "#define msgh_reply_port\t\tmsgs_local\n");
-	fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-	fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
-    }
-    else
-    {
-	fprintf(file, "#define msgh_request_port\tmsgs_local\n");
-	fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-	fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
-	fprintf(file, "#define msgh_reply_port\t\tmsgs_remote\n");
-	fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-	fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
-    }
+    fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
+    fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
+    fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
+    fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
+    fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
     fprintf(file, "\n");
 }
 
@@ -340,12 +328,12 @@ WriteEpilog(FILE *file, const statement_t *stats)
       */
     fprintf(file, "mig_external bool %s\n", ServerDemux);
     if (IsKernelServer)
-      fprintf(file, "\t(struct port *SendPort, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+      fprintf(file, "\t(struct port *SendPort, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
     else
-      fprintf(file, "\t(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+      fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
-    fprintf(file, "\tmcn_msgsend_t *InP =  InHeadP;\n");
+    fprintf(file, "\tmcn_msgheader_t *InP =  InHeadP;\n");
 
     fprintf(file, "\tmig_reply_header_t *OutP = (mig_reply_header_t *) OutHeadP;\n");
 
@@ -359,22 +347,22 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "\tregister mig_routine_t routine;\n");
     fprintf(file, "\n");
 
-    fprintf(file, "\tOutP->Head.msgr_bits = ");
-    fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgs_bits), 0);\n");
-    fprintf(file, "\tOutP->Head.msgr_size = sizeof *OutP;\n");
-    fprintf(file, "\tOutP->Head.msgr_remote = InP->msgh_reply_port;\n");
-    fprintf(file, "\tOutP->Head.msgr_local = MCN_PORTID_NULL;\n");
-    fprintf(file, "\tOutP->Head.msgr_seqno = 0;\n");
-    fprintf(file, "\tOutP->Head.msgr_msgid = InP->msgs_msgid + 100;\n");
+    fprintf(file, "\tOutP->Head.msgh_bits = ");
+    fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgh_bits), 0);\n");
+    fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
+    fprintf(file, "\tOutP->Head.msgh_remote = InP->msgh_reply_port;\n");
+    fprintf(file, "\tOutP->Head.msgh_local = MCN_PORTID_NULL;\n");
+    fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
+    fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
     fprintf(file, "\n");
     WritePackMsgType(file, itRetCodeType,
 		     itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
 		     !IsKernelServer, "OutP->RetCodeType", "RetCodeType");
     fprintf(file, "\n");
 
-    fprintf(file, "\tif ((InP->msgs_msgid > %d) || (InP->msgs_msgid < %d) ||\n",
+    fprintf(file, "\tif ((InP->msgh_msgid > %d) || (InP->msgh_msgid < %d) ||\n",
 	    SubsystemBase + rtNumber - 1, SubsystemBase);
-    fprintf(file, "\t    ((routine = %s_routines[InP->msgs_msgid - %d]) == 0)) {\n",
+    fprintf(file, "\t    ((routine = %s_routines[InP->msgh_msgid - %d]) == 0)) {\n",
 	    ServerDemux, SubsystemBase);
     fprintf(file, "\t\tOutP->RetCode = MIG_BAD_ID;\n");
     fprintf(file, "\t\treturn false;\n");
@@ -393,12 +381,12 @@ WriteEpilog(FILE *file, const statement_t *stats)
      * Then, the <subsystem>_server_routine routine
      */
     fprintf(file, "mig_external mig_routine_t %s_routine\n", ServerDemux);
-    fprintf(file, "\t(const mcn_msgsend_t *InHeadP)\n");
+    fprintf(file, "\t(const mcn_msgheader_t *InHeadP)\n");
 
     fprintf(file, "{\n");
     fprintf(file, "\tregister int msgh_id;\n");
     fprintf(file, "\n");
-    fprintf(file, "\tmsgh_id = InHeadP->msgs_msgid - %d;\n", SubsystemBase);
+    fprintf(file, "\tmsgh_id = InHeadP->msgh_msgid - %d;\n", SubsystemBase);
     fprintf(file, "\n");
     fprintf(file, "\tif ((msgh_id > %d) || (msgh_id < 0))\n",
 	    rtNumber - 1);
@@ -538,7 +526,7 @@ WriteReplyInit(FILE *file, const routine_t *rt)
 	    printed_nl = TRUE;
 	    fprintf(file, "\n");
 	    fprintf(file,
-		"\tOutP->Head.msgr_bits |= MCN_MSGBITS_COMPLEX;\n");
+		"\tOutP->Head.msgh_bits |= MCN_MSGBITS_COMPLEX;\n");
 	}
     }
     else
@@ -553,7 +541,7 @@ WriteReplyInit(FILE *file, const routine_t *rt)
     {
 	if (!printed_nl)
 	    fprintf(file, "\n");
-	fprintf(file, "\tOutP->Head.msgr_size = %d;\n", rt->rtReplySize);
+	fprintf(file, "\tOutP->Head.msgh_size = %d;\n", rt->rtReplySize);
     }
 }
 
@@ -572,10 +560,10 @@ WriteReplyHead(FILE *file, const routine_t *rt)
     {
 	fprintf(file, "\tif (!msgh_simple)\n");
 	fprintf(file,
-		"\t\tOutP->Head.msgr_bits |= MCN_MSGBITS_COMPLEX;\n");
+		"\t\tOutP->Head.msgh_bits |= MCN_MSGBITS_COMPLEX;\n");
     }
     if (rt->rtNumReplyVar > 1)
-	fprintf(file, "\tOutP->Head.msgr_size = msgh_size;\n");
+	fprintf(file, "\tOutP->Head.msgh_size = msgh_size;\n");
 }
 
 static void
@@ -583,19 +571,19 @@ WriteCheckHead(FILE *file, const routine_t *rt)
 {
     fprintf(file, "#if\tTypeCheck\n");
     if (rt->rtNumRequestVar > 0)
-	fprintf(file, "\tmsgh_size = In0P->Head.msgs_size;\n");
+	fprintf(file, "\tmsgh_size = In0P->Head.msgh_size;\n");
     if (!rt->rtSimpleCheckRequest)
-	fprintf(file, "\tmsgh_simple = !(In0P->Head.msgs_bits & MCN_MSGBITS_COMPLEX);\n");
+	fprintf(file, "\tmsgh_simple = !(In0P->Head.msgh_bits & MCN_MSGBITS_COMPLEX);\n");
 
     if (rt->rtNumRequestVar > 0)
 	fprintf(file, "\tif ((msgh_size < %d)",
 		rt->rtRequestSize);
     else
-	fprintf(file, "\tif ((In0P->Head.msgs_size != %d)",
+	fprintf(file, "\tif ((In0P->Head.msgh_size != %d)",
 		rt->rtRequestSize);
 
     if (rt->rtSimpleCheckRequest)
-	fprintf(file, " ||\n\t    %s(In0P->Head.msgs_bits & MCN_MSGBITS_COMPLEX)",
+	fprintf(file, " ||\n\t    %s(In0P->Head.msgh_bits & MCN_MSGBITS_COMPLEX)",
 		rt->rtSimpleReceiveRequest ? "" : "!");
     fprintf(file, ")\n");
     WriteMsgError(file, "MIG_BAD_ARGUMENTS");
@@ -1221,10 +1209,10 @@ WriteAdjustMsgCircular(FILE *file, register const argument_t *arg)
      *	because of the variable-sized messages.
      */
 
-    fprintf(file, "\tif (IP_VALID((ipc_port_t) InHeadP->msgs_reply_port) &&\n");
+    fprintf(file, "\tif (IP_VALID((ipc_port_t) InHeadP->msgh_reply_port) &&\n");
     fprintf(file, "\t    IP_VALID((ipc_port_t) OutP->%s) &&\n", arg->argMsgField);
-    fprintf(file, "\t    ipc_port_check_circularity((ipc_port_t) OutP->%s, (ipc_port_t) InHeadP->msgs_reply_port))\n", arg->argMsgField);
-    fprintf(file, "\t\tOutHeadP->msgr_bits |= MACH_MSGH_BITS_CIRCULAR;\n");
+    fprintf(file, "\t    ipc_port_check_circularity((ipc_port_t) OutP->%s, (ipc_port_t) InHeadP->msgh_reply_port))\n", arg->argMsgField);
+    fprintf(file, "\t\tOutHeadP->msgh_bits |= MACH_MSGH_BITS_CIRCULAR;\n");
 }
 
 /*
@@ -1527,9 +1515,9 @@ WriteRoutine(FILE *file, register const routine_t *rt)
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     fprintf(file, "mig_internal void _X%s\n", rt->rtName);
     if (IsKernelServer)
-      fprintf(file, "\t(struct port *port, mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+      fprintf(file, "\t(struct port *port, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
     else
-      fprintf(file, "\t(mcn_msgsend_t *InHeadP, mcn_msgrecv_t *OutHeadP)\n");
+      fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
     WriteStructDecl(file, rt->rtArgs, WriteFieldDecl, akbRequest, "Request");

@@ -22,7 +22,7 @@
 #define MIG_DESTROY_REQUEST -309
 
 typedef struct {
-  mcn_msgrecv_t Head;
+  mcn_msgheader_t Head;
   mcn_msgtype_t RetCodeType;
   mcn_return_t RetCode;
 } mig_reply_header_t;

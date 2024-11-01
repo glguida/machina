@@ -483,10 +483,7 @@ rtFindSize(const argument_t *args, u_int mask)
     register const argument_t *arg;
     u_int size;
 
-    if (mask == akbRequest)
-      size = sizeof_mcn_msgsend_t;
-    else if (mask == akbReply)
-      size = sizeof_mcn_msgrecv_t;
+    size = sizeof_mcn_msgheader_t;
 
     for (arg = args; arg != argNULL; arg = arg->argNext)
 	if (akCheck(arg->argKind, mask))

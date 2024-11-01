@@ -308,8 +308,8 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_user"), RCSId);
 
-    fprintf(file, "#define msgh_request_port\tmsgs_remote\n");
-    fprintf(file, "#define msgh_reply_port\t\tmsgs_local\n");
+    fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
+    fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
     fprintf(file, "\n");
 }
 
@@ -347,7 +347,7 @@ WriteRequestHead(FILE *file, const routine_t *rt)
 	fprintf(file, "\tInP = &Mess->In;\n");
 
     if (rt->rtSimpleFixedRequest) {
-	fprintf(file, "\tInP->Head.msgs_bits =");
+	fprintf(file, "\tInP->Head.msgh_bits =");
 	if (!rt->rtSimpleSendRequest)
 	    fprintf(file, " MCN_MSGBITS_COMPLEX|");
 	fprintf(file, "\n");
@@ -355,7 +355,7 @@ WriteRequestHead(FILE *file, const routine_t *rt)
 		WriteHeaderPortType(rt->rtRequestPort),
 		WriteHeaderPortType(rt->rtReplyPort));
     } else {
-	fprintf(file, "\tInP->Head.msgs_bits = msgh_simple ?\n");
+	fprintf(file, "\tInP->Head.msgh_bits = msgh_simple ?\n");
 	fprintf(file, "\t\tMCN_MSGBITS(%s, %s) :\n",
 		WriteHeaderPortType(rt->rtRequestPort),
 		WriteHeaderPortType(rt->rtReplyPort));
@@ -365,7 +365,7 @@ WriteRequestHead(FILE *file, const routine_t *rt)
 		WriteHeaderPortType(rt->rtReplyPort));
     }
 
-    fprintf(file, "\tInP->Head.msgs_size = %d;\n", rt->rtRequestSize);
+    fprintf(file, "\tInP->Head.msgh_size = %d;\n", rt->rtRequestSize);
     fprintf(file, "\t/* msgh_size passed as argument */\n");
 
     /*
@@ -398,7 +398,7 @@ WriteRequestHead(FILE *file, const routine_t *rt)
 	fprintf(file, "\tInP->%s = mig_get_reply_port();\n",
 		rt->rtReplyPort->argMsgField);
 
-    fprintf(file, "\tInP->Head.msgs_msgid = %d;\n", rt->rtNumber + SubsystemBase);
+    fprintf(file, "\tInP->Head.msgh_msgid = %d;\n", rt->rtNumber + SubsystemBase);
 }
 
 /*************************************************************
@@ -498,7 +498,7 @@ WriteMsgSend(FILE *file, const routine_t *rt)
     }
     else
     {
-        fprintf(file, "\t%s mcn_msgio(MCN_MSGOPT_SEND|%s,",
+        fprintf(file, "\t%s mcn_msg(MCN_MSGOPT_SEND|%s,",
 		MsgResult,
 		rt->rtMsgOption->argVarName);
 	fprintf(file,
@@ -588,7 +588,7 @@ WriteMsgRPC(FILE *file, const routine_t *rt)
     if (IsKernelUser)
 	fprintf(file, "\tmsg_result = mach_msg_rpc_from_kernel(&InP->Head, %s, sizeof(Reply));\n", SendSize);
     else
-	fprintf(file, "\tmsg_result = mcn_msgio(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV|%s%s, InP->Head.msgh_reply_port, %s, MCN_PORTID_NULL);\n",
+	fprintf(file, "\tmsg_result = mcn_msg(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV|%s%s, InP->Head.msgh_reply_port, %s, MCN_PORTID_NULL);\n",
 	    rt->rtMsgOption->argVarName,
 	    rt->rtWaitTime != argNULL ? "|MCN_RECV_TIMEOUT" : "",
 	    rt->rtWaitTime != argNULL? rt->rtWaitTime->argVarName : "MCN_MSGTIMEOUT_NONE");
@@ -1009,7 +1009,7 @@ WriteRequestArgs(FILE *file, register const routine_t *rt)
 static void
 WriteCheckIdentity(FILE *file, const routine_t *rt)
 {
-    fprintf(file, "\tif (OutP->Head.msgr_msgid != %d) {\n",
+    fprintf(file, "\tif (OutP->Head.msgh_msgid != %d) {\n",
 	    rt->rtNumber + SubsystemBase + 100);
     /*
       XXX: PORT THIS TO MACHINA
@@ -1029,12 +1029,12 @@ WriteCheckIdentity(FILE *file, const routine_t *rt)
 	   */
 
 	if (!rt->rtNoReplyArgs)
-	    fprintf(file, "\tmsgh_size = OutP->Head.msgr_size;\n\n");
+	    fprintf(file, "\tmsgh_size = OutP->Head.msgh_size;\n\n");
 
 	fprintf(file,
-	    "\tif ((OutP->Head.msgr_bits & MCN_MSGBITS_COMPLEX) ||\n");
+	    "\tif ((OutP->Head.msgh_bits & MCN_MSGBITS_COMPLEX) ||\n");
 	if (rt->rtNoReplyArgs)
-	    fprintf(file, "\t    (OutP->Head.msgr_size != %d))\n",
+	    fprintf(file, "\t    (OutP->Head.msgh_size != %d))\n",
 			rt->rtReplySize);
 	else {
 	    fprintf(file, "\t    ((msgh_size %s %d) &&\n",
@@ -1047,8 +1047,8 @@ WriteCheckIdentity(FILE *file, const routine_t *rt)
     else {
 	/* Expecting a complex message, or may vary at run time. */
 
-	fprintf(file, "\tmsgh_size = OutP->Head.msgr_size;\n");
-	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgr_bits & MCN_MSBITS_COMPLEX);\n");
+	fprintf(file, "\tmsgh_size = OutP->Head.msgh_size;\n");
+	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgh_bits & MCN_MSBITS_COMPLEX);\n");
 	fprintf(file, "\n");
 
 	fprintf(file, "\tif (((msgh_size %s %d)",

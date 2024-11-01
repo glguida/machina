@@ -83,6 +83,8 @@ AC_MK_CONFIG_FILES([
 	tests/libkstest/Makefile
 	tests/libkstest/user/Makefile
 	tests/libkstest/kern/Makefile
+	tests/libcstest/Makefile
+	tests/libcstest/user/Makefile
 	tests/test/Makefile
 	bootstrap/Makefile
 	tools/mig/Makefile

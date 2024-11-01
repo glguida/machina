@@ -1,0 +1,24 @@
+subsystem cstest 2000;
+
+#include <machina/std_types.defs>
+
+serverprefix __srv_;
+
+simpleroutine user_simple(
+		test: mcn_port_t);
+
+
+routine user_inc(
+		test : mcn_port_t;
+	out	new : long);
+
+routine user_add(
+		test : mcn_port_t;
+		b : long;
+	out	c : long);
+
+
+routine user_mul(
+		test:	mcn_port_t;
+		b:	int;
+	out	c:	long);

@@ -122,21 +122,13 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_RCV_BODY_ERROR  0x1000400c
 
 
-typedef struct mcn_msgsend {
-  mcn_msgbits_t msgs_bits;
-  mcn_msgsize_t msgs_size;
-  mcn_portid_t msgs_remote;
-  mcn_portid_t msgs_local;
-  mcn_msgid_t msgs_msgid;
-} mcn_msgsend_t;
-
-typedef struct mcn_msgrecv {
-  mcn_msgbits_t msgr_bits;
-  mcn_msgsize_t msgr_size;
-  mcn_portid_t msgr_remote;
-  mcn_portid_t msgr_local;
-  mcn_seqno_t msgr_seqno;
-  mcn_msgid_t msgr_msgid;
-} mcn_msgrecv_t;
+typedef struct mcn_msgheader {
+  mcn_msgbits_t msgh_bits;
+  mcn_msgsize_t msgh_size;
+  mcn_portid_t msgh_remote;
+  mcn_portid_t msgh_local;
+  mcn_seqno_t msgh_seqno;
+  mcn_msgid_t msgh_msgid;
+} mcn_msgheader_t;
 
 #endif

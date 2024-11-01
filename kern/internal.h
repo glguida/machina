@@ -244,19 +244,20 @@ struct msgq_entry {
   TAILQ_ENTRY(msgq_entry) queue;
 };
 
+struct port_queue {
+  struct portspace portspace;
+  TAILQ_HEAD(, msgq_entry) msgq;
+};
+
 struct port {
   unsigned long _ref_count; /* Handled by portref. */
 
   lock_t lock;
   enum port_type type;
   union {
-    struct {
-      void *ctx;
-    } kernel;
-    struct {
-      struct portspace portspace;
-      TAILQ_HEAD(, msgq_entry) msgq;
-    } queue;
+    struct {} kernel;
+    struct {} dead;
+    struct port_queue queue;
   };
 };
 
@@ -269,10 +270,10 @@ mcn_return_t port_alloc_kernel(void *ctx, struct portref *portref);
 mcn_return_t port_alloc_queue(struct portref *portref);
 struct portspace * port_getportspace(struct port *port);
 void port_putportspace(struct port *port, struct portspace *ps);
-mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
+mcn_return_t port_enqueue(struct port *port, mcn_msgheader_t *inmsgh,
 			  struct portright *local_right, struct portright *remote_right,
 			  volatile void *body, size_t bodysize);
-mcn_return_t port_dequeue(mcn_portid_t recvid, struct port *port, struct portspace *outps, mcn_msgrecv_t *outmsgh, size_t outsize);
+mcn_return_t port_dequeue(mcn_portid_t recvid, struct port *port, struct portspace *outps, mcn_msgheader_t *outmsgh, size_t outsize);
 
 struct port;
 struct portref {
@@ -370,7 +371,7 @@ mcn_return_t task_allocate_port(struct task *t, mcn_portid_t *newid);
 /*
   Machina IPC.
 */
-mcn_return_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);
+mcn_return_t ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);
 
 /*
   Per-CPU Data.
@@ -378,6 +379,7 @@ mcn_return_t ipc_msgio(mcn_msgopt_t opt, mcn_portid_t recv, unsigned long timeou
 struct mcncpu {
   struct thread *thread;
   struct task *task;
+  struct port_queue kernel_queue;
 };
 
 static inline struct mcncpu *

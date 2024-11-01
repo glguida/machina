@@ -1,2 +1,2 @@
-SUBDIRS= libkstest test
+SUBDIRS= libkstest libcstest test
 

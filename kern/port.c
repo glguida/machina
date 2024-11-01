@@ -77,7 +77,82 @@ port_putportspace(struct port *port, struct portspace *ps)
   spinunlock(&port->lock);
 }
 
-mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
+mcn_return_t portqueue_add(struct port_queue *queue, mcn_msgheader_t *inmsgh, volatile void *body, size_t body_size, struct portright *local_right, struct portright *remote_right)
+{
+  mcn_return_t rc;
+  struct portspace *ps;
+  mcn_portid_t localid, remoteid;
+  enum portright_type localtype, remotetype;
+
+  localtype = local_right->type;
+  remotetype = remote_right->type;
+
+  portspace_lock(&queue->portspace);
+  ps = &queue->portspace;
+
+  rc = portspace_insertright(ps, local_right, &localid);
+  if (rc)
+    {
+      portspace_unlock(&queue->portspace);
+      return rc;
+    }
+
+  rc = portspace_insertright(ps, remote_right, &remoteid);
+  if (rc)
+    {
+      /* Get local_right back. */
+      assert(portspace_resolve(ps, MCN_MSGTYPE_MOVESEND, localid, local_right) == MSGIO_SUCCESS);
+      portspace_unlock(&queue->portspace);
+      return rc;
+    }
+  portspace_unlock(&queue->portspace);
+
+  mcn_msgsize_t recv_size = sizeof(mcn_msgheader_t) + body_size;
+  void *msg = (void *)kmem_alloc(0, sizeof(struct msgq_entry) + recv_size);
+  struct msgq_entry *msgq = (struct msgq_entry *)msg;
+  mcn_msgheader_t *outmsgh = (mcn_msgheader_t *)(msgq + 1);
+  void *outbody = (void *)(outmsgh + 1);
+
+  outmsgh->msgh_bits = 0;
+  switch(remotetype)
+    {
+    case RIGHT_SEND:
+      outmsgh->msgh_bits |= MCN_MSGTYPE_PORTSEND;
+      break;
+    case RIGHT_ONCE:
+      outmsgh->msgh_bits |= MCN_MSGTYPE_PORTONCE;
+      break;
+    default:
+      fatal("Wrong type %d for port receive remote portright.\n", remotetype);
+      break;
+    }
+
+  switch(localtype)
+    {
+    case RIGHT_SEND:
+      outmsgh->msgh_bits |= (MCN_MSGTYPE_PORTSEND << 8);
+      break;
+    case RIGHT_ONCE:
+      outmsgh->msgh_bits |= (MCN_MSGTYPE_PORTONCE << 8);
+      break;
+    default:
+      fatal("Wrong type %d for port receive local portright.\n", localtype);
+      break;
+    }
+
+  outmsgh->msgh_size = recv_size;
+  outmsgh->msgh_remote = remoteid;
+  outmsgh->msgh_local = localid;
+  outmsgh->msgh_seqno = 0; //port_seqno(port);
+  outmsgh->msgh_msgid = inmsgh->msgh_msgid;
+
+  memcpy(outbody, (void *)body, body_size);
+  portspace_print(&queue->portspace);
+  TAILQ_INSERT_TAIL(&queue->msgq, msgq, queue);
+  return  KERN_SUCCESS;
+}
+
+mcn_return_t port_enqueue(struct port *port, mcn_msgheader_t *inmsgh,
 			  struct portright *local_right, struct portright *remote_right,
 			  volatile void *body, size_t body_size)
 {
@@ -87,9 +162,6 @@ mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
   switch(port->type)
     {
     case PORT_KERNEL:
-      /*
-	Machina supports only MSGCALL to kernel ports.
-      */
       rc = MSGIO_SEND_INVALID_DEST;
       break;
 
@@ -100,86 +172,8 @@ mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
       rc = MSGIO_SUCCESS;
       break;
 
-    case PORT_QUEUE: {
-      /* Transform into a receive message. */
-
-      struct portspace *ps;
-      mcn_portid_t localid, remoteid;
-      enum portright_type localtype, remotetype;
-
-      localtype = local_right->type;
-      remotetype = remote_right->type;
-
-      portspace_lock(&port->queue.portspace);
-      ps = &port->queue.portspace;
-
-      printf("local_right type is %d\n", local_right->type);
-      rc = portspace_insertright(ps, local_right, &localid);
-      if (rc)
-	{
-	  portspace_unlock(&port->queue.portspace);
-	  spinunlock(&port->lock);
-	  return rc;
-	}
-
-      printf("remote_right type is %d\n", remote_right->type);
-      rc = portspace_insertright(ps, remote_right, &remoteid);
-      if (rc)
-	{
-	  /* Get local_right back. */
-	  // XXX: GIANLUCA THIS IS IMPORTANT	  assert(portspace_resolve(ps, MCN_MSGTYPE_MOVESEND, localid, local_right) == MSGIO_SUCCESS);
-	  portspace_unlock(&port->queue.portspace);
-	  spinunlock(&port->lock);
-	  return rc;
-	}
-      portspace_unlock(&port->queue.portspace);
-
-      mcn_msgsize_t recv_size = sizeof(mcn_msgrecv_t) + body_size;
-      void *msg = (void *)kmem_alloc(0, sizeof(struct msgq_entry) + recv_size);
-      struct msgq_entry *msgq = (struct msgq_entry *)msg;
-      mcn_msgrecv_t *outmsgh = (mcn_msgrecv_t *)(msgq + 1);
-      void *outbody = (void *)(outmsgh + 1);
-
-      outmsgh->msgr_bits = 0;
-      switch(remotetype)
-	{
-	case RIGHT_SEND:
-	  outmsgh->msgr_bits |= MCN_MSGTYPE_PORTSEND;
-	  break;
-	case RIGHT_ONCE:
-	  outmsgh->msgr_bits |= MCN_MSGTYPE_PORTONCE;
-	  break;
-	default:
-	  fatal("Wrong type %d for port receive remote portright.\n", remotetype);
-	  break;
-	}
-
-      switch(localtype)
-	{
-	case RIGHT_SEND:
-	  outmsgh->msgr_bits |= (MCN_MSGTYPE_PORTSEND << 8);
-	  break;
-	case RIGHT_ONCE:
-	  outmsgh->msgr_bits |= (MCN_MSGTYPE_PORTONCE << 8);
-	  break;
-	default:
-	  fatal("Wrong type %d for port receive local portright.\n", localtype);
-	  break;
-	}
-
-      outmsgh->msgr_size = recv_size;
-      outmsgh->msgr_remote = remoteid;
-      outmsgh->msgr_local = localid;
-      outmsgh->msgr_seqno = 0; //port_seqno(port);
-      outmsgh->msgr_msgid = inmsgh->msgs_msgid;
-
-      memcpy(outbody, (void *)body, body_size);
-      printf("Outbody!\n");
-      portspace_print(&port->queue.portspace);
-      info("inserting %p to %p\n", msgq, port);
-      TAILQ_INSERT_TAIL(&port->queue.msgq, msgq, queue);
-      rc = KERN_SUCCESS;
-    }
+    case PORT_QUEUE:
+      rc = portqueue_add(&port->queue, inmsgh, body, body_size, local_right, remote_right);
       break;
 
     default:
@@ -193,7 +187,7 @@ mcn_return_t port_enqueue(struct port *port, mcn_msgsend_t *inmsgh,
 }
 			  
 mcn_return_t
-port_dequeue(mcn_portid_t localid, struct port *port, struct portspace *outps, mcn_msgrecv_t *outmsgh, size_t outsize)
+port_dequeue(mcn_portid_t localid, struct port *port, struct portspace *outps, mcn_msgheader_t *outmsgh, size_t outsize)
 {
   mcn_return_t rc;
   
@@ -227,52 +221,52 @@ port_dequeue(mcn_portid_t localid, struct port *port, struct portspace *outps, m
       struct msgq_entry *msgq = TAILQ_FIRST(&port->queue.msgq);
       assert(msgq != NULL);
       TAILQ_REMOVE(&port->queue.msgq, msgq, queue);
-      mcn_msgrecv_t *msgh = (mcn_msgrecv_t *)(msgq + 1);
+      mcn_msgheader_t *msgh = (mcn_msgheader_t *)(msgq + 1);
 
       /*
 	Move local and remote right to current task.
       */
       struct portright local_right, remote_right;
       struct portspace *ps = &port->queue.portspace;
-      rc = portspace_resolve(ps, MCN_MSGBITS_LOCAL(msgh->msgr_bits), msgh->msgr_local, &local_right);
+      rc = portspace_resolve(ps, MCN_MSGBITS_LOCAL(msgh->msgh_bits), msgh->msgh_local, &local_right);
       if (rc)
 	{
-	  fatal("Couldn't retrieve local right from id %ld from queued message: %d\n",msgh->msgr_local, rc);
+	  fatal("Couldn't retrieve local right from id %ld from queued message: %d\n",msgh->msgh_local, rc);
 	}
-      rc = portspace_resolve(ps, MCN_MSGBITS_REMOTE(msgh->msgr_bits), msgh->msgr_remote, &remote_right);
+      rc = portspace_resolve(ps, MCN_MSGBITS_REMOTE(msgh->msgh_bits), msgh->msgh_remote, &remote_right);
       if (rc)
 	{
-	  fatal("Couldn't retrieve remote right from id %ld from queued message: %d\n",msgh->msgr_remote, rc);
+	  fatal("Couldn't retrieve remote right from id %ld from queued message: %d\n",msgh->msgh_remote, rc);
 	}
       spinunlock(&port->lock);
 
       assert((local_right.type == RIGHT_ONCE) || (local_right.type == RIGHT_SEND));
       /* Consume right used to send. */
-      msgh->msgr_local = localid;
+      msgh->msgh_local = localid;
 
       mcn_portid_t id;
       assert((remote_right.type == RIGHT_ONCE) || (remote_right.type == RIGHT_SEND));
       rc = portspace_insertright(outps, &remote_right, &id);
       if (rc)
 	{
-	  msgh->msgr_remote = MCN_PORTID_NULL;
+	  msgh->msgh_remote = MCN_PORTID_NULL;
 	  portright_consume(&remote_right);
 	  warn("Couldn't enter remote right for port. Right lost.");
 	}
       else
 	{
-	  msgh->msgr_remote = id;
+	  msgh->msgh_remote = id;
 	}
 
-      if (msgh->msgr_size >= outsize)
+      if (msgh->msgh_size >= outsize)
 	{
 	  warn("Port dequeue failed. Message too large. Message Lost.");
 	  rc = MSGIO_RCV_TOO_LARGE;
 	  break;
 	}
-      memcpy(outmsgh, msgh, msgh->msgr_size);
-      printf("Freeing %p (%d bytes)\n", msgq, sizeof(struct msgq_entry) + msgh->msgr_size);
-      kmem_free(0, (vaddr_t)msgq, sizeof(struct msgq_entry) + msgh->msgr_size);
+      memcpy(outmsgh, msgh, msgh->msgh_size);
+      printf("Freeing %p (%d bytes)\n", msgq, sizeof(struct msgq_entry) + msgh->msgh_size);
+      kmem_free(0, (vaddr_t)msgq, sizeof(struct msgq_entry) + msgh->msgh_size);
       rc = MSGIO_SUCCESS;
       break;
     }
@@ -319,7 +313,7 @@ port_alloc_kernel(void *ctx, struct portref *portref)
   p = slab_alloc(&ports);
   spinlock_init(&p->lock);
   p->type = PORT_KERNEL;
-  p->kernel.ctx = ctx;
+  //  p->kernel.ctx = ctx;
 
   portref->obj = p;
   p->_ref_count = 1;

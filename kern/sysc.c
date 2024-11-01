@@ -22,8 +22,8 @@ entry_sysc (uctxt_t * u,
     case __syscall_msgbuf:
       uctxt_setret(u, cur_umsgbuf());
       break;
-    case __syscall_msgio:
-      uctxt_setret(u, ipc_msgio((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
+    case __syscall_msg:
+      uctxt_setret(u, ipc_msg((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
       break;
     case __syscall_reply_port: {
       mcn_return_t rc;

@@ -316,10 +316,7 @@ WriteStructDecl(FILE *file, const argument_t *args, write_list_fn_t *func,
 		u_int mask, const char *name)
 {
     fprintf(file, "\ttypedef struct {\n");
-    if (mask == akbRequest)
-      fprintf(file, "\t\tmcn_msgsend_t Head;\n");
-    if (mask == akbReply)
-      fprintf(file, "\t\tmcn_msgrecv_t Head;\n");
+    fprintf(file, "\t\tmcn_msgheader_t Head;\n");
     WriteList(file, args, func, mask, "\n", "\n");
     fprintf(file, "\t} %s;\n", name);
     fprintf(file, "\n");
