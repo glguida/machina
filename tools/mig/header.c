@@ -281,10 +281,7 @@ void
 WriteServerRoutineDecl(FILE *file)
 {
   fprintf(file, "\n");
-  if (IsKernelServer)
-      fprintf(file, "bool %s(struct port *port, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP);\n", ServerDemux);
-  else
-      fprintf(file, "bool %s(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP);\n", ServerDemux);
+  fprintf(file, "bool %s(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP);\n", ServerDemux);
   fprintf(file, "\n");
 }
 

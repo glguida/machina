@@ -39,6 +39,7 @@ main (int argc, char *argv[])
 
   /* Initialise per-CPU data. */
   cpu_setdata((void *)kmem_alloc(0, sizeof(struct mcncpu)));
+  TAILQ_INIT(&cur_cpu()->kernel_queue.msgq);
 
   struct task *t = task_bootstrap();
   printf("task = %p\n", t);

@@ -232,26 +232,30 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_server"), RCSId);
 
-    if (IsKernelServer)
-      {
-	fprintf(file, "struct port;\n");
-	fprintf(file, "typedef void (*mig_routine_t)(struct port *port, mcn_msgheader_t *, mcn_msgheader_t *);\n");
-      }
-    else
-      {
-	fprintf(file, "typedef void (*mig_routine_t)(mcn_msgheader_t *, mcn_msgheader_t *);\n");
-      }
+    fprintf(file, "typedef void (*mig_routine_t)(mcn_msgheader_t *, mcn_msgheader_t *);\n");
     fprintf(file, "\n");
 
     /* Used for locations in the request message, *not* reply message.
        Reply message locations aren't dependent on IsKernelServer. */
 
-    fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
+    if (IsKernelServer)
+      fprintf(file, "#define msgh_request_port\tmsgh_local\n");
+    else
+      fprintf(file, "#define msgh_request_port\tmsgh_remote\n");    
     fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-    fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
-    fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    if (IsKernelServer)
+      fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
+    else
+      fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
+    if (IsKernelServer)
+      fprintf(file, "#define msgh_reply_port\t\tmsgh_remote\n");
+    else
+      fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
     fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-    fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
+    if (IsKernelServer)
+      fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
+    else
+      fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
     fprintf(file, "\n");
 }
 
@@ -327,10 +331,7 @@ WriteEpilog(FILE *file, const statement_t *stats)
       * Then, the server routine
       */
     fprintf(file, "mig_external bool %s\n", ServerDemux);
-    if (IsKernelServer)
-      fprintf(file, "\t(struct port *SendPort, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
-    else
-      fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
+    fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
     fprintf(file, "\tmcn_msgheader_t *InP =  InHeadP;\n");
@@ -369,10 +370,7 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "\t}\n");
 
     /* Call appropriate routine */
-    if (IsKernelServer)
-      fprintf(file, "\t(*routine) (SendPort, InP, &OutP->Head);\n");
-    else
-      fprintf(file, "\t(*routine) (InP, &OutP->Head);\n");
+    fprintf(file, "\t(*routine) (InP, &OutP->Head);\n");
     fprintf(file, "\treturn true;\n");
     fprintf(file, "}\n");
     fprintf(file, "\n");
@@ -1514,10 +1512,7 @@ WriteRoutine(FILE *file, register const routine_t *rt)
 
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     fprintf(file, "mig_internal void _X%s\n", rt->rtName);
-    if (IsKernelServer)
-      fprintf(file, "\t(struct port *port, mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
-    else
-      fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
+    fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
     WriteStructDecl(file, rt->rtArgs, WriteFieldDecl, akbRequest, "Request");

@@ -491,4 +491,59 @@ static inline void spinunlock_dual(lock_t *a, lock_t *b)
     }
 }
 
+#include <machina/message.h>
+
+static inline const char * typename_debug(mcn_msgtype_name_t name)
+{
+  switch (name)
+    {
+    case MCN_MSGTYPE_BIT:
+      return "UNSTR";
+    case MCN_MSGTYPE_INT16:
+      return "INT16";
+    case MCN_MSGTYPE_INT32:
+      return "INT32";
+    case MCN_MSGTYPE_INT8:
+      return "INT8 ";
+    case MCN_MSGTYPE_REAL:
+      return "REAL ";
+    case MCN_MSGTYPE_INT64:
+      return "INT64";
+    case MCN_MSGTYPE_STRING:
+      return "CSTR ";
+    case MCN_MSGTYPE_PORTNAME:
+      return "PNAME";
+    case MCN_MSGTYPE_MOVERECV:
+      return "MVRCV";
+    case MCN_MSGTYPE_MOVESEND:
+      return "MVSND";
+    case MCN_MSGTYPE_MOVEONCE:
+      return "MVONC";
+    case MCN_MSGTYPE_COPYSEND:
+      return "CPSND";
+    case MCN_MSGTYPE_MAKESEND:
+      return "MKSND";
+    case MCN_MSGTYPE_MAKEONCE:
+      return "MKONC";
+    default:
+      return "?????";
+    }
+}
+
+static inline void message_debug(mcn_msgheader_t *msgh)
+{
+  printf("===== Message %p =====\n", msgh);
+  printf("  bits:   [ R: %s - L: %s ]\n",
+	 typename_debug(MCN_MSGBITS_REMOTE(msgh->msgh_bits)),
+	 typename_debug(MCN_MSGBITS_LOCAL(msgh->msgh_bits)));
+  printf("  size:   %ld bytes\n", msgh->msgh_size);
+  printf("  remote: %lx\n", (long)msgh->msgh_remote);
+  printf("  local:  %lx\n", (long)msgh->msgh_local);
+  printf("  seqno:  %lx\n", (long)msgh->msgh_seqno);
+  printf("  msgid:  %ld\n", (long)msgh->msgh_msgid);
+  printf("==================================\n");
+}
+
+
+
 #endif

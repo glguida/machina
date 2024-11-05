@@ -97,12 +97,14 @@ port_enqueue(mcn_msgheader_t *msgh)
   struct port *port;
 
   port = ipcport_unsafe_get(msgh->msgh_local);
+  if (port == NULL)
+    return MSGIO_SEND_INVALID_DEST;
   
   spinlock(&port->lock);
   switch(port->type)
     {
     case PORT_KERNEL:
-      rc = MSGIO_SEND_INVALID_DEST;
+      rc = portqueue_add(&cur_cpu()->kernel_queue, msgh);
       break;
 
     case PORT_DEAD:

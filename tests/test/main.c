@@ -53,7 +53,7 @@ main (void)
   test();
 
   printf("msgbuf: %p", syscall_msgbuf());
-
+#if 0
   {
   volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
   msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
@@ -75,7 +75,7 @@ main (void)
   asm volatile ("" ::: "memory");
   printf("MSGIORET: %d", syscall_msg(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
   }
-
+#endif
 
     printf("ALlocated port %ld\n", mcn_reply_port());
     printf("ALlocated port %ld\n", mcn_reply_port());
@@ -85,19 +85,19 @@ main (void)
   printf("Calling simple! %d\n", simple(1));
 
   long cnt;
-  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("Calling inc! %x\n", inc(1, &cnt));
   printf("cnt: %ld\n", cnt);
 
-  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("Calling inc! %x\n", inc(1, &cnt));
   printf("cnt: %ld\n", cnt);
 
-  printf("Calling inc! %d\n", inc(1, &cnt));
+  printf("Calling inc! %x\n", inc(1, &cnt));
   printf("cnt: %ld\n", cnt);
 
-  printf("Calling add 3! %d\n", add(1, 3, &cnt));
+  printf("Calling add 3! %x\n", add(1, 3, &cnt));
   printf("cnt: %ld\n", cnt);
 
-  printf("Calling mul 4! %d\n", mul(1, 4, &cnt));
+  printf("Calling mul 4! %x\n", mul(1, 4, &cnt));
   printf("cnt: %ld\n", cnt);
   
   {

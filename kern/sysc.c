@@ -11,6 +11,10 @@
 
 #include "internal.h"
 
+void
+ipc_kern_exec(void);
+
+
 uctxt_t *
 entry_sysc (uctxt_t * u,
 	    unsigned long a1, unsigned long a2, unsigned long a3,
@@ -93,5 +97,7 @@ entry_sysc (uctxt_t * u,
 	    a1, a2, a3, a4, a5, a6, a7);
       break;
     }
+  ipc_kern_exec();
+  
   return u;
 }
