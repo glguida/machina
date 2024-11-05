@@ -41,70 +41,239 @@ mcn_return_t mul(mcn_portid_t test, int b, long *c)
   return KERN_SUCCESS;
 }
 
+static inline const char * typename_debug(mcn_msgtype_name_t name)
+{
+  switch (name)
+    {
+    case MCN_MSGTYPE_BIT:
+      return "UNSTR";
+    case MCN_MSGTYPE_INT16:
+      return "INT16";
+    case MCN_MSGTYPE_INT32:
+      return "INT32";
+    case MCN_MSGTYPE_INT8:
+      return "INT8 ";
+    case MCN_MSGTYPE_REAL:
+      return "REAL ";
+    case MCN_MSGTYPE_INT64:
+      return "INT64";
+    case MCN_MSGTYPE_STRING:
+      return "CSTR ";
+    case MCN_MSGTYPE_PORTNAME:
+      return "PNAME";
+    case MCN_MSGTYPE_MOVERECV:
+      return "MVRCV";
+    case MCN_MSGTYPE_MOVESEND:
+      return "MVSND";
+    case MCN_MSGTYPE_MOVEONCE:
+      return "MVONC";
+    case MCN_MSGTYPE_COPYSEND:
+      return "CPSND";
+    case MCN_MSGTYPE_MAKESEND:
+      return "MKSND";
+    case MCN_MSGTYPE_MAKEONCE:
+      return "MKONC";
+    default:
+      return "?????";
+    }
+}
+
+static inline void message_debug(mcn_msgheader_t *msgh)
+{
+  printf("===== Message %p =====\n", msgh);
+  printf("  bits:   [ R: %s - L: %s ]\n",
+	 typename_debug(MCN_MSGBITS_REMOTE(msgh->msgh_bits)),
+	 typename_debug(MCN_MSGBITS_LOCAL(msgh->msgh_bits)));
+  printf("  size:   %ld bytes\n", msgh->msgh_size);
+  printf("  remote: %lx\n", (long)msgh->msgh_remote);
+  printf("  local:  %lx\n", (long)msgh->msgh_local);
+  printf("  seqno:  %lx\n", (long)msgh->msgh_seqno);
+  printf("  msgid:  %ld\n", (long)msgh->msgh_msgid);
+  printf("==================================\n");
+}
+
+static inline mcn_msgtype_name_t
+msgbits_sendrecv_intern(mcn_msgtype_name_t type)
+{
+  switch (type)
+    {
+    case 0:
+      return 0;
+
+    case MCN_MSGTYPE_MOVESEND:
+    case MCN_MSGTYPE_COPYSEND:
+    case MCN_MSGTYPE_MAKESEND:
+      return MCN_MSGTYPE_PORTSEND;
+
+    case MCN_MSGTYPE_MOVEONCE:
+    case MCN_MSGTYPE_MAKEONCE:
+      return MCN_MSGTYPE_PORTONCE;
+
+    default:
+      fatal("Wrong type %d\n", type);
+      return -1;
+    }
+}
+
+void
+intmsg_consume(mcn_msgheader_t *intmsg)
+{
+  if (intmsg->msgh_remote != 0)
+    portref_consume(ipcport_to_portref(&intmsg->msgh_remote));
+  if (intmsg->msgh_local != 0)
+    portref_consume(ipcport_to_portref(&intmsg->msgh_local));
+}
+
+static mcn_msgioret_t
+externalize(struct portspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheader_t *extmsg, size_t size)
+{
+  mcn_msgioret_t rc;
+  mcn_portid_t local, remote;
+
+  assert (size >= sizeof(mcn_msgheader_t));
+  assert (size <= MSGBUF_SIZE);
+
+  struct portref local_pref = ipcport_to_portref(&intmsg->msgh_local);
+  local = portspace_lookup(ps, portref_unsafe_get(&local_pref));
+  portref_consume(local_pref);
+
+  remote = MCN_PORTID_NULL;
+  if (intmsg->msgh_remote != 0)
+    {
+      const mcn_msgtype_name_t rembits = MCN_MSGBITS_REMOTE(intmsg->msgh_bits);
+      struct portref portref = ipcport_to_portref(&intmsg->msgh_remote);
+      struct portright pr = portright_from_portref(rembits, portref);
+      rc = portspace_insertright(ps, &pr, &remote);
+      if (rc)
+	{
+	  remote = MCN_PORTID_NULL;
+	  portright_consume(&pr);
+	}
+    }
+
+  extmsg->msgh_bits = intmsg->msgh_bits;
+  extmsg->msgh_remote = remote;
+  extmsg->msgh_local = local;
+  extmsg->msgh_size = size;
+  extmsg->msgh_seqno = 0; /* XXX: SEQNO */
+  extmsg->msgh_msgid = intmsg->msgh_msgid;
+
+  memcpy((void *)(extmsg + 1), (void *)(intmsg + 1), size - sizeof(mcn_msgheader_t));
+  return MSGIO_SUCCESS;
+}
+
+static mcn_msgioret_t
+internalize(struct portspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheader_t *intmsg, size_t size)
+{
+  mcn_msgioret_t rc;
+
+  assert (size >= sizeof(mcn_msgheader_t));
+  assert (size <= MSGBUF_SIZE);
+
+  const mcn_msgbits_t ext_bits = extmsg->msgh_bits;
+  const mcn_portid_t ext_local = extmsg->msgh_local;
+  const mcn_portid_t ext_remote = extmsg->msgh_remote;
+  const mcn_msgid_t ext_msgid = extmsg->msgh_msgid;
+
+  const mcn_msgtype_name_t ext_rembits = MCN_MSGBITS_REMOTE(ext_bits);
+  const mcn_msgtype_name_t ext_locbits = MCN_MSGBITS_LOCAL(ext_bits);
+
+  struct portref remote_pref, local_pref;
+  rc = portspace_resolve_sendmsg(ps, ext_rembits, ext_remote, &remote_pref,
+				 ext_locbits, ext_local, &local_pref);
+  if (rc)
+    return rc;
+
+  /* Swap remote and local. */
+  intmsg->msgh_bits = MCN_MSGBITS(msgbits_sendrecv_intern(ext_locbits),
+			       msgbits_sendrecv_intern(ext_rembits));
+  intmsg->msgh_remote = portref_to_ipcport(&local_pref);
+  intmsg->msgh_local = portref_to_ipcport(&remote_pref);
+  intmsg->msgh_size = size;
+  intmsg->msgh_seqno = 0;
+  intmsg->msgh_msgid = ext_msgid;
+
+  memcpy((void *)(intmsg + 1), (void *)(extmsg + 1), size - sizeof(mcn_msgheader_t));
+  return MSGIO_SUCCESS;
+}
+
 mcn_msgioret_t
 ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_portid_t notify)
 {
+  mcn_msgioret_t rc;
+  struct portspace *ps;
+
   const bool send = !!(opt & MCN_MSGOPT_SEND);
   const bool recv = !!(opt & MCN_MSGOPT_RECV);
-  struct portspace *ps;
-  mcn_msgioret_t rc;
 
   if (!send)
     goto _do_recv;
 
-  /* Copy header from user-accessible memory. */
-  mcn_msgheader_t send_reqh = *(volatile mcn_msgheader_t *)cur_kmsgbuf();
+  {
+    volatile mcn_msgheader_t *ext_msg = (volatile mcn_msgheader_t *)cur_kmsgbuf();
+    const mcn_msgsize_t ext_size = ext_msg->msgh_size;
 
-  const mcn_portid_t send_remote_portid = send_reqh.msgh_remote;
-  const mcn_portid_t send_local_portid = send_reqh.msgh_local;
-  const mcn_msgsize_t send_size = send_reqh.msgh_size;
-  struct portright send_right, reply_right;
-  
-  /*
-    Check Size.
+    if ((ext_size < sizeof(mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
+      return MSGIO_SEND_INVALID_DATA;
 
-    Size is MSGBUF_SIZE - sizeof(mcn_seqno_t), because seqno is
-    added to the message buffer when received, which is also
-    MSGBUF_SIZE.
-    Note: size should be exported to userspace.
-  */
-  if ((send_size < sizeof(mcn_msgheader_t)) || (send_size > MSGBUF_SIZE))
-    return MSGIO_SEND_INVALID_DATA;
+    message_debug((mcn_msgheader_t *)ext_msg);
 
-  ps = task_getportspace(cur_task());
-  rc = portspace_resolve_sendmsg(ps,
-				 MCN_MSGBITS_REMOTE(send_reqh.msgh_bits), send_remote_portid, &send_right,
-				 MCN_MSGBITS_LOCAL(send_reqh.msgh_bits), send_local_portid, &reply_right);
-  if (rc)
-    {
-      task_putportspace(cur_task(), ps);
-      return rc;
-    }
+    mcn_msgheader_t *int_msg = (mcn_msgheader_t *)kmem_alloc(0, ext_size);
+    ps = task_getportspace(cur_task());
+    rc = internalize(ps, ext_msg, int_msg, ext_size);
+    task_putportspace(cur_task(), ps);
+    if (rc)
+      {
+	kmem_free(0, (vaddr_t)int_msg, ext_size);
+	return rc;
+      }
 
-  struct port *p = portright_unsafe_get(&send_right);
-  rc = port_enqueue(p, &send_reqh, &send_right, &reply_right, cur_kmsgbuf() + sizeof(mcn_msgheader_t), send_size - sizeof(mcn_msgheader_t));
-  task_putportspace(cur_task(), ps);
-  if (rc)
-    return rc;
-  rc = MSGIO_SUCCESS;
+    message_debug(int_msg);
+
+    rc = port_enqueue(int_msg);
+    if (rc)
+      {
+	intmsg_consume(int_msg);
+	kmem_free(0, (vaddr_t)int_msg, ext_size);
+	return rc;
+      }
+  }
 
  _do_recv:
   if (!recv)
     goto _do_exit;
 
-  struct portref recvref;
+  {
+    struct portref recv_pref;
+    mcn_msgheader_t *intmsg;
 
-  ps = task_getportspace(cur_task());
-  rc = portspace_resolve_receive(ps, recv_port, &recvref);
-  if (rc)
-    rc = MSGIO_RCV_INVALID_NAME;
-  else
-    {
-      rc = port_dequeue(recv_port, REF_GET(recvref), ps, cur_kmsgbuf(), MSGBUF_SIZE);
-    }
-  task_putportspace(cur_task(), ps);
-  portspace_print(&cur_task()->portspace);
+    ps = task_getportspace(cur_task());
+    rc = portspace_resolve_receive(ps, recv_port, &recv_pref);
+    if (rc)
+      {
+	task_putportspace(cur_task(), ps);
+	return MSGIO_RCV_INVALID_NAME;
+      }
+
+    rc = port_dequeue(portref_unsafe_get(&recv_pref), &intmsg);
+    if (rc)
+      {
+	task_putportspace(cur_task(), ps);
+	return rc;
+      }
+
+    const mcn_msgsize_t size = intmsg->msgh_size;
+    printf("Internal received %d bytes", size);
+    message_debug(intmsg);
+    externalize(ps, intmsg, (volatile mcn_msgheader_t *)cur_kmsgbuf(), size);
+    message_debug((mcn_msgheader_t *)cur_kmsgbuf());
+    task_putportspace(cur_task(), ps);
+
+    intmsg_consume(intmsg);
+    kmem_free(0, (vaddr_t)intmsg, size);
+
+  }
 
  _do_exit:
-  return rc;
+  return rc;  
 }

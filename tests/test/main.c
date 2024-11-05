@@ -68,7 +68,7 @@ main (void)
     {
   volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
   msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
-  msgh->msgh_size = 32;
+  msgh->msgh_size = 40;
   msgh->msgh_remote = 1;
   msgh->msgh_local = MCN_PORTID_NULL;
   msgh->msgh_msgid = 101;
@@ -101,15 +101,16 @@ main (void)
   printf("cnt: %ld\n", cnt);
   
   {
+    printf("************************* TEST START *****************************\n");
     mcn_portid_t tmp_port = mcn_reply_port();
     volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
-    msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKEONCE, MCN_MSGTYPE_MAKEONCE);
-    msgh->msgh_size = 32;
+    msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
+    msgh->msgh_size = 40;
     msgh->msgh_remote = 2;
     msgh->msgh_local = tmp_port;
     msgh->msgh_msgid = 2000;
     asm volatile ("" ::: "memory");
-    printf("MSGIORET: %d", syscall_msg(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, 2, 0, MCN_PORTID_NULL));
+    printf("MSGIORET: %x", syscall_msg(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, 2, 0, MCN_PORTID_NULL));
 
     volatile struct mcn_msgheader *msgr = (struct mcn_msgheader *) syscall_msgbuf();
     printf("BITS: %lx\n", msgr->msgh_bits);
@@ -117,9 +118,11 @@ main (void)
     printf("REMOTE: %lx\n", msgr->msgh_remote);
     printf("SEQNO: %lx\n", msgr->msgh_seqno);
     printf("MSGID: %ld\n", msgr->msgh_msgid);
+
+    printf("************************* TEST END *******************************\n");
   }
 
-  printf("Calling simple to 2\n");
+  printf("Calling simple to 3\n");
   {
     user_simple(3);
     syscall_msg(MCN_MSGOPT_RECV, 3, 0, MCN_PORTID_NULL);

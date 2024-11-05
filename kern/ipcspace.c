@@ -187,46 +187,42 @@ _check_op(uint8_t op, bool send_only, struct portentry *pe)
 }
 
 static inline void
-_exec_op(struct portspace *ps, uint8_t op, bool send_only, struct portentry *pe, struct portright *right)
+_exec_op(struct portspace *ps, uint8_t op, bool send_only, struct portentry *pe, struct portref *pref)
 {
   switch(op)
     {
     case MCN_MSGTYPE_COPYSEND:
       assert(pe->type == PORTENTRY_NORMAL);
       assert(pe->normal.send_count != 0);
-      right->type = RIGHT_SEND;
-      right->portref = REF_DUP(pe->portref);
+      *pref = REF_DUP(pe->portref);
       break;
 
     case MCN_MSGTYPE_MOVESEND:
       assert(pe->type == PORTENTRY_NORMAL);
       assert(pe->normal.send_count != 0);
-      right->type = RIGHT_SEND;
       pe->normal.send_count--;
       if ((pe->normal.send_count == 0) && !pe->normal.recv)
 	{
-	  right->portref = REF_MOVE(pe->portref);
+	  *pref = REF_MOVE(pe->portref);
 	  rb_tree_remove_node(&ps->idsearch_rb_tree, pe);
 	  rb_tree_remove_node(&ps->portsearch_rb_tree, pe);
 	  slab_free(pe);
 	}
       else
 	{
-	  right->portref = REF_DUP(pe->portref);
+	  *pref = REF_DUP(pe->portref);
 	}
       break;
 
     case MCN_MSGTYPE_MAKESEND:
       assert(pe->type == PORTENTRY_NORMAL);
       assert(pe->normal.recv);
-      right->type = RIGHT_SEND;
-      right->portref = REF_DUP(pe->portref);
+      *pref = REF_DUP(pe->portref);
       break;
 
     case MCN_MSGTYPE_MOVEONCE:
       assert(pe->type == PORTENTRY_ONCE);
-      right->type = RIGHT_ONCE;
-      right->portref = REF_MOVE(pe->portref);
+      *pref = REF_MOVE(pe->portref);
       rb_tree_remove_node(&ps->idsearch_rb_tree, pe);
       slab_free(pe);
       break;
@@ -234,24 +230,22 @@ _exec_op(struct portspace *ps, uint8_t op, bool send_only, struct portentry *pe,
     case MCN_MSGTYPE_MAKEONCE:
       assert(pe->type == PORTENTRY_NORMAL);
       assert(pe->normal.recv);
-      right->type = RIGHT_ONCE;
-      right->portref = REF_DUP(pe->portref);
+      *pref = REF_DUP(pe->portref);
       break;
 
     case MCN_MSGTYPE_MOVERECV:
       assert(!send_only);
       pe->normal.recv = false;
-      right->type = RIGHT_RECV;
       if (pe->normal.send_count == 0)
 	{
-	  right->portref = REF_MOVE(pe->portref);
+	  *pref = REF_MOVE(pe->portref);
 	  rb_tree_remove_node(&ps->idsearch_rb_tree, pe);
 	  rb_tree_remove_node(&ps->portsearch_rb_tree, pe);
 	  slab_free(pe);
 	}
       else
 	{
-	  right->portref = REF_DUP(pe->portref);
+	  *pref = REF_DUP(pe->portref);
 	}
       break;
 
@@ -278,7 +272,7 @@ portspace_resolve_receive(struct portspace *ps, mcn_portid_t id, struct portref 
 }
 
 mcn_return_t
-portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct portright *right)
+portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct portref *portref)
 {
   mcn_return_t rc;
   struct portentry *pe;
@@ -291,33 +285,43 @@ portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct po
   if (rc)
     return KERN_INVALID_NAME;
 
-  _exec_op(ps, bits, false, pe, right);
+  _exec_op(ps, bits, false, pe, portref);
   return KERN_SUCCESS;
 }
 
 mcn_msgioret_t
 portspace_resolve_sendmsg(struct portspace *ps,
-			  uint8_t rembits, mcn_portid_t remid, struct portright *remright,
-			  uint8_t locbits, mcn_portid_t locid, struct portright *locright)
+			  uint8_t rembits, mcn_portid_t remid, struct portref *rempref,
+			  uint8_t locbits, mcn_portid_t locid, struct portref *locpref)
 {
   mcn_msgioret_t rc;
-  struct portentry *rempe, *locpe;
+  const bool locid_is_null = (locid == MCN_PORTID_NULL);
+  struct portentry *rempe, *locpe = NULL;
 
   rempe = rb_tree_find_node(&ps->idsearch_rb_tree, &remid); 
   if (rempe == NULL)
     return MSGIO_SEND_INVALID_DEST;
 
-  locpe = rb_tree_find_node(&ps->idsearch_rb_tree, &locid); 
-  if (locpe == NULL)
-    return MSGIO_SEND_INVALID_REPLY;
+  if (locid_is_null && (locid != 0))
+      return MSGIO_SEND_INVALID_HEADER;
+
+  if (!locid_is_null)
+    {
+      locpe = rb_tree_find_node(&ps->idsearch_rb_tree, &locid); 
+      if (locpe == NULL)
+	return MSGIO_SEND_INVALID_REPLY;
+    }
 
   rc = _check_op(rembits, true, rempe);
   if (rc)
     return MSGIO_SEND_INVALID_DEST;
 
-  rc = _check_op(locbits, true, locpe);
-  if (rc)
-    return MSGIO_SEND_INVALID_REPLY;
+  if (!locid_is_null)
+    {
+      rc = _check_op(locbits, true, locpe);
+      if (rc)
+	return MSGIO_SEND_INVALID_REPLY;
+    }
 
   /*
     Interesting aberration case, completely supported by Mach's (hence
@@ -325,10 +329,10 @@ portspace_resolve_sendmsg(struct portspace *ps,
 
     The Atomicity rules of the IPC forces us to check that a case of
     of MOVESEND MOVESEND would fail if there's only one send
-    right. The latter is the only case where two user reference will
+    right. The latter is the only case where two user references would
     be removed from a port right.
   */
-  if (locid == remid)
+  if (!locid_is_null && locid == remid)
     {
       if ((locbits == MCN_MSGTYPE_MOVESEND) && (rembits == MCN_MSGTYPE_MOVESEND))
 	{
@@ -352,26 +356,52 @@ portspace_resolve_sendmsg(struct portspace *ps,
     the other is COPYSEND, the call will succeed regardless of the
     which one is copy and which one is send.
   */
-  if ((locid == remid) && (locbits == MCN_MSGTYPE_MOVESEND) && (rembits == MCN_MSGTYPE_COPYSEND))
+  if (!locid_is_null && (locid == remid) && (locbits == MCN_MSGTYPE_MOVESEND) && (rembits == MCN_MSGTYPE_COPYSEND))
     {
       /* Execute remote before op. */
-      _exec_op(ps, rembits, true, rempe, remright);
-      _exec_op(ps, locbits, true, locpe, locright);
+      _exec_op(ps, rembits, true, rempe, rempref);
+      _exec_op(ps, locbits, true, locpe, locpref);
     }
-  else if ((locid == remid) && (locbits == MCN_MSGTYPE_COPYSEND) && (rembits == MCN_MSGTYPE_MOVESEND))
+  else if (!locid_is_null && (locid == remid) && (locbits == MCN_MSGTYPE_COPYSEND) && (rembits == MCN_MSGTYPE_MOVESEND))
     {
       /* Execute local before op. */
-      _exec_op(ps, locbits, true, locpe, locright);
-      _exec_op(ps, rembits, true, rempe, remright);
+      _exec_op(ps, locbits, true, locpe, locpref);
+      _exec_op(ps, rembits, true, rempe, rempref);
     }
   else
     {
       /* Pick any order. */
-      _exec_op(ps, locbits, true, locpe, locright);
-      _exec_op(ps, rembits, true, rempe, remright);
+      if (locid_is_null)
+	{
+	  locpref->obj = NULL;
+	}
+      else
+	{
+	  _exec_op(ps, locbits, true, locpe, locpref);
+	}
+      _exec_op(ps, rembits, true, rempe, rempref);
     }
 
   return MSGIO_SUCCESS;
+}
+
+mcn_portid_t
+portspace_lookup(struct portspace *ps, struct port *port)
+{
+  struct portentry *pe;
+
+  RB_TREE_FOREACH(pe, &ps->portsearch_rb_tree) {
+    printf("Port Entry %ld: Port %p Type: %s [has_receiveright: %d send_count: %d]\n",
+	   pe->id, pe->portref.obj,
+	   pe->type == PORTENTRY_NORMAL ? "SENDRECV" : pe->type == PORTENTRY_ONCE ? "ONCE" : "UNKNOWN",
+	   pe->normal.recv, pe->normal.send_count);
+  }
+  
+  printf("Searching for port %p\n", port);
+  pe = rb_tree_find_node(&ps->portsearch_rb_tree, &port);
+  assert (pe != NULL);
+  assert (pe->type == PORTENTRY_NORMAL);
+  return pe->id;
 }
 
 void
@@ -503,6 +533,9 @@ portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *
       break;
     }
 
+    default:
+      fatal("Invalid portright type %d\n", pr->type);
+      /* Pass-through */
     case RIGHT_INVALID:
       error("Attempt to add an invalid name!");
       return KERN_INVALID_NAME;
