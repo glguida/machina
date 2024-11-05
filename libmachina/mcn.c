@@ -9,9 +9,15 @@
 #include <machina/syscalls.h>
 
 mcn_msgioret_t
-mcn_msg(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify)
+mcn_msgrecv(mcn_portid_t recv, mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify)
 {
-  return (mcn_msgioret_t)syscall_msg(option, recv, timeout, notify);
+  return (mcn_msgioret_t)syscall_msgrecv(recv, option, timeout, notify);
+}
+
+mcn_msgioret_t
+mcn_msgsend(mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify)
+{
+  return (mcn_msgioret_t)syscall_msgsend(option, timeout, notify);
 }
 
 mcn_portid_t

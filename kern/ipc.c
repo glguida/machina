@@ -115,82 +115,75 @@ internalize(struct ipcspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheader
 }
 
 mcn_msgioret_t
-ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_portid_t notify)
+ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
 {
   mcn_msgioret_t rc;
   struct ipcspace *ps;
 
-  const bool send = !!(opt & MCN_MSGOPT_SEND);
-  const bool recv = !!(opt & MCN_MSGOPT_RECV);
+  volatile mcn_msgheader_t *ext_msg = (volatile mcn_msgheader_t *)cur_kmsgbuf();
+  const mcn_msgsize_t ext_size = ext_msg->msgh_size;
 
-  if (!send)
-    goto _do_recv;
+  if ((ext_size < sizeof(mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
+    return MSGIO_SEND_INVALID_DATA;
 
-  {
-    volatile mcn_msgheader_t *ext_msg = (volatile mcn_msgheader_t *)cur_kmsgbuf();
-    const mcn_msgsize_t ext_size = ext_msg->msgh_size;
+  message_debug((mcn_msgheader_t *)ext_msg);
 
-    if ((ext_size < sizeof(mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
-      return MSGIO_SEND_INVALID_DATA;
+  mcn_msgheader_t *int_msg = (mcn_msgheader_t *)kmem_alloc(0, ext_size);
+  ps = task_getipcspace(cur_task());
+  rc = internalize(ps, ext_msg, int_msg, ext_size);
+  task_putipcspace(cur_task(), ps);
+  if (rc)
+    {
+      kmem_free(0, (vaddr_t)int_msg, ext_size);
+      return rc;
+    }
 
-    message_debug((mcn_msgheader_t *)ext_msg);
+  message_debug(int_msg);
 
-    mcn_msgheader_t *int_msg = (mcn_msgheader_t *)kmem_alloc(0, ext_size);
-    ps = task_getipcspace(cur_task());
-    rc = internalize(ps, ext_msg, int_msg, ext_size);
-    task_putipcspace(cur_task(), ps);
-    if (rc)
-      {
-	kmem_free(0, (vaddr_t)int_msg, ext_size);
-	return rc;
-      }
+  rc = port_enqueue(int_msg);
+  if (rc)
+    {
+      intmsg_consume(int_msg);
+      kmem_free(0, (vaddr_t)int_msg, ext_size);
+      return rc;
+    }
 
-    message_debug(int_msg);
-
-    rc = port_enqueue(int_msg);
-    if (rc)
-      {
-	intmsg_consume(int_msg);
-	kmem_free(0, (vaddr_t)int_msg, ext_size);
-	return rc;
-      }
-  }
-
- _do_recv:
-  if (!recv)
-    goto _do_exit;
-
-  {
-    struct portref recv_pref;
-    mcn_msgheader_t *intmsg;
-
-    ps = task_getipcspace(cur_task());
-    rc = ipcspace_resolve_receive(ps, recv_port, &recv_pref);
-    if (rc)
-      {
-	task_putipcspace(cur_task(), ps);
-	return MSGIO_RCV_INVALID_NAME;
-      }
-
-    rc = port_dequeue(portref_unsafe_get(&recv_pref), &intmsg);
-    if (rc)
-      {
-	task_putipcspace(cur_task(), ps);
-	return rc;
-      }
-
-    const mcn_msgsize_t size = intmsg->msgh_size;
-    printf("Internal received %d bytes", size);
-    message_debug(intmsg);
-    externalize(ps, intmsg, (volatile mcn_msgheader_t *)cur_kmsgbuf(), size);
-    message_debug((mcn_msgheader_t *)cur_kmsgbuf());
-    task_putipcspace(cur_task(), ps);
-
-    intmsg_consume(intmsg);
-    kmem_free(0, (vaddr_t)intmsg, size);
-
-  }
-
- _do_exit:
-  return rc;  
+  return MSGIO_SUCCESS;
 }
+
+mcn_msgioret_t
+ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
+{
+  mcn_msgioret_t rc;
+  struct ipcspace *ps;
+
+  struct portref recv_pref;
+  mcn_msgheader_t *intmsg;
+
+  ps = task_getipcspace(cur_task());
+  rc = ipcspace_resolve_receive(ps, recv_port, &recv_pref);
+  if (rc)
+    {
+      task_putipcspace(cur_task(), ps);
+      return MSGIO_RCV_INVALID_NAME;
+    }
+
+  rc = port_dequeue(portref_unsafe_get(&recv_pref), &intmsg);
+  if (rc)
+    {
+      task_putipcspace(cur_task(), ps);
+      return rc;
+    }
+
+  const mcn_msgsize_t size = intmsg->msgh_size;
+  printf("Internal received %d bytes", size);
+  message_debug(intmsg);
+  externalize(ps, intmsg, (volatile mcn_msgheader_t *)cur_kmsgbuf(), size);
+  message_debug((mcn_msgheader_t *)cur_kmsgbuf());
+  task_putipcspace(cur_task(), ps);
+
+  intmsg_consume(intmsg);
+  kmem_free(0, (vaddr_t)intmsg, size);
+  return MSGIO_SUCCESS;
+}
+

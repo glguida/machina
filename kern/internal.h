@@ -404,7 +404,8 @@ mcn_return_t task_allocate_port(struct task *t, mcn_portid_t *newid);
 /*
   Machina IPC.
 */
-mcn_return_t ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify);
+mcn_msgioret_t ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify);
+mcn_msgioret_t ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify);
 
 /*
   Per-CPU Data.

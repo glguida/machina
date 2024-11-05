@@ -21,15 +21,17 @@ entry_sysc (uctxt_t * u,
 	    unsigned long a4, unsigned long a5, unsigned long a6,
 	    unsigned long a7)
 {
+  info("~~~~~~~~~~~~~ START  ~~~~~~~~~~~~~~");
   switch (a1)
     {
     case __syscall_msgbuf:
       uctxt_setret(u, cur_umsgbuf());
       break;
-    case __syscall_msg:
-      info("~~~~~~~~~~~~~ START  ~~~~~~~~~~~~~~");
-      uctxt_setret(u, ipc_msg((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
-      info("~~~~~~~~~~~~~~ END ~~~~~~~~~~~~~~~~");
+    case __syscall_msgrecv:
+      uctxt_setret(u, ipc_msgrecv((mcn_portid_t)a2, (mcn_msgopt_t)a3, a4, (mcn_portid_t)a5));
+      break;
+    case __syscall_msgsend:
+      uctxt_setret(u, ipc_msgsend((mcn_msgopt_t)a2, a3, (mcn_portid_t)a4));
       break;
     case __syscall_reply_port: {
       mcn_return_t rc;
@@ -95,6 +97,7 @@ entry_sysc (uctxt_t * u,
       break;
     }
   ipc_kern_exec();
+  info("~~~~~~~~~~~~~~ END ~~~~~~~~~~~~~~~~");
   
   return u;
 }

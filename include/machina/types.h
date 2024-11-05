@@ -24,8 +24,6 @@ typedef int mcn_return_t;
 
 typedef unsigned mcn_msgopt_t;
 #define MCN_MSGOPT_NONE			0x000
-#define MCN_MSGOPT_SEND			0x001
-#define MCN_MSGOPT_RECV			0x002
 #define MCN_MSGOPT_SEND_TIMEOUT		0x010
 #define MCN_MSGOPT_SEND_NOTIFY		0x020
 #define MCN_MSGOPT_SEND_CANCEL		0x080

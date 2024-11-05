@@ -99,7 +99,7 @@
 
 bool BeQuiet = FALSE;
 bool BeVerbose = FALSE;
-bool UseMsgRPC = TRUE;
+bool UseMsgRPC = FALSE;
 bool GenSymTab = FALSE;
 bool Is32Bit = FALSE;
 

@@ -498,11 +498,11 @@ WriteMsgSend(FILE *file, const routine_t *rt)
     }
     else
     {
-        fprintf(file, "\t%s mcn_msg(MCN_MSGOPT_SEND|%s,",
+        fprintf(file, "\t%s mcn_msgsend(%s,",
 		MsgResult,
 		rt->rtMsgOption->argVarName);
 	fprintf(file,
-		" MCN_PORTID_NULL, MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n"
+		" MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n"
 		);
     }
 
@@ -554,19 +554,18 @@ WriteMsgSendReceive(FILE *file, const routine_t *rt)
     else
 	strcpy(SendSize, "msgh_size");
 
-    fprintf(file, "\tmsg_result = mach_msg(&InP->Head, MACH_SEND_MSG|%s, %s, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);\n",
-	    rt->rtMsgOption->argVarName,
-	    SendSize);
+    fprintf(file, "\tmsg_result = mcn_msgsend(%s, MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n",
+	    rt->rtMsgOption->argVarName);
 
-    fprintf(file, "\tif (msg_result != MACH_MSG_SUCCESS)\n");
+    fprintf(file, "\tif (msg_result != MSGIO_SUCCESS)\n");
     WriteMsgError(file, rt, "msg_result");
     fprintf(file, "\n");
 
-    fprintf(file, "\tmsg_result = mach_msg(&OutP->Head, MACH_RCV_MSG|%s%s, 0, sizeof(Reply), InP->Head.msgh_local_port, %s, MACH_PORT_NULL);\n",
+    fprintf(file, "\tmsg_result = mcn_msgrecv(InP->Head.msgh_local, %s%s, %s, MCN_PORTID_NULL);\n",
 	    rt->rtMsgOption->argVarName,
 	    rt->rtWaitTime != argNULL ? "|MACH_RCV_TIMEOUT" : "",
-	    rt->rtWaitTime != argNULL ? rt->rtWaitTime->argVarName : "MACH_MSG_TIMEOUT_NONE");
-    WriteMsgCheckReceive(file, rt, "MACH_MSG_SUCCESS");
+	    rt->rtWaitTime != argNULL ? rt->rtWaitTime->argVarName : "MCN_MSGTIMEOUT_NONE");
+    WriteMsgCheckReceive(file, rt, "MSGIO_SUCCESS");
     fprintf(file, "\n");
 }
 

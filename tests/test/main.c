@@ -53,36 +53,12 @@ main (void)
   test();
 
   printf("msgbuf: %p", syscall_msgbuf());
-#if 0
-  {
-  volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
-  msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
-  msgh->msgh_size = 0;
-  msgh->msgh_remote = 1;
-  msgh->msgh_local = MCN_PORTID_NULL;
-  msgh->msgh_msgid = 101;
-  asm volatile ("" ::: "memory");
-  printf("MSGIORET: %d", syscall_msg(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
-  }
+  printf("ALlocated port %ld\n", mcn_reply_port());
+  printf("ALlocated port %ld\n", mcn_reply_port());
+  printf("ALlocated port %ld\n", mcn_reply_port());
+  printf("ALlocated port %ld\n", mcn_reply_port());
 
-    {
-  volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
-  msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_COPYSEND, 0);
-  msgh->msgh_size = 40;
-  msgh->msgh_remote = 1;
-  msgh->msgh_local = MCN_PORTID_NULL;
-  msgh->msgh_msgid = 101;
-  asm volatile ("" ::: "memory");
-  printf("MSGIORET: %d", syscall_msg(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL));
-  }
-#endif
-
-    printf("ALlocated port %ld\n", mcn_reply_port());
-    printf("ALlocated port %ld\n", mcn_reply_port());
-    printf("ALlocated port %ld\n", mcn_reply_port());
-    printf("ALlocated port %ld\n", mcn_reply_port());
-
-  printf("Calling simple! %d\n", simple(1));
+  printf("Calling simple! %x\n", simple(1));
 
   long cnt;
   printf("Calling inc! %x\n", inc(1, &cnt));
@@ -110,7 +86,8 @@ main (void)
     msgh->msgh_local = tmp_port;
     msgh->msgh_msgid = 2000;
     asm volatile ("" ::: "memory");
-    printf("MSGIORET: %x", syscall_msg(MCN_MSGOPT_SEND|MCN_MSGOPT_RECV, 2, 0, MCN_PORTID_NULL));
+    printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+    printf("MSGIORET: %x", syscall_msgrecv(2, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
 
     volatile struct mcn_msgheader *msgr = (struct mcn_msgheader *) syscall_msgbuf();
     printf("BITS: %lx\n", msgr->msgh_bits);
@@ -125,9 +102,9 @@ main (void)
   printf("Calling simple to 3\n");
   {
     user_simple(3);
-    syscall_msg(MCN_MSGOPT_RECV, 3, 0, MCN_PORTID_NULL);
+    syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
     cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)syscall_msgbuf());
-    syscall_msg(MCN_MSGOPT_SEND, MCN_PORTID_NULL, 0, MCN_PORTID_NULL);
+    syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
   }
   
 

@@ -29,9 +29,15 @@ syscall_msgbuf(void)
 }
 
 mcn_return_t
-syscall_msg(mcn_msgopt_t option, mcn_portid_t recv, unsigned long timeout, mcn_portid_t notify)
+syscall_msgsend(mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify)
 {
-  return syscall4(__syscall_msg, option, recv, timeout, notify);
+  return syscall3(__syscall_msgsend, option, timeout, notify);
+}
+
+mcn_return_t
+syscall_msgrecv(mcn_portid_t port, mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify)
+{
+  return syscall4(__syscall_msgrecv, port, option, timeout, notify);
 }
 
 mcn_return_t
