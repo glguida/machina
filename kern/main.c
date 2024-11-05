@@ -35,7 +35,7 @@ main (int argc, char *argv[])
   task_init();
   thread_init();
   port_init();
-  portspace_init();
+  ipcspace_init();
 
   /* Initialise per-CPU data. */
   cpu_setdata((void *)kmem_alloc(0, sizeof(struct mcncpu)));

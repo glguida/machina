@@ -348,13 +348,30 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "\tregister mig_routine_t routine;\n");
     fprintf(file, "\n");
 
-    fprintf(file, "\tOutP->Head.msgh_bits = ");
-    fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgh_bits), 0);\n");
-    fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
-    fprintf(file, "\tOutP->Head.msgh_remote = InP->msgh_reply_port;\n");
-    fprintf(file, "\tOutP->Head.msgh_local = MCN_PORTID_NULL;\n");
-    fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
-    fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
+    if (IsKernelServer)
+      {
+	/*
+	  In Machina, kernel server uses internalised ports, that are
+	  in *receive* format, so local is the port to send.
+	*/
+	fprintf(file, "\tOutP->Head.msgh_bits = ");
+	fprintf(file, "MCN_MSGBITS(0, MACH_MSGH_BITS_REPLY(InP->msgh_bits));\n");
+	fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
+	fprintf(file, "\tOutP->Head.msgh_remote = MCN_PORTID_NULL;\n");
+	fprintf(file, "\tOutP->Head.msgh_local = InP->msgh_reply_port;\n");
+	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
+	fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
+      }
+    else
+      {
+	fprintf(file, "\tOutP->Head.msgh_bits = ");
+	fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgh_bits), 0);\n");
+	fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
+	fprintf(file, "\tOutP->Head.msgh_remote = InP->msgh_reply_port;\n");
+	fprintf(file, "\tOutP->Head.msgh_local = MCN_PORTID_NULL;\n");
+	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
+	fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
+      }
     fprintf(file, "\n");
     WritePackMsgType(file, itRetCodeType,
 		     itRetCodeType->itDeallocate, itRetCodeType->itLongForm,

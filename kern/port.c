@@ -57,27 +57,6 @@ port_type(struct port *port)
   return ty;
 }
 
-struct portspace *
-port_getportspace(struct port *port)
-{
-  spinlock(&port->lock);
-  assert(port->type == PORT_QUEUE);
-  portspace_lock(&port->queue.portspace);
-  spinunlock(&port->lock);
-
-  return &port->queue.portspace;
-}
-
-void
-port_putportspace(struct port *port, struct portspace *ps)
-{
-  spinlock(&port->lock);
-  assert(port->type == PORT_QUEUE);
-  assert(&port->queue.portspace == ps);
-  portspace_unlock(&port->queue.portspace);
-  spinunlock(&port->lock);
-}
-
 mcn_return_t portqueue_add(struct port_queue *queue, mcn_msgheader_t *msgh)
 {
   struct msgq_entry *msgq = slab_alloc(&msgqs);
@@ -99,6 +78,8 @@ port_enqueue(mcn_msgheader_t *msgh)
   port = ipcport_unsafe_get(msgh->msgh_local);
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
+
+  printf("enqueueing message %p to port %p\n", msgh, port);
   
   spinlock(&port->lock);
   switch(port->type)
@@ -222,7 +203,6 @@ port_alloc_queue(struct portref *portref)
   p = slab_alloc(&ports);
   spinlock_init(&p->lock);
   p->type = PORT_QUEUE;
-  portspace_setup(&p->queue.portspace);
   TAILQ_INIT(&p->queue.msgq);
   portref->obj = p;
   p->_ref_count = 1;

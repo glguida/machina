@@ -205,7 +205,7 @@ void vmmap_setup(struct vmmap *map);
   Port Space: a collection of port rights.
 
 */
-struct portspace {
+struct ipcspace {
   lock_t lock;
   struct rb_tree idsearch_rb_tree;
   struct rb_tree portsearch_rb_tree;
@@ -215,19 +215,19 @@ struct port;
 struct portref;
 struct portright;
 
-void portspace_init(void);
-void portspace_setup(struct portspace *ps);
-void portspace_lock (struct portspace *ps);
-void portspace_unlock (struct portspace *ps);
-mcn_portid_t portspace_lookup(struct portspace *ps, struct port *port);
-mcn_return_t portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout);
-mcn_return_t portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct portref *pref);
-mcn_msgioret_t portspace_resolve_sendmsg(struct portspace *ps,
+void ipcspace_init(void);
+void ipcspace_setup(struct ipcspace *ps);
+void ipcspace_lock (struct ipcspace *ps);
+void ipcspace_unlock (struct ipcspace *ps);
+mcn_portid_t ipcspace_lookup(struct ipcspace *ps, struct port *port);
+mcn_return_t ipcspace_insertright(struct ipcspace *ps, struct portright *pr, mcn_portid_t *idout);
+mcn_return_t ipcspace_resolve(struct ipcspace *ps, uint8_t bits, mcn_portid_t id, struct portref *pref);
+mcn_msgioret_t ipcspace_resolve_sendmsg(struct ipcspace *ps,
 					 uint8_t rembits, mcn_portid_t remid, struct portref *rempref,
 					 uint8_t locbits, mcn_portid_t locid, struct portref *locpref);
-mcn_return_t portspace_resolve_receive(struct portspace *ps, mcn_portid_t id, struct portref *portref);
+mcn_return_t ipcspace_resolve_receive(struct ipcspace *ps, mcn_portid_t id, struct portref *portref);
 
-void portspace_print(struct portspace *ps);
+void ipcspace_print(struct ipcspace *ps);
 
 
 /*
@@ -248,7 +248,6 @@ struct msgq_entry {
 };
 
 struct port_queue {
-  struct portspace portspace;
   TAILQ_HEAD(, msgq_entry) msgq;
 };
 
@@ -270,8 +269,6 @@ bool port_kernel(struct port *);
 enum port_type port_type(struct port *);
 mcn_return_t port_alloc_kernel(void *ctx, struct portref *portref);
 mcn_return_t port_alloc_queue(struct portref *portref);
-struct portspace * port_getportspace(struct port *port);
-void port_putportspace(struct port *port, struct portspace *ps);
 mcn_return_t port_enqueue(mcn_msgheader_t *msgh);
 mcn_return_t port_dequeue(struct port *port, mcn_msgheader_t **msghp);
 
@@ -320,12 +317,6 @@ static inline void
 portref_consume(struct portref portref)
 {
   /* XXX: DELETE IF */REF_DESTROY(portref);
-}
-
-static inline struct portspace *
-portref_get_portspace(struct portref *pr)
-{
-  return port_getportspace(REF_GET(*pr));
 }
 
 
@@ -397,15 +388,15 @@ struct task {
   struct vmmap vmmap;
   unsigned refcount;
   LIST_HEAD(,thread) threads;
-  struct portspace portspace;
+  struct ipcspace ipcspace;
   mcn_portid_t task_self;
 };
 
 void task_init(void);
 struct task *task_bootstrap(void);
 void task_enter(struct task *t);
-struct portspace * task_getportspace(struct task *t);
-void task_putportspace(struct task *t, struct portspace *ps);
+struct ipcspace * task_getipcspace(struct task *t);
+void task_putipcspace(struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright(struct task *t, struct portright *pr, mcn_portid_t *id);
 mcn_return_t task_allocate_port(struct task *t, mcn_portid_t *newid);
 
@@ -544,6 +535,6 @@ static inline void message_debug(mcn_msgheader_t *msgh)
   printf("==================================\n");
 }
 
-
+void ipcspace_debug(struct ipcspace *ps);
 
 #endif

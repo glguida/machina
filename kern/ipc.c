@@ -42,7 +42,7 @@ intmsg_consume(mcn_msgheader_t *intmsg)
 }
 
 static mcn_msgioret_t
-externalize(struct portspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheader_t *extmsg, size_t size)
+externalize(struct ipcspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheader_t *extmsg, size_t size)
 {
   mcn_msgioret_t rc;
   mcn_portid_t local, remote;
@@ -51,7 +51,7 @@ externalize(struct portspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheade
   assert (size <= MSGBUF_SIZE);
 
   struct portref local_pref = ipcport_to_portref(&intmsg->msgh_local);
-  local = portspace_lookup(ps, portref_unsafe_get(&local_pref));
+  local = ipcspace_lookup(ps, portref_unsafe_get(&local_pref));
   portref_consume(local_pref);
 
   remote = MCN_PORTID_NULL;
@@ -60,7 +60,7 @@ externalize(struct portspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheade
       const mcn_msgtype_name_t rembits = MCN_MSGBITS_REMOTE(intmsg->msgh_bits);
       struct portref portref = ipcport_to_portref(&intmsg->msgh_remote);
       struct portright pr = portright_from_portref(rembits, portref);
-      rc = portspace_insertright(ps, &pr, &remote);
+      rc = ipcspace_insertright(ps, &pr, &remote);
       if (rc)
 	{
 	  remote = MCN_PORTID_NULL;
@@ -80,7 +80,7 @@ externalize(struct portspace *ps, mcn_msgheader_t *intmsg, volatile mcn_msgheade
 }
 
 static mcn_msgioret_t
-internalize(struct portspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheader_t *intmsg, size_t size)
+internalize(struct ipcspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheader_t *intmsg, size_t size)
 {
   mcn_msgioret_t rc;
 
@@ -96,7 +96,7 @@ internalize(struct portspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheade
   const mcn_msgtype_name_t ext_locbits = MCN_MSGBITS_LOCAL(ext_bits);
 
   struct portref remote_pref, local_pref;
-  rc = portspace_resolve_sendmsg(ps, ext_rembits, ext_remote, &remote_pref,
+  rc = ipcspace_resolve_sendmsg(ps, ext_rembits, ext_remote, &remote_pref,
 				 ext_locbits, ext_local, &local_pref);
   if (rc)
     return rc;
@@ -118,7 +118,7 @@ mcn_msgioret_t
 ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_portid_t notify)
 {
   mcn_msgioret_t rc;
-  struct portspace *ps;
+  struct ipcspace *ps;
 
   const bool send = !!(opt & MCN_MSGOPT_SEND);
   const bool recv = !!(opt & MCN_MSGOPT_RECV);
@@ -136,9 +136,9 @@ ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_por
     message_debug((mcn_msgheader_t *)ext_msg);
 
     mcn_msgheader_t *int_msg = (mcn_msgheader_t *)kmem_alloc(0, ext_size);
-    ps = task_getportspace(cur_task());
+    ps = task_getipcspace(cur_task());
     rc = internalize(ps, ext_msg, int_msg, ext_size);
-    task_putportspace(cur_task(), ps);
+    task_putipcspace(cur_task(), ps);
     if (rc)
       {
 	kmem_free(0, (vaddr_t)int_msg, ext_size);
@@ -164,18 +164,18 @@ ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_por
     struct portref recv_pref;
     mcn_msgheader_t *intmsg;
 
-    ps = task_getportspace(cur_task());
-    rc = portspace_resolve_receive(ps, recv_port, &recv_pref);
+    ps = task_getipcspace(cur_task());
+    rc = ipcspace_resolve_receive(ps, recv_port, &recv_pref);
     if (rc)
       {
-	task_putportspace(cur_task(), ps);
+	task_putipcspace(cur_task(), ps);
 	return MSGIO_RCV_INVALID_NAME;
       }
 
     rc = port_dequeue(portref_unsafe_get(&recv_pref), &intmsg);
     if (rc)
       {
-	task_putportspace(cur_task(), ps);
+	task_putipcspace(cur_task(), ps);
 	return rc;
       }
 
@@ -184,7 +184,7 @@ ipc_msg(mcn_msgopt_t opt, mcn_portid_t recv_port, unsigned long timeout, mcn_por
     message_debug(intmsg);
     externalize(ps, intmsg, (volatile mcn_msgheader_t *)cur_kmsgbuf(), size);
     message_debug((mcn_msgheader_t *)cur_kmsgbuf());
-    task_putportspace(cur_task(), ps);
+    task_putipcspace(cur_task(), ps);
 
     intmsg_consume(intmsg);
     kmem_free(0, (vaddr_t)intmsg, size);

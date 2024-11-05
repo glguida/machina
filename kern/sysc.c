@@ -28,9 +28,7 @@ entry_sysc (uctxt_t * u,
       break;
     case __syscall_msg:
       info("~~~~~~~~~~~~~ START  ~~~~~~~~~~~~~~");
-      portspace_print(&cur_task()->portspace);
       uctxt_setret(u, ipc_msg((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
-      portspace_print(&cur_task()->portspace);
       info("~~~~~~~~~~~~~~ END ~~~~~~~~~~~~~~~~");
       break;
     case __syscall_reply_port: {
@@ -43,7 +41,6 @@ entry_sysc (uctxt_t * u,
 	uctxt_setret(u, MCN_PORTID_NULL);
       else
 	uctxt_setret(u, id);
-      portspace_print(&cur_task()->portspace);
     }
       break;
     case 0:

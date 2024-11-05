@@ -106,7 +106,7 @@ const rb_tree_ops_t portsearch_ops = {
 };
 
 static mcn_return_t
-portspace_allocid (struct portspace *ps, mcn_portid_t *id)
+ipcspace_allocid (struct ipcspace *ps, mcn_portid_t *id)
 {
   mcn_portid_t max;
   struct portentry *pe;
@@ -187,7 +187,7 @@ _check_op(uint8_t op, bool send_only, struct portentry *pe)
 }
 
 static inline void
-_exec_op(struct portspace *ps, uint8_t op, bool send_only, struct portentry *pe, struct portref *pref)
+_exec_op(struct ipcspace *ps, uint8_t op, bool send_only, struct portentry *pe, struct portref *pref)
 {
   switch(op)
     {
@@ -256,7 +256,7 @@ _exec_op(struct portspace *ps, uint8_t op, bool send_only, struct portentry *pe,
 }
 
 mcn_return_t
-portspace_resolve_receive(struct portspace *ps, mcn_portid_t id, struct portref *portref)
+ipcspace_resolve_receive(struct ipcspace *ps, mcn_portid_t id, struct portref *portref)
 {
   struct portentry *pe;
 
@@ -272,7 +272,7 @@ portspace_resolve_receive(struct portspace *ps, mcn_portid_t id, struct portref 
 }
 
 mcn_return_t
-portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct portref *portref)
+ipcspace_resolve(struct ipcspace *ps, uint8_t bits, mcn_portid_t id, struct portref *portref)
 {
   mcn_return_t rc;
   struct portentry *pe;
@@ -290,7 +290,7 @@ portspace_resolve(struct portspace *ps, uint8_t bits, mcn_portid_t id, struct po
 }
 
 mcn_msgioret_t
-portspace_resolve_sendmsg(struct portspace *ps,
+ipcspace_resolve_sendmsg(struct ipcspace *ps,
 			  uint8_t rembits, mcn_portid_t remid, struct portref *rempref,
 			  uint8_t locbits, mcn_portid_t locid, struct portref *locpref)
 {
@@ -386,18 +386,13 @@ portspace_resolve_sendmsg(struct portspace *ps,
 }
 
 mcn_portid_t
-portspace_lookup(struct portspace *ps, struct port *port)
+ipcspace_lookup(struct ipcspace *ps, struct port *port)
 {
   struct portentry *pe;
 
-  RB_TREE_FOREACH(pe, &ps->portsearch_rb_tree) {
-    printf("Port Entry %ld: Port %p Type: %s [has_receiveright: %d send_count: %d]\n",
-	   pe->id, pe->portref.obj,
-	   pe->type == PORTENTRY_NORMAL ? "SENDRECV" : pe->type == PORTENTRY_ONCE ? "ONCE" : "UNKNOWN",
-	   pe->normal.recv, pe->normal.send_count);
-  }
-  
+  ipcspace_debug(ps);
   printf("Searching for port %p\n", port);
+
   pe = rb_tree_find_node(&ps->portsearch_rb_tree, &port);
   assert (pe != NULL);
   assert (pe->type == PORTENTRY_NORMAL);
@@ -405,19 +400,19 @@ portspace_lookup(struct portspace *ps, struct port *port)
 }
 
 void
-portspace_lock(struct portspace *ps)
+ipcspace_lock(struct ipcspace *ps)
 {
   spinlock(&ps->lock);
 }
 
 void
-portspace_unlock(struct portspace *ps)
+ipcspace_unlock(struct ipcspace *ps)
 {
   spinunlock(&ps->lock);
 }
 
 mcn_return_t
-portspace_insertsendrecv(struct portspace *ps, struct portright *pr, mcn_portid_t *idout)
+ipcspace_insertsendrecv(struct ipcspace *ps, struct portright *pr, mcn_portid_t *idout)
 {
   mcn_portid_t id;
   struct portentry *pe;
@@ -433,7 +428,7 @@ portspace_insertsendrecv(struct portspace *ps, struct portright *pr, mcn_portid_
       /* 
 	 Add new send/receive right.
       */
-      rc = portspace_allocid(ps, &id);
+      rc = ipcspace_allocid(ps, &id);
       if (rc)
 	return rc;
 
@@ -496,7 +491,7 @@ portspace_insertsendrecv(struct portspace *ps, struct portright *pr, mcn_portid_
 }
 
 mcn_return_t
-portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *idout)
+ipcspace_insertright(struct ipcspace *ps, struct portright *pr, mcn_portid_t *idout)
 {
   struct portentry *pe;
   mcn_return_t rc;
@@ -507,7 +502,7 @@ portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *
     {
     case RIGHT_SEND:
     case RIGHT_RECV:
-      rc = portspace_insertsendrecv(ps, pr, &id);
+      rc = ipcspace_insertsendrecv(ps, pr, &id);
       if (rc)
 	return rc;
       break;
@@ -516,7 +511,7 @@ portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *
       /*
 	Always add a new right for send-once.
       */
-      rc = portspace_allocid(ps, &id);
+      rc = ipcspace_allocid(ps, &id);
       if (rc)
 	return rc;
 
@@ -546,23 +541,8 @@ portspace_insertright(struct portspace *ps, struct portright *pr, mcn_portid_t *
   return KERN_SUCCESS;
 }
 
-
 void
-portspace_print(struct portspace *ps)
-{
-  struct portentry *pe;
-  spinlock(&ps->lock);
-  RB_TREE_FOREACH(pe, &ps->idsearch_rb_tree) {
-    printf("Port Entry %ld: Port %p Type: %s [has_receiveright: %d send_count: %d]\n",
-	   pe->id, pe->portref.obj,
-	   pe->type == PORTENTRY_NORMAL ? "SENDRECV" : pe->type == PORTENTRY_ONCE ? "ONCE" : "UNKNOWN",
-	   pe->normal.recv, pe->normal.send_count);
-  }
-  spinunlock(&ps->lock);
-}
-
-void
-portspace_setup(struct portspace *ps)
+ipcspace_setup(struct ipcspace *ps)
 {
   spinlock_init (&ps->lock);
   rb_tree_init (&ps->idsearch_rb_tree, &idsearch_ops);
@@ -570,8 +550,19 @@ portspace_setup(struct portspace *ps)
 }
 
 void
-portspace_init(void)
+ipcspace_init(void)
 {
   slab_register(&portentries, "PORTENTRIES", sizeof(struct portentry), NULL, 0);
 }
 
+void
+ipcspace_debug(struct ipcspace *ps)
+{
+  struct portentry *pe;
+  RB_TREE_FOREACH(pe, &ps->idsearch_rb_tree) {
+    printf("Port Entry %ld: Port %p Type: %s [has_receiveright: %d send_count: %d]\n",
+	   pe->id, pe->portref.obj,
+	   pe->type == PORTENTRY_NORMAL ? "SENDRECV" : pe->type == PORTENTRY_ONCE ? "ONCE" : "UNKNOWN",
+	   pe->normal.recv, pe->normal.send_count);
+  }
+}
