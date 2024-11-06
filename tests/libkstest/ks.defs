@@ -5,6 +5,10 @@ subsystem kernelserver kstest 2000;
 simpleroutine simple(
 		test: mcn_port_t);
 
+simpleroutine create_thread(
+	      test: mcn_port_t;
+	      pc: long;
+	      sp: long);
 
 routine inc(
 		test : mcn_port_t;

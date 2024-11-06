@@ -21,47 +21,57 @@ entry_sysc (uctxt_t * u,
 	    unsigned long a4, unsigned long a5, unsigned long a6,
 	    unsigned long a7)
 {
-  info("~~~~~~~~~~~~~ START  ~~~~~~~~~~~~~~");
+  long ret = 0;
+
+  if (cur_thread ()->uctxt != UCTXT_IDLE)
+    *cur_thread ()->uctxt = *u;
+
+
   switch (a1)
     {
     case __syscall_msgbuf:
-      uctxt_setret(u, cur_umsgbuf());
+      ret = cur_umsgbuf();
       break;
     case __syscall_msgrecv:
-      uctxt_setret(u, ipc_msgrecv((mcn_portid_t)a2, (mcn_msgopt_t)a3, a4, (mcn_portid_t)a5));
+      ret = ipc_msgrecv((mcn_portid_t)a2, (mcn_msgopt_t)a3, a4, (mcn_portid_t)a5);
       break;
     case __syscall_msgsend:
-      uctxt_setret(u, ipc_msgsend((mcn_msgopt_t)a2, a3, (mcn_portid_t)a4));
+      ret = ipc_msgsend((mcn_msgopt_t)a2, a3, (mcn_portid_t)a4);
       break;
-    case __syscall_reply_port: {
-      mcn_return_t rc;
-      mcn_portid_t id;
+    case __syscall_reply_port:
+      {
+	mcn_return_t rc;
+	mcn_portid_t id;
 
-      rc = task_allocate_port(cur_task(), &id);
-      printf("Allocated port %d [%ld]\n", rc, id);
-      if (rc)
-	uctxt_setret(u, MCN_PORTID_NULL);
-      else
-	uctxt_setret(u, id);
-    }
+	rc = task_allocate_port(cur_task(), &id);
+	printf("Allocated port %d [%ld]\n", rc, id);
+	if (rc)
+	  ret = MCN_PORTID_NULL;
+	else
+	  ret = id;
+      }
       break;
     case 0:
       info("SYSC%ld test passed.", a1);
       break;
+      ret = 0;
     case 1:
       assert(a2 == 1);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 2:
       assert(a2 == 1);
       assert(a3 == 2);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 3:
       assert(a2 == 1);
       assert(a3 == 2);
       assert(a4 == 3);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 4:
       assert(a2 == 1);
@@ -69,6 +79,7 @@ entry_sysc (uctxt_t * u,
       assert(a4 == 3);
       assert(a5 == 4);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 5:
       assert(a2 == 1);
@@ -77,6 +88,7 @@ entry_sysc (uctxt_t * u,
       assert(a5 == 4);
       assert(a6 == 5);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 6:
       assert(a2 == 1);
@@ -86,18 +98,20 @@ entry_sysc (uctxt_t * u,
       assert(a6 == 5);
       assert(a7 == 6);
       info("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 4096:
       putchar (a2);
+      ret = 0;
       break;
-
+      
     default:
       info ("Received unknown syscall %ld %ld %ld %ld %ld %ld %ld\n",
 	    a1, a2, a3, a4, a5, a6, a7);
+      ret = -1;
       break;
     }
-  ipc_kern_exec();
-  info("~~~~~~~~~~~~~~ END ~~~~~~~~~~~~~~~~");
-  
-  return u;
+
+  uctxt_setret(cur_thread()->uctxt, ret);
+  return kern_return();
 }

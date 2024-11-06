@@ -147,7 +147,6 @@ static inline void
 zone_remove (__ZONE_T *z, struct __ZENTRY *ze)
 {
   _zone_detachentry (z, ze);
-  printf("FREEPTR\n");
   ___freeptr (ze, z->opq);
 }
 

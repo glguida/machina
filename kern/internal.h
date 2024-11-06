@@ -11,6 +11,7 @@
 #include <rbtree.h>
 #include <nux/hal.h>
 #include <nux/nux.h>
+#include <nux/cpumask.h>
 #include <machina/message.h>
 
 
@@ -164,27 +165,90 @@ void msgbuf_free(struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb);
 
 
 /*
+
+  Timers.
+
+*/
+
+struct thread;
+struct timer
+{
+  int valid;
+  uint64_t time;
+  struct thread *thread;
+  int sig;
+  void (*handler) (uint64_t);
+    LIST_ENTRY (timer) list;
+};
+
+void timer_register (struct timer *t);
+void timer_remove (struct timer *timer);
+void timer_run (void);
+
+
+/*
+
+  Scheduler.
+
+*/
+
+extern cpumask_t idlemap;
+
+void cpu_kick (void);
+void ipc_kern_exec(void);
+uctxt_t *kern_return (void);
+
+enum sched
+{
+  SCHED_RUNNING = 0,
+  SCHED_RUNNABLE = 1,
+  SCHED_STOPPED = 2,
+};
+
+void sched_add (struct thread *th);
+uctxt_t *sched_next (void);
+void sched_wake (struct thread *th);
+
+
+/*
   Machina Thread.
 
 */
 struct thread {
   lock_t lock; /* PRIO: task > thread. */
-  uctxt_t uctxt;
+  uctxt_t *uctxt;
   LIST_ENTRY(thread) list_entry;
   struct task *task;
   struct msgbuf msgbuf;
+
+  int64_t vtt_almdiff;
+  uint64_t vtt_offset;
+  uint64_t vtt_rttbase;
+  struct timer vtt_alarm;
+  unsigned cpu;
+  enum sched status;
+  TAILQ_ENTRY (thread) sched_list;
 };
 
-struct thread * thread_new(struct task *t);
+struct thread * thread_new(struct task *t, long ip, long sp);
+struct thread * thread_idle(void);
 struct thread * thread_bootstrap(struct task *t);
 void thread_enter(struct thread *th);
 void thread_init (void);
+void thread_vtalrm (int64_t diff);
 
 static inline uctxt_t *
 thread_uctxt(struct thread *th)
 {
-  return &th->uctxt;
+  return th->uctxt;
 }
+
+static inline bool
+thread_isidle(struct thread *th)
+{
+  return thread_uctxt(th) == UCTXT_IDLE;
+}
+
 
 /*
   Machina VM Map.
@@ -206,7 +270,6 @@ void vmmap_setup(struct vmmap *map);
 
 */
 struct ipcspace {
-  lock_t lock;
   struct rb_tree idsearch_rb_tree;
   struct rb_tree portsearch_rb_tree;
 };
@@ -217,8 +280,6 @@ struct portright;
 
 void ipcspace_init(void);
 void ipcspace_setup(struct ipcspace *ps);
-void ipcspace_lock (struct ipcspace *ps);
-void ipcspace_unlock (struct ipcspace *ps);
 mcn_portid_t ipcspace_lookup(struct ipcspace *ps, struct port *port);
 mcn_return_t ipcspace_insertright(struct ipcspace *ps, struct portright *pr, mcn_portid_t *idout);
 mcn_return_t ipcspace_resolve(struct ipcspace *ps, uint8_t bits, mcn_portid_t id, struct portref *pref);
@@ -411,6 +472,7 @@ mcn_msgioret_t ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned lo
   Per-CPU Data.
 */
 struct mcncpu {
+  struct thread *idle;
   struct thread *thread;
   struct task *task;
   struct port_queue kernel_queue;
@@ -426,6 +488,12 @@ static inline struct thread *
 cur_thread(void)
 {
   return cur_cpu()->thread;
+}
+
+static inline uint64_t
+cur_vtt (void)
+{
+  return timer_gettime () - cur_thread()->vtt_rttbase + cur_thread()->vtt_offset;
 }
 
 static inline void *

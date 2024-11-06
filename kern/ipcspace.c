@@ -399,18 +399,6 @@ ipcspace_lookup(struct ipcspace *ps, struct port *port)
   return pe->id;
 }
 
-void
-ipcspace_lock(struct ipcspace *ps)
-{
-  spinlock(&ps->lock);
-}
-
-void
-ipcspace_unlock(struct ipcspace *ps)
-{
-  spinunlock(&ps->lock);
-}
-
 mcn_return_t
 ipcspace_insertsendrecv(struct ipcspace *ps, struct portright *pr, mcn_portid_t *idout)
 {
@@ -544,7 +532,6 @@ ipcspace_insertright(struct ipcspace *ps, struct portright *pr, mcn_portid_t *id
 void
 ipcspace_setup(struct ipcspace *ps)
 {
-  spinlock_init (&ps->lock);
   rb_tree_init (&ps->idsearch_rb_tree, &idsearch_ops);
   rb_tree_init (&ps->portsearch_rb_tree, &portsearch_ops);
 }

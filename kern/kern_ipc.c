@@ -41,6 +41,22 @@ mcn_return_t mul(mcn_portid_t test, int b, long *c)
   return KERN_SUCCESS;
 }
 
+mcn_return_t create_thread(mcn_portid_t test, long pc, long sp)
+{
+  struct thread *th;
+
+  printf("\n\tcreate thread called (%lx %lx)\n", pc, sp);
+
+  th = thread_new(cur_task(), pc, sp);
+  if (th == NULL)
+    return KERN_RESOURCE_SHORTAGE;
+
+  uctxt_print(cur_thread()->uctxt);
+  sched_add(th);
+  uctxt_print(cur_thread()->uctxt);
+
+  return KERN_SUCCESS;
+}
 
 void
 ipc_kern_exec(void)

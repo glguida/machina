@@ -15,4 +15,4 @@ LDFLAGS+=-L$(BUILDROOT)/tests/libkstest/kern/$(OBJDIR)
 LDADD+=-lks_kern
 LIBDEPS+=$(BUILDROOT)/tests/libkstest/kern/$(OBJDIR)/libks_kern.a
 
-SRCS+= main.c msgbuf.c physmem.c task.c vashare.c vmmap.c thread.c sysc.c ipc.c ipcspace.c port.c kern_ipc.c
+SRCS+= main.c msgbuf.c physmem.c task.c vashare.c vmmap.c thread.c sysc.c ipc.c ipcspace.c port.c kern_ipc.c sched.c timer.c

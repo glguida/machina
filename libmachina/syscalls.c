@@ -25,7 +25,8 @@ void __attribute__((constructor (0))) __machina_sysinit (void)
 void *
 syscall_msgbuf(void)
 {
-  return __local_msgbuf;
+  //  return __local_msgbuf;
+  return (void *)syscall0(__syscall_msgbuf);
 }
 
 mcn_return_t

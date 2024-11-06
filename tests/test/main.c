@@ -5,6 +5,7 @@
 #include <machina/machina.h>
 #include <machina/mig.h>
 #include <machina/error.h>
+#include <string.h>
 
 #include <ks.h>
 #include <cs.h>
@@ -44,6 +45,27 @@ puts (const char *s)
 
   return 0;
 }
+
+volatile int i = 0;
+
+int
+th1(void)
+{
+  while (i != 1);
+
+
+  while(1)
+    {
+      syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
+      cstest_replies_t t;
+      cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)&t);
+      memcpy(syscall_msgbuf(), (void *)&t, sizeof(t));
+    }
+  //  syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
+
+}
+
+char stack[64*1024];
 
 int
 main (void)
@@ -99,14 +121,31 @@ main (void)
     printf("************************* TEST END *******************************\n");
   }
 
-  printf("Calling simple to 3\n");
-  {
-    user_simple(3);
-    syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
-    cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)syscall_msgbuf());
-    syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
-  }
+  volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
+  msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
+  msgh->msgh_size = 40;
+  msgh->msgh_remote = 3;
+  msgh->msgh_local = 3;
+  msgh->msgh_msgid = 505050;
+  printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+  printf("MSGIORET: %x", syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+
+
   
+  create_thread(1, (uint64_t)th1, (uint64_t)stack + 64 * 1024);
+
+  printf("thread created\n");
+    printf("thread created\n");
+      printf("thread created\n");
+        printf("thread created\n");
+
+	printf("Okay, start now.\n");
+	i = 1;
+
+  while(1)
+    simple(3);
+
+
 
   return 42;
 }
@@ -116,7 +155,7 @@ static int c = 0;
 mcn_return_t
 __srv_user_simple(mcn_portid_t port)
 {
-  printf("Simple port %d!", port);
+  printf("\t\t\t\tSimple port %d!\n", port);
   return KERN_SUCCESS;
 }
 

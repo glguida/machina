@@ -23,7 +23,6 @@ task_bootstrap(void)
   spinlock_init (&t->lock);
   ipcspace_setup(&t->ipcspace);
   t->refcount = 0;
-  hal_umap_load(NULL);
 
   return t;
 }
@@ -32,28 +31,20 @@ void
 task_enter(struct task *t)
 {
   cur_cpu()->task = t;
-
-  spinlock(&t->lock);
   vmmap_enter (&t->vmmap);
-  spinunlock(&t->lock);
 }
 
 struct ipcspace *
 task_getipcspace(struct task *t)
 {
   spinlock(&t->lock);
-  ipcspace_lock(&t->ipcspace);
-  spinunlock(&t->lock);
-
   return &t->ipcspace;
 }
 
 void
 task_putipcspace(struct task *t, struct ipcspace *ps)
 {
-  spinlock(&t->lock);
   assert(&t->ipcspace == ps);
-  ipcspace_unlock(&t->ipcspace);
   spinunlock(&t->lock);
 }
 
