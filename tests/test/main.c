@@ -46,13 +46,9 @@ puts (const char *s)
   return 0;
 }
 
-volatile int i = 0;
-
 int
 th1(void)
 {
-  while (i != 1);
-
 
   while(1)
     {
@@ -130,22 +126,13 @@ main (void)
   printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
   printf("MSGIORET: %x", syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
 
-
+  for (int i = 0; i < 2*2 + 2; i++)
+    printf("s: %d\n", simple(3));
   
-  create_thread(1, (uint64_t)th1, (uint64_t)stack + 64 * 1024);
+  create_thread(1, (long)th1, (long)stack + 64 * 1024);
 
-  printf("thread created\n");
-    printf("thread created\n");
-      printf("thread created\n");
-        printf("thread created\n");
-
-	printf("Okay, start now.\n");
-	i = 1;
-
-  while(1)
-    simple(3);
-
-
+  //  while(1)
+  //    printf("s: %d\n", simple(3));
 
   return 42;
 }

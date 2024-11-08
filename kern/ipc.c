@@ -119,7 +119,8 @@ ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
 {
   mcn_msgioret_t rc;
   struct ipcspace *ps;
-
+  printf("timeout = %ld\n", timeout);
+  timeout = 1000;
   volatile mcn_msgheader_t *ext_msg = (volatile mcn_msgheader_t *)cur_kmsgbuf();
   const mcn_msgsize_t ext_size = ext_msg->msgh_size;
 
@@ -140,7 +141,7 @@ ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
 
   message_debug(int_msg);
 
-  rc = port_enqueue(int_msg);
+  rc = port_enqueue(int_msg, timeout, false);
   if (rc)
     {
       intmsg_consume(int_msg);
@@ -156,7 +157,8 @@ ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn
 {
   mcn_msgioret_t rc;
   struct ipcspace *ps;
-
+  printf("timeout = %ld\n", timeout);
+  timeout = 1000;
   struct portref recv_pref;
   mcn_msgheader_t *intmsg;
 
@@ -168,7 +170,7 @@ ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn
       return MSGIO_RCV_INVALID_NAME;
     }
 
-  rc = port_dequeue(portref_unsafe_get(&recv_pref), &intmsg);
+  rc = port_dequeue(portref_unsafe_get(&recv_pref), timeout, &intmsg);
   if (rc)
     {
       task_putipcspace(cur_task(), ps);

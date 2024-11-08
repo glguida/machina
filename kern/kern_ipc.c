@@ -61,24 +61,24 @@ mcn_return_t create_thread(mcn_portid_t test, long pc, long sp)
 void
 ipc_kern_exec(void)
 {
-  struct port_queue *queue = &cur_cpu()->kernel_queue;
-  if (!TAILQ_EMPTY(&queue->msgq))
+  mcn_msgheader_t *msgh;
+  
+  while (msgq_deq(&cur_cpu()->kernel_msgq, &msgh))
     {
-      mcn_msgheader_t *reply = (mcn_msgheader_t *)kmem_alloc(0, sizeof(kstest_replies_t));
-      if (reply == NULL)
-	return;
-
-      struct msgq_entry *msgq = TAILQ_FIRST(&queue->msgq);
-      assert(msgq != NULL);
-      TAILQ_REMOVE(&queue->msgq, msgq, queue);
-      mcn_msgheader_t *msgh = msgq->msgh;
-      slab_free(msgq);
+      kstest_replies_t kr;
 
       info("KERNEL SERVER INPUT:");
       message_debug(msgh);
-      kstest_server(msgh, reply);
+      kstest_server(msgh, (mcn_msgheader_t *)&kr);
+
+      mcn_msgsize_t size = ((mcn_msgheader_t *)&kr)->msgh_size;
+      assert (size <= sizeof(kr));
+      mcn_msgheader_t *reply = (mcn_msgheader_t *)kmem_alloc(0, size);
+      assert (reply != NULL);
+      memcpy(reply, &kr, size);
+
       info("KERNEL SERVER OUTPUT");
       message_debug(reply);
-      port_enqueue(reply);
+      port_enqueue(reply, 0, true);
     }
 }

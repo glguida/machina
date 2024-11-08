@@ -57,20 +57,74 @@ port_type(struct port *port)
   return ty;
 }
 
-mcn_return_t portqueue_add(struct port_queue *queue, mcn_msgheader_t *msgh)
+void
+msgq_init(msgqueue_t *msgq)
 {
-  struct msgq_entry *msgq = slab_alloc(&msgqs);
-
-  if (msgq == NULL)
-    return KERN_RESOURCE_SHORTAGE;
-
-  msgq->msgh = msgh;
-  TAILQ_INSERT_TAIL(&queue->msgq, msgq, queue);
-  return  KERN_SUCCESS;
+  TAILQ_INIT(msgq);
 }
 
 mcn_return_t
-port_enqueue(mcn_msgheader_t *msgh)
+msgq_enq(msgqueue_t *msgq, mcn_msgheader_t *msgh)
+{
+  struct msgq_entry *msgq_entry = slab_alloc(&msgqs);
+  if (msgq_entry == NULL)
+    return KERN_RESOURCE_SHORTAGE;
+
+  msgq_entry->msgh = msgh;
+  TAILQ_INSERT_TAIL(msgq, msgq_entry, queue);
+  return KERN_SUCCESS;
+}
+
+bool
+msgq_deq(msgqueue_t *msgq, mcn_msgheader_t **msghp)
+{
+  struct msgq_entry *msgq_entry = TAILQ_FIRST(msgq);
+  if (msgq_entry == NULL)
+    return false;
+  TAILQ_REMOVE(msgq, msgq_entry, queue);
+  *msghp = msgq_entry->msgh;
+  slab_free(msgq_entry);
+  return true;
+}
+
+void
+portqueue_init(struct port_queue *queue, unsigned limit)
+{
+  msgq_init(&queue->msgq);
+  waitq_init(&queue->recv_waitq);
+  waitq_init(&queue->send_waitq);
+  queue->entries = 0;
+  queue->capacity = limit;
+}
+
+mcn_return_t portqueue_enq(struct port_queue *pq, unsigned long timeout, bool force, mcn_msgheader_t *msgh)
+{
+  if (!force && (!waitq_empty(&pq->send_waitq) || (pq->capacity == pq->entries)))
+    {
+      sched_wait(&pq->send_waitq, timeout);
+      return KERN_THREAD_QUEUED;
+    }
+
+  msgq_enq(&pq->msgq, msgh);
+  pq->entries++;
+  sched_wakeone(&pq->recv_waitq);
+  return  KERN_SUCCESS;
+}
+
+mcn_return_t portqueue_deq(struct port_queue *pq, unsigned long timeout, mcn_msgheader_t **msghp)
+{
+  if (!msgq_deq(&pq->msgq, msghp))
+    {
+      sched_wait(&pq->recv_waitq, timeout);
+      return KERN_THREAD_QUEUED;
+    }
+  pq->entries--;
+  sched_wakeone(&pq->send_waitq);
+  return KERN_SUCCESS;
+}
+
+mcn_return_t
+port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force)
 {
   mcn_return_t rc;
   struct port *port;
@@ -79,13 +133,13 @@ port_enqueue(mcn_msgheader_t *msgh)
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
 
-  printf("enqueueing message %p to port %p\n", msgh, port);
+  printf("enqueueing message %p to port %p (timeout: %d)\n", msgh, port, timeout);
   
   spinlock(&port->lock);
   switch(port->type)
     {
     case PORT_KERNEL:
-      rc = portqueue_add(&cur_cpu()->kernel_queue, msgh);
+      rc = msgq_enq(&cur_cpu()->kernel_msgq, msgh);
       break;
 
     case PORT_DEAD:
@@ -93,7 +147,7 @@ port_enqueue(mcn_msgheader_t *msgh)
       break;
 
     case PORT_QUEUE:
-      rc = portqueue_add(&port->queue, msgh);
+      rc = portqueue_enq(&port->queue, timeout,force, msgh);
       break;
 
     default:
@@ -107,7 +161,7 @@ port_enqueue(mcn_msgheader_t *msgh)
 }
 			  
 mcn_return_t
-port_dequeue(struct port *port, mcn_msgheader_t **msghp)
+port_dequeue(struct port *port, unsigned long timeout, mcn_msgheader_t **msghp)
 {
   mcn_return_t rc;
 
@@ -128,23 +182,9 @@ port_dequeue(struct port *port, mcn_msgheader_t **msghp)
 
     case PORT_QUEUE: {
       info("Checking %p\n", port);
-      if (TAILQ_EMPTY(&port->queue.msgq))
-	{
-	  spinunlock(&port->lock);
-	  warn("wait not implemented");
-	  rc = MSGIO_RCV_TIMED_OUT;
-	  break;
-	}
-
-      struct msgq_entry *msgq = TAILQ_FIRST(&port->queue.msgq);
-      assert(msgq != NULL);
-      TAILQ_REMOVE(&port->queue.msgq, msgq, queue);
+      rc = portqueue_deq(&port->queue, timeout, msghp);
       spinunlock(&port->lock);
-      
-      mcn_msgheader_t *msgh = msgq->msgh;
-      slab_free(msgq);
-      *msghp = msgh;
-      rc = KERN_SUCCESS;
+      break;
     }
     }
   return rc;
@@ -203,7 +243,7 @@ port_alloc_queue(struct portref *portref)
   p = slab_alloc(&ports);
   spinlock_init(&p->lock);
   p->type = PORT_QUEUE;
-  TAILQ_INIT(&p->queue.msgq);
+  portqueue_init(&p->queue, 2* cpu_num() );
   portref->obj = p;
   p->_ref_count = 1;
   return KERN_SUCCESS;

@@ -1,3 +1,9 @@
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
 #include "internal.h"
 
 lock_t timers_lock = 0;
@@ -18,7 +24,7 @@ timer_run (void)
       break;
     if (c->handler != NULL)
       {
-	c->handler (cnt);
+	c->handler (c->opq);
       }
     c->valid = 0;
     LIST_REMOVE (c, list);
@@ -31,18 +37,22 @@ timer_run (void)
       if (c == NULL)
 	timer_clear ();
       else
-	timer_alarm (c->time);
+	timer_alarm (c->time - cnt);
     }
   spinunlock (&timers_lock);
 }
 
 void
-timer_register (struct timer *t)
+timer_register (struct timer *t, uint64_t nsecs)
 {
   struct timer *c;
+  uint64_t curtime = timer_gettime();
+  uint64_t time = curtime + nsecs;
 
   if (!t->valid)
     return;
+
+  t->time = time;
 
   spinlock (&timers_lock);
   c = LIST_FIRST (&timers);
@@ -65,7 +75,7 @@ timer_register (struct timer *t)
 out:
   /* Update hw timer. */
   c = LIST_FIRST (&timers);
-  timer_alarm (c->time);
+  timer_alarm (c->time - curtime);
   spinunlock (&timers_lock);
 }
 

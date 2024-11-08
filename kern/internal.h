@@ -12,6 +12,7 @@
 #include <nux/hal.h>
 #include <nux/nux.h>
 #include <nux/cpumask.h>
+#include <nux/slab.h>
 #include <machina/message.h>
 
 
@@ -175,13 +176,18 @@ struct timer
 {
   int valid;
   uint64_t time;
-  struct thread *thread;
-  int sig;
-  void (*handler) (uint64_t);
+  void *opq;
+  void (*handler) (void *opq);
     LIST_ENTRY (timer) list;
 };
 
-void timer_register (struct timer *t);
+static inline void
+timer_init(struct timer *t)
+{
+  t->valid = 0;
+}
+
+void timer_register (struct timer *t, uint64_t nsecs);
 void timer_remove (struct timer *timer);
 void timer_run (void);
 
@@ -198,16 +204,43 @@ void cpu_kick (void);
 void ipc_kern_exec(void);
 uctxt_t *kern_return (void);
 
-enum sched
+struct waitq
 {
+  lock_t lock;
+  TAILQ_HEAD(,thread) queue;
+};
+
+static inline void
+waitq_init(struct waitq *wq)
+{
+  spinlock_init(&wq->lock);
+  TAILQ_INIT(&wq->queue);
+}
+
+static inline bool
+waitq_empty(struct waitq *wq)
+{
+  bool empty;
+
+  spinlock(&wq->lock);
+  empty = TAILQ_EMPTY(&wq->queue);
+  spinunlock(&wq->lock);
+
+  return empty;
+}
+
+enum sched {
   SCHED_RUNNING = 0,
   SCHED_RUNNABLE = 1,
-  SCHED_STOPPED = 2,
+  SCHED_STOPPED = 3,
+  SCHED_REMOVED = 4,
 };
 
 void sched_add (struct thread *th);
 uctxt_t *sched_next (void);
-void sched_wake (struct thread *th);
+void sched_destroy (struct thread *th);
+void sched_wait (struct waitq *waitq, unsigned long timeout);
+void sched_wakeone (struct waitq *wq);
 
 
 /*
@@ -226,6 +259,14 @@ struct thread {
   uint64_t vtt_rttbase;
   struct timer vtt_alarm;
   unsigned cpu;
+
+  struct {
+    uint8_t op_yield : 1;
+    uint8_t op_suspend : 1;
+    uint8_t op_destroy : 1;
+  } sched_op;
+  struct waitq *waitq;
+  struct timer timeout;
   enum sched status;
   TAILQ_ENTRY (thread) sched_list;
 };
@@ -308,9 +349,21 @@ struct msgq_entry {
   mcn_msgheader_t *msgh;
 };
 
+typedef TAILQ_HEAD(msgqueue, msgq_entry) msgqueue_t;
+
+void msgq_init(msgqueue_t *msgq);
+mcn_return_t msgq_enq(msgqueue_t *msgq, mcn_msgheader_t *msgh);
+bool msgq_deq(msgqueue_t *msgq, mcn_msgheader_t **msghp);
+
 struct port_queue {
-  TAILQ_HEAD(, msgq_entry) msgq;
+  struct waitq recv_waitq;
+  struct waitq send_waitq;
+  unsigned capacity;
+  unsigned entries;
+  msgqueue_t msgq;
 };
+
+void portqueue_init (struct port_queue *pq, unsigned limit);
 
 struct port {
   unsigned long _ref_count; /* Handled by portref. */
@@ -321,6 +374,7 @@ struct port {
     struct {} kernel;
     struct {} dead;
     struct port_queue queue;
+      
   };
 };
 
@@ -330,8 +384,8 @@ bool port_kernel(struct port *);
 enum port_type port_type(struct port *);
 mcn_return_t port_alloc_kernel(void *ctx, struct portref *portref);
 mcn_return_t port_alloc_queue(struct portref *portref);
-mcn_return_t port_enqueue(mcn_msgheader_t *msgh);
-mcn_return_t port_dequeue(struct port *port, mcn_msgheader_t **msghp);
+mcn_return_t port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force);
+mcn_return_t port_dequeue(struct port *port, unsigned long timeout, mcn_msgheader_t **msghp);
 
 struct port;
 struct portref {
@@ -475,7 +529,8 @@ struct mcncpu {
   struct thread *idle;
   struct thread *thread;
   struct task *task;
-  struct port_queue kernel_queue;
+  struct msgqueue kernel_msgq;
+  TAILQ_HEAD(,thread) dead_threads;
 };
 
 static inline struct mcncpu *

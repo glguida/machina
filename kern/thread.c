@@ -44,6 +44,7 @@ thread_new(struct task *t, long ip, long sp)
   th->task = t;
   LIST_INSERT_HEAD(&t->threads, th, list_entry);
   uctxt_init(th->uctxt, ip, sp);
+  timer_init(&th->timeout);
   spinunlock(&t->lock);
 
   return th;
@@ -90,20 +91,24 @@ thread_enter(struct thread *th)
     atomic_cpumask_set (&idlemap, cpu_id ());
 }
 
+#if 0
 void
 thread_vtalrm (int64_t diff)
 {
   struct thread *th = cur_thread ();
   struct timer *t = &th->vtt_alarm;
 
+  spinlock(&th->lock);
   timer_remove (t);
   t->time = timer_gettime () + diff;
-  t->thread = th;
+  t->opq = (void *)th;
   t->handler = NULL;
   t->valid = 1;
   debug ("Setting vtalm at %" PRIx64 "\n", t->time);
   timer_register (t);
+  spinunlock(&th->lock);
 }
+#endif
 
 void thread_init (void)
 {

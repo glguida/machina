@@ -48,9 +48,10 @@ main (int argc, char *argv[])
 
   /* Initialise per-CPU data. */
   cpu_setdata((void *)kmem_alloc(0, sizeof(struct mcncpu)));
-  TAILQ_INIT(&cur_cpu()->kernel_queue.msgq);
+  msgq_init(&cur_cpu()->kernel_msgq);
   cur_cpu()->idle = thread_idle();
   cur_cpu()->thread = cur_cpu()->idle;
+  TAILQ_INIT(&cur_cpu()->dead_threads);
   atomic_cpumask_set (&idlemap, cpu_id());
 
   struct task *t = task_bootstrap();
@@ -84,9 +85,10 @@ main_ap (void)
   
   /* Initialise per-CPU data. */
   cpu_setdata((void *)kmem_alloc(0, sizeof(struct mcncpu)));
-  TAILQ_INIT(&cur_cpu()->kernel_queue.msgq);
+  msgq_init(&cur_cpu()->kernel_msgq);
   cur_cpu()->idle = thread_idle();
   cur_cpu()->thread = cur_cpu()->idle;
+  TAILQ_INIT(&cur_cpu()->dead_threads);
   atomic_cpumask_set (&idlemap, cpu_id());
 
   return EXIT_IDLE;
@@ -106,7 +108,6 @@ entry_ipi (uctxt_t * uctxt)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
   
-  info ("IPI!");
   return kern_return();
 }
 
@@ -116,9 +117,9 @@ entry_alarm (uctxt_t * uctxt)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
-  timer_alarm (1 * 1000 * 1000 * 1000);
   info ("TMR: %" PRIu64 " us", timer_gettime ());
   uctxt_print (uctxt);
+  timer_run();
   return kern_return();
 }
 
@@ -130,7 +131,7 @@ entry_ex (uctxt_t * uctxt, unsigned ex)
   
   info ("Exception %d", ex);
   uctxt_print (uctxt);
-  cur_thread()->status = SCHED_STOPPED;
+  sched_destroy(cur_thread());
   return kern_return();
 }
 
@@ -143,7 +144,7 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
   printf("cur_thread(): %p\n", cur_thread());
   info ("CPU #%d Pagefault at %08lx (%d)", cpu_id (), va, pfi);
   uctxt_print (uctxt);
-  cur_thread()->status = SCHED_STOPPED;
+  sched_destroy(cur_thread());
   return kern_return();
 }
 
