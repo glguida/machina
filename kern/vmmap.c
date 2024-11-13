@@ -14,6 +14,24 @@ vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
   return msgbuf_alloc (&map->umap, &map->msgbuf_zone, msgbuf);
 }
 
+bool
+vmmap_alloctls (struct vmmap *map, uaddr_t *tls)
+{
+  /*
+    XXX: TLS SUPPORT.
+
+    This will have to be a memory region allocated in this VM-map.
+
+    For now, alloc a message buffer. :-(
+  */
+  struct msgbuf tlsmb;
+  assert(msgbuf_alloc(&map->umap, &map->msgbuf_zone, &tlsmb));
+  *(unsigned long *)(tlsmb.kaddr + MSGBUF_SIZE - sizeof(long)) = tlsmb.uaddr + MSGBUF_SIZE - sizeof(long);
+  printf("tls is %lx\n", (long)tlsmb.uaddr + MSGBUF_SIZE - sizeof(long));
+  *tls = (long)tlsmb.uaddr + MSGBUF_SIZE - sizeof(long);
+  return true;
+}
+
 void
 vmmap_enter(struct vmmap *map)
 {

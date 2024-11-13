@@ -13,6 +13,7 @@
 #include <nux/nux.h>
 #include <nux/cpumask.h>
 #include <nux/slab.h>
+#include <machina/kernparam.h>
 #include <machina/message.h>
 
 
@@ -143,10 +144,6 @@ struct msgbuf {
   uaddr_t uaddr;
 };
 
-#define MSGBUF_PAGE_SHIFT 0
-#define MSGBUF_PAGES (1 << MSGBUF_PAGE_SHIFT)
-#define MSGBUF_SHIFT (MSGBUF_PAGE_SHIFT + PAGE_SHIFT)
-#define MSGBUF_SIZE (1L << MSGBUF_SHIFT)
 #define MSGBUF_ORDMAX 1
 struct msgbuf_zentry;
 LIST_HEAD (msgbuflist, msgbuf_zentry);
@@ -260,6 +257,8 @@ struct thread {
   struct timer vtt_alarm;
   unsigned cpu;
 
+  uaddr_t tls;
+
   struct {
     uint8_t op_yield : 1;
     uint8_t op_suspend : 1;
@@ -301,6 +300,7 @@ struct vmmap {
 };
 
 bool vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf);
+bool vmmap_alloctls (struct vmmap *map, uaddr_t *tls);
 void vmmap_enter(struct vmmap *map);
 void vmmap_bootstrap(struct vmmap *map);
 void vmmap_setup(struct vmmap *map);

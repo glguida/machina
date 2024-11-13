@@ -9,7 +9,7 @@
 
 #include <machina/types.h>
 
-extern void *__local_msgbuf; /* GIANLUCA: MAKE THIS PER THREAD */
+extern __thread void *__local_msgbuf;
 
 void *syscall_msgbuf(void);
 

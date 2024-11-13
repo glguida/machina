@@ -52,12 +52,11 @@ th1(void)
 
   while(1)
     {
-      syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
-      cstest_replies_t t;
-      cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)&t);
-      memcpy(syscall_msgbuf(), (void *)&t, sizeof(t));
+      if (syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL))
+	continue;
+      cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)syscall_msgbuf());
+      (void)syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
     }
-  //  syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
 
 }
 

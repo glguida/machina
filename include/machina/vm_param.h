@@ -30,7 +30,22 @@
 #define PAGE_SIZE_FIXED
 
 #define VM_MAP_MSGBUF_END VM_ADDR_MAX
-#define VM_MAP_MSGBUF_START (VM_ADDR_MAX - MACHINA_MAX_THREADS * PAGE_SIZE)
+#ifdef MACHINA_TLS_MSGBUF
+/*
+  This should be removed once the TLS support is completed.
+
+  As it is it works, but we allocate a MSGBUF as a TLS. It cannot be
+  sized based on the thread TLS size.
+
+  Also, the kernel mapping of it is completely unneeded.
+
+  Fix this by allocating a vm region for every thread's TLS.
+*/
+#define VM_MAP_MSGBUF_START (VM_ADDR_MAX - 2 * MACHINA_MAX_THREADS * MSGBUF_SIZE)
+#else
+#define VM_MAP_MSGBUF_START (VM_ADDR_MAX - MACHINA_MAX_THREADS * MSGBUF_SIZE)
+#endif
+
 
 #define VM_MAP_PORTS_PAGES 2
 #define VM_MAP_PORTS_SIZE (VM_MAP_PORTS_PAGES * PAGE_SIZE)

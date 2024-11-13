@@ -41,9 +41,16 @@ thread_new(struct task *t, long ip, long sp)
       slab_free(th);
       return NULL;
     }
+  if (!vmmap_alloctls(&t->vmmap, &th->tls))
+    {
+      spinunlock(&t->lock);
+      slab_free(th);
+      return NULL;
+    }
   th->task = t;
   LIST_INSERT_HEAD(&t->threads, th, list_entry);
   uctxt_init(th->uctxt, ip, sp);
+  uctxt_settls(th->uctxt, th->tls);
   timer_init(&th->timeout);
   spinunlock(&t->lock);
 
@@ -64,6 +71,7 @@ thread_bootstrap(struct task *t)
     {
       fatal("No bootstrap process.");
     }
+  uctxt_settls(th->uctxt, th->tls);
 
   return th;
 }

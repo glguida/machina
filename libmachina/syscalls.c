@@ -13,8 +13,7 @@
 
 #include <stdio.h>
 
-/* XXX: Make this per-thread. */
-void *__local_msgbuf = NULL;
+__thread void *__local_msgbuf = NULL;
 
 void __attribute__((constructor (0))) __machina_sysinit (void)
 {
