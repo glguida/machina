@@ -232,30 +232,18 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_server"), RCSId);
 
-    fprintf(file, "typedef void (*mig_routine_t)(mcn_msgheader_t *, mcn_msgheader_t *);\n");
+    fprintf(file, "typedef mcn_msgsize_t (*mig_routine_t)(mcn_msgheader_t *, mcn_msgheader_t *);\n");
     fprintf(file, "\n");
 
     /* Used for locations in the request message, *not* reply message.
        Reply message locations aren't dependent on IsKernelServer. */
 
-    if (IsKernelServer)
-      fprintf(file, "#define msgh_request_port\tmsgh_local\n");
-    else
-      fprintf(file, "#define msgh_request_port\tmsgh_remote\n");    
+    fprintf(file, "#define msgh_request_port\tmsgh_local\n");
     fprintf(file, "#define MACH_MSGH_BITS_REQUEST(bits)");
-    if (IsKernelServer)
-      fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
-    else
-      fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
-    if (IsKernelServer)
-      fprintf(file, "#define msgh_reply_port\t\tmsgh_remote\n");
-    else
-      fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
+    fprintf(file, "#define msgh_reply_port\t\tmsgh_remote\n");
     fprintf(file, "#define MACH_MSGH_BITS_REPLY(bits)");
-    if (IsKernelServer)
-      fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
-    else
-      fprintf(file, "\tMCN_MSGBITS_LOCAL(bits)\n");
+    fprintf(file, "\tMCN_MSGBITS_REMOTE(bits)\n");
     fprintf(file, "\n");
 }
 
@@ -327,6 +315,43 @@ WriteEpilog(FILE *file, const statement_t *stats)
      fprintf(file, "};\n");
      fprintf(file, "\n");
 
+     fprintf(file, "static inline void _xmig_fill_header(mcn_msgbits_t inbits, mcn_portid_t inreply, mcn_msgid_t inmsgid, mig_reply_header_t *OutP)\n");
+     fprintf(file, "{\n");
+     fprintf(file, "\n");
+     WriteStaticDecl(file, itRetCodeType,
+		    itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
+		    !IsKernelServer, "RetCodeType");
+     fprintf(file, "\n");
+
+     if (IsKernelServer)
+      {
+	/*
+	  In Machina, kernel server uses internalised ports, that are
+	  in *receive* format, so local is the port to send.
+	*/
+	fprintf(file, "\tOutP->Head.msgh_bits |= ");
+	fprintf(file, "MCN_MSGBITS(0, MACH_MSGH_BITS_REPLY(inbits));\n");
+	fprintf(file, "\tOutP->Head.msgh_remote = MCN_PORTID_NULL;\n");
+	fprintf(file, "\tOutP->Head.msgh_local = inreply;\n");
+	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
+	fprintf(file, "\tOutP->Head.msgh_msgid = inmsgid + 100;\n");
+      }
+    else
+      {
+	fprintf(file, "\tOutP->Head.msgh_bits |= ");
+	fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(inbits), 0);\n");
+	fprintf(file, "\tOutP->Head.msgh_remote = inreply;\n");
+	fprintf(file, "\tOutP->Head.msgh_local = MCN_PORTID_NULL;\n");
+	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
+	fprintf(file, "\tOutP->Head.msgh_msgid = inmsgid + 100;\n");
+      }
+     WritePackMsgType(file, itRetCodeType,
+		     itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
+		     !IsKernelServer, "OutP->RetCodeType", "RetCodeType");
+     fprintf(file, "}\n");
+     fprintf(file, "\n");
+
+
      /*
       * Then, the server routine
       */
@@ -336,58 +361,31 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "{\n");
     fprintf(file, "\tmcn_msgheader_t *InP =  InHeadP;\n");
 
+    fprintf(file, "\tmcn_msgbits_t InBits = InP->msgh_bits;\n");
+    fprintf(file, "\tmcn_portid_t InReply = InP->msgh_reply_port;\n");
+    fprintf(file, "\tmcn_msgid_t InMsgId = InP->msgh_msgid;\n");
+
     fprintf(file, "\tmig_reply_header_t *OutP = (mig_reply_header_t *) OutHeadP;\n");
 
-    fprintf(file, "\n");
-
-    WriteStaticDecl(file, itRetCodeType,
-		    itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
-		    !IsKernelServer, "RetCodeType");
     fprintf(file, "\n");
 
     fprintf(file, "\tregister mig_routine_t routine;\n");
     fprintf(file, "\n");
 
-    if (IsKernelServer)
-      {
-	/*
-	  In Machina, kernel server uses internalised ports, that are
-	  in *receive* format, so local is the port to send.
-	*/
-	fprintf(file, "\tOutP->Head.msgh_bits = ");
-	fprintf(file, "MCN_MSGBITS(0, MACH_MSGH_BITS_REPLY(InP->msgh_bits));\n");
-	fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
-	fprintf(file, "\tOutP->Head.msgh_remote = MCN_PORTID_NULL;\n");
-	fprintf(file, "\tOutP->Head.msgh_local = InP->msgh_reply_port;\n");
-	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
-	fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
-      }
-    else
-      {
-	fprintf(file, "\tOutP->Head.msgh_bits = ");
-	fprintf(file, "MCN_MSGBITS(MACH_MSGH_BITS_REPLY(InP->msgh_bits), 0);\n");
-	fprintf(file, "\tOutP->Head.msgh_size = sizeof *OutP;\n");
-	fprintf(file, "\tOutP->Head.msgh_remote = InP->msgh_reply_port;\n");
-	fprintf(file, "\tOutP->Head.msgh_local = MCN_PORTID_NULL;\n");
-	fprintf(file, "\tOutP->Head.msgh_seqno = 0;\n");
-	fprintf(file, "\tOutP->Head.msgh_msgid = InP->msgh_msgid + 100;\n");
-      }
-    fprintf(file, "\n");
-    WritePackMsgType(file, itRetCodeType,
-		     itRetCodeType->itDeallocate, itRetCodeType->itLongForm,
-		     !IsKernelServer, "OutP->RetCodeType", "RetCodeType");
-    fprintf(file, "\n");
-
+    
     fprintf(file, "\tif ((InP->msgh_msgid > %d) || (InP->msgh_msgid < %d) ||\n",
 	    SubsystemBase + rtNumber - 1, SubsystemBase);
     fprintf(file, "\t    ((routine = %s_routines[InP->msgh_msgid - %d]) == 0)) {\n",
 	    ServerDemux, SubsystemBase);
     fprintf(file, "\t\tOutP->RetCode = MIG_BAD_ID;\n");
+    fprintf(file, "\t\tOutP->Head.msgh_size = sizeof(mig_reply_header_t);\n");
+    fprintf(file, "\t\t_xmig_fill_header(InBits, InReply, InMsgId, OutP);\n");
     fprintf(file, "\t\treturn false;\n");
     fprintf(file, "\t}\n");
 
     /* Call appropriate routine */
-    fprintf(file, "\t(*routine) (InP, &OutP->Head);\n");
+    fprintf(file, "\tOutP->Head.msgh_size = (*routine) (InP, &OutP->Head);\n");
+    fprintf(file, "\t_xmig_fill_header(InBits, InReply, InMsgId, OutP);\n");
     fprintf(file, "\treturn true;\n");
     fprintf(file, "}\n");
     fprintf(file, "\n");
@@ -476,7 +474,7 @@ static void
 WriteVarDecls(FILE *file, const routine_t *rt)
 {
     int i;
-    bool NeedMsghSize = FALSE;
+    bool NeedMsghSize = TRUE;
     bool NeedMsghSizeDelta = FALSE;
 
     fprintf(file, "\tregister Request *In0P = (Request *) InHeadP;\n");
@@ -515,7 +513,7 @@ WriteVarDecls(FILE *file, const routine_t *rt)
 	NeedMsghSizeDelta = TRUE;
 
     if (NeedMsghSize)
-	fprintf(file, "\tunsigned int msgh_size;\n");
+	fprintf(file, "\tmcn_msgsize_t msgh_size;\n");
     if (NeedMsghSizeDelta)
 	fprintf(file, "\tunsigned int msgh_size_delta;\n");
 
@@ -526,7 +524,7 @@ WriteVarDecls(FILE *file, const routine_t *rt)
 static void
 WriteMsgError(FILE *file, const char *error_msg)
 {
-    fprintf(file, "\t\t{ OutP->RetCode = %s; return; }\n", error_msg);
+    fprintf(file, "\t\t{ OutP->RetCode = %s; return sizeof(mig_reply_header_t); }\n", error_msg);
 }
 
 static void
@@ -556,7 +554,7 @@ WriteReplyInit(FILE *file, const routine_t *rt)
     {
 	if (!printed_nl)
 	    fprintf(file, "\n");
-	fprintf(file, "\tOutP->Head.msgh_size = %d;\n", rt->rtReplySize);
+	fprintf(file, "\tmsgh_size = %d;\n", rt->rtReplySize);
     }
 }
 
@@ -578,7 +576,7 @@ WriteReplyHead(FILE *file, const routine_t *rt)
 		"\t\tOutP->Head.msgh_bits |= MCN_MSGBITS_COMPLEX;\n");
     }
     if (rt->rtNumReplyVar > 1)
-	fprintf(file, "\tOutP->Head.msgh_size = msgh_size;\n");
+	fprintf(file, "\tmsgh_size = msgh_size;\n");
 }
 
 static void
@@ -1090,7 +1088,7 @@ WriteCheckReturnValue(FILE *file, register const routine_t *rt)
     {
 	fprintf(file, "\tif (OutP->%s != KERN_SUCCESS)\n",
 		rt->rtRetCode->argMsgField);
-	fprintf(file, "\t\treturn;\n");
+	fprintf(file, "\t\treturn sizeof(mig_reply_header_t);\n");
     }
 }
 
@@ -1366,7 +1364,7 @@ WriteAdjustMsgSize(
 	/* We can still address the message header directly.  Fill
 	   in the size field. */
 
-	fprintf(file, "\tOutP->Head.msgh_size = %d + msgh_size_delta;\n",
+	fprintf(file, "\tmsgh_size = %d + msgh_size_delta;\n",
 			rt->rtReplySize);
     else
     if (arg->argReplyPos == 0)
@@ -1394,7 +1392,7 @@ WriteFinishMsgSize(FILE *file, register const argument_t *arg)
        argument, we can assign to msgh_size directly. */
 
     if (arg->argReplyPos == 0) {
-	fprintf(file, "\tOutP->Head.msgh_size = %d + (",
+	fprintf(file, "\tmsgh_size = %d + (",
 			arg->argRoutine->rtReplySize);
 	WriteArgSize(file, arg, FALSE);
 	fprintf(file, ");\n");
@@ -1528,7 +1526,7 @@ WriteRoutine(FILE *file, register const routine_t *rt)
     fprintf(file, "\n");
 
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
-    fprintf(file, "mig_internal void _X%s\n", rt->rtName);
+    fprintf(file, "mig_internal mcn_msgsize_t _X%s\n", rt->rtName);
     fprintf(file, "\t(mcn_msgheader_t *InHeadP, mcn_msgheader_t *OutHeadP)\n");
 
     fprintf(file, "{\n");
@@ -1557,6 +1555,8 @@ WriteRoutine(FILE *file, register const routine_t *rt)
 
     WriteReverseList(file, rt->rtArgs, WriteDestroyArg, akbDestroy, "", "");
 
+    fprintf(file, "\tOutP->Head.msgh_bits = 0;\n");
+
     /*
      * For one-way routines, it doesn`t make sense to check the return
      * code, because we return immediately afterwards.  However,
@@ -1575,6 +1575,10 @@ WriteRoutine(FILE *file, register const routine_t *rt)
 	    WriteReverseList(file, rt->rtArgs, WriteDestroyPortArg,
 			 akbSendBody|akbSendRcv, "", "");
 	}
+	/*
+	  Set the message size even if no return should be sent.
+	*/
+	fprintf(file, "\tmsgh_size = sizeof(mig_reply_header_t);\n");
     }
     else
     {
@@ -1589,6 +1593,7 @@ WriteRoutine(FILE *file, register const routine_t *rt)
 	WriteReplyHead(file, rt);
     }
 
+    fprintf(file, "return msgh_size;\n");
     fprintf(file, "}\n");
 }
 
