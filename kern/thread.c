@@ -52,7 +52,9 @@ thread_new(struct task *t, long ip, long sp)
   uctxt_init(th->uctxt, ip, sp);
   uctxt_settls(th->uctxt, th->tls);
   timer_init(&th->timeout);
+  uctxt_print(th->uctxt);
   spinunlock(&t->lock);
+
 
   return th;
 }

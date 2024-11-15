@@ -97,18 +97,19 @@ portqueue_init(struct port_queue *queue, unsigned limit)
   queue->capacity = limit;
 }
 
-mcn_return_t portqueue_enq(struct port_queue *pq, unsigned long timeout, bool force, mcn_msgheader_t *msgh)
+mcn_msgioret_t
+portqueue_enq(struct port_queue *pq, unsigned long timeout, bool force, mcn_msgheader_t *msgh)
 {
   if (!force && (!waitq_empty(&pq->send_waitq) || (pq->capacity == pq->entries)))
     {
       sched_wait(&pq->send_waitq, timeout);
-      return KERN_THREAD_QUEUED;
+      return KERN_RETRY;
     }
 
   msgq_enq(&pq->msgq, msgh);
   pq->entries++;
   sched_wakeone(&pq->recv_waitq);
-  return  KERN_SUCCESS;
+  return  MSGIO_SUCCESS;
 }
 
 mcn_return_t portqueue_deq(struct port_queue *pq, unsigned long timeout, mcn_msgheader_t **msghp)
@@ -116,14 +117,14 @@ mcn_return_t portqueue_deq(struct port_queue *pq, unsigned long timeout, mcn_msg
   if (!msgq_deq(&pq->msgq, msghp))
     {
       sched_wait(&pq->recv_waitq, timeout);
-      return KERN_THREAD_QUEUED;
+      return KERN_RETRY;
     }
   pq->entries--;
   sched_wakeone(&pq->send_waitq);
   return KERN_SUCCESS;
 }
 
-mcn_return_t
+mcn_msgioret_t
 port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force)
 {
   mcn_return_t rc;
@@ -133,8 +134,6 @@ port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force)
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
 
-  printf("enqueueing message %p to port %p (timeout: %d)\n", msgh, port, timeout);
-  
   spinlock(&port->lock);
   switch(port->type)
     {
@@ -152,7 +151,7 @@ port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force)
 
     default:
       fatal("Wrong port type %d\n", port->type);
-      rc = KERN_FAILURE;
+      rc = MSGIO_MSG_IPC_SPACE | KERN_FAILURE;
       break;
     }
   spinunlock(&port->lock);
@@ -166,7 +165,6 @@ port_dequeue(struct port *port, unsigned long timeout, mcn_msgheader_t **msghp)
   mcn_return_t rc;
 
   spinlock(&port->lock);
-  printf("Checking %p (%d)\n", port, port->type);
   switch(port->type)
     {
     default:
@@ -181,7 +179,6 @@ port_dequeue(struct port *port, unsigned long timeout, mcn_msgheader_t **msghp)
       break;
 
     case PORT_QUEUE: {
-      info("Checking %p\n", port);
       rc = portqueue_deq(&port->queue, timeout, msghp);
       spinunlock(&port->lock);
       break;

@@ -16,7 +16,7 @@ mcn_msgrecv(mcn_portid_t recv, mcn_msgopt_t option, unsigned long timeout, mcn_p
 
   do {
     rc = (mcn_msgioret_t)syscall_msgrecv(recv, option, timeout, notify);
-  } while (rc == KERN_THREAD_QUEUED);
+  } while (rc == KERN_RETRY);
 
   return rc;
 }
@@ -28,7 +28,7 @@ mcn_msgsend(mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify)
   
   do {
     rc = (mcn_msgioret_t)syscall_msgsend(option, timeout, notify);
-  } while (rc == KERN_THREAD_QUEUED);
+  } while (rc == KERN_RETRY);
 
   return rc;
 }

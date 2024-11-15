@@ -32,4 +32,6 @@ typedef unsigned mcn_msgopt_t;
 
 #define MCN_MSGTIMEOUT_NONE 0
 
+typedef unsigned long vmoff_t;
+
 #endif

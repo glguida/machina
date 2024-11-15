@@ -40,8 +40,6 @@ rb_regs_compare_nodes (void *ctx, const void *n1, const void *n2)
   const struct msgbuf_zentry *ze1 = n1;
   const struct msgbuf_zentry *ze2 = n2;
 
-  printf("compare %x %x\n", ze1->addr, ze2->addr);
-
   /* Assert non overlapping */
   assert (ze1->addr < ze2->addr || ze1->addr >= (ze2->addr + ze2->size));
   assert (ze2->addr < ze1->addr || ze2->addr >= (ze1->addr + ze1->size));
@@ -110,7 +108,6 @@ static void
 ___freeptr (struct msgbuf_zentry *ze, uintptr_t opq)
 {
   struct msgbuf_zone *z = (struct msgbuf_zone *)opq;
-  printf("\n\tFreeing %p (%lx)\n", ze, ze->addr);
   rb_tree_remove_node (&z->rbtree, (void *) ze);
   slab_free (ze);
 }
@@ -165,6 +162,7 @@ msgbuf_alloc(struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb)
 
   mb->uaddr = uaddr;
   mb->kaddr = kaddr;
+
   return true;
 }
 

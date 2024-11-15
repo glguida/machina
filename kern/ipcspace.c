@@ -390,9 +390,6 @@ ipcspace_lookup(struct ipcspace *ps, struct port *port)
 {
   struct portentry *pe;
 
-  ipcspace_debug(ps);
-  printf("Searching for port %p\n", port);
-
   pe = rb_tree_find_node(&ps->portsearch_rb_tree, &port);
   assert (pe != NULL);
   assert (pe->type == PORTENTRY_NORMAL);

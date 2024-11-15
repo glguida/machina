@@ -5,253 +5,226 @@
 */
 
 #include <assert.h>
-#include <string.h>
-#include <nux/apxh.h>
 
 #include "internal.h"
 
+/*
+  Machina Physical Memory.
 
-static struct physpage **pfndb;
+  A page in machina can be unused, allocated by the kernel, or used by
+  the physical memory cache.
 
-#define NUM_ENTRIES (PAGE_SIZE/sizeof(struct physpage))
+  A physical memory cache is a dynamic cache of memory objects created
+  by pagers, which are the entirety of user tasks memory.
+
+  Physical memory cache can grow or shrink in size over time. A
+  physical memory control process tries to make sure to leave always
+  'reserved_pages' free for immediate use by the kernel.
+*/
+
+static unsigned long total_pages;
+static unsigned long reserved_pages;
+
+/*
+  Physical Memory DB.
+
+  Every page in the Physical Memory Cache has a valid 'physmem_page'
+  structure associated with it.
+
+  This is allocated as needed, and at the moment once allocated is not
+  freed. The DB indexes by pfn.
+*/
+
+struct physmem_page {
+  lock_t lock;
+  struct memobj *obj;
+  vmoff_t off;
+  TAILQ_ENTRY(physmem_page) pageq;
+};
+
+static struct physmem_page **physmem_db = NULL;
+
+#define NUM_ENTRIES (PAGE_SIZE/sizeof(struct physmem_page))
 #define L1OFF(_pfn) ((_pfn)/NUM_ENTRIES)
 #define L0OFF(_pfn) ((_pfn)%NUM_ENTRIES)
 
 static void
 _populate_entry (pfn_t pfn)
 {
-  struct physpage **ptr;
+  struct physmem_page **ptr;
 
-  ptr = pfndb + L1OFF (pfn);
+  ptr = physmem_db + L1OFF (pfn);
 
   if (*ptr == NULL)
     {
       pfn_t pfn;
       void *new;
 
-      pfn = pfn_alloc (0);
+      pfn = pfn_alloc(0);
       assert (pfn != PFN_INVALID);
       new = kva_map (pfn, HAL_PTE_P | HAL_PTE_W);
-      *ptr = new;
+      if (!__sync_bool_compare_and_swap(&ptr, NULL, new))
+	{
+	  kva_unmap (new, PAGE_SIZE);
+	  pfn_free(pfn);
+	}
     }
 
   assert (*ptr != NULL);
 }
 
-static struct physpage *
-_get_entry (pfn_t pfn, bool init)
+static inline struct physmem_page *
+_get_entry (pfn_t pfn)
 {
-  struct physpage **ptr;
+  struct physmem_page **ptr;
   assert (pfn <= hal_physmem_maxpfn ());
 
-  if (init)
-    _populate_entry (pfn);
+  _populate_entry (pfn);
 
-  ptr = pfndb + L1OFF (pfn);
+  ptr = physmem_db + L1OFF (pfn);
 
   if (*ptr == NULL)
     return NULL;
-  else
+ else
     return *ptr + L0OFF (pfn);
 }
 
-static void
-_pfndb_init (pfn_t pfn)
+/*
+  Physical Memory Cache.
+
+  A page in the physical memory cache is uniquely assigned an offset
+  in a VM object.
+
+  Each object is put in a circular queue managed by the page
+  reclamation algorithm.
+*/
+lock_t physcache_lock;
+TAILQ_HEAD(, physmem_page) physcache;
+
+void
+memcache_movepage(struct memobj *tobj, vmoff_t toff, pfn_t pfn, struct memobj *fobj, vmoff_t foff)
 {
-  struct physpage *ptr;
-
-  ptr = _get_entry (pfn, true);
-  assert (ptr != NULL);
-  ptr->pfn = pfn;
-  ptr->type = TYPE_UNKNOWN;
-}
-
-static void
-_pfndb_inittype (pfn_t pfn, unsigned type)
-{
-  struct physpage *ptr;
-
-  ptr = _get_entry (pfn, true);
-  assert (ptr != NULL);
+  struct physmem_page *page = _get_entry(pfn);
 
   /*
-    There's an implicit priority in PFN types. At init time, types
-    with a higher numerical value can overwrite types with with a
-    lower numerical value.
+    Assumes: both objects are locked.
+   */
+  spinlock(&physcache_lock);
+  spinlock(&page->lock);
+  assert(page->obj == fobj);
+  assert(page->off == foff);
+  page->obj = tobj;
+  page->off = toff;
+  spinunlock(&page->lock);
+  TAILQ_REMOVE(&physcache, page, pageq);
+  TAILQ_INSERT_HEAD(&physcache, page, pageq);
+  spinunlock(&physcache_lock);
+}
 
-    This is only valid in init. During runtime, the switch from one
-    type to another follows a fixed state machine.
+pfn_t
+memcache_addzeropage(struct memobj *obj, vmoff_t off)
+{
+  pfn_t pfn = pfn_alloc(0);
+  assert (pfn != PFN_INVALID);
+  struct physmem_page *page = _get_entry(pfn);
+
+  /*
+    TODO: Zero-page sharing?
   */
-  if (type < ptr->type)
-    {
-      assert(ptr->pfn = pfn);
-      ptr->type = type;
-      /* XXX: More init here as struct grows. */
-    }
+
+  /*
+    Assumes: obj is locked.
+  */
+  spinlock(&page->lock);
+  assert(page->obj == NULL);
+  page->obj = obj;
+  page->off = off;
+  spinunlock(&page->lock);
+
+  spinlock(&physcache_lock);
+  TAILQ_INSERT_HEAD(&physcache, page, pageq);
+  spinunlock(&physcache_lock);
+
+  return pfn;
 }
 
-
-static void pfndb_init(void)
+pfn_t
+memcache_copypage(struct memobj *tobj, vmoff_t toff, pfn_t fpfn, struct memobj *fobj, vmoff_t foff)
 {
-  unsigned long maxpfn = hal_physmem_maxrampfn ();
-  unsigned long l0_entries = NUM_ENTRIES;
-  unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
-  size_t l1_size = sizeof (struct physpage *) * l1_entries;
+  pfn_t dpfn = pfn_alloc(0);
+  assert (dpfn != PFN_INVALID);
+  struct physmem_page *dest = _get_entry(dpfn);
+  struct physmem_page *src = _get_entry(fpfn);
+  void *dptr, *sptr;
 
-  pfndb = (struct physpage **) kmem_alloc (0, l1_size);
-  memset (pfndb, 0, l1_size);
-  for (pfn_t i = 0; i < maxpfn; i++)
-    _pfndb_init(i);
-  info ("PFNDB L1: %p:%p\n", pfndb, (void *)pfndb + l1_size);
-
-  unsigned n = hal_physmem_numregions ();
-  unsigned i;
-  pfn_t j;
-
-  info ("Platform mappable memory:\n");
-  for (i = 0; i < n; i++)
-    {
-      struct apxh_region *r = hal_physmem_region (i);
-      switch (r->type)
-	{
-	case APXH_REGION_UNKNOWN:
-	case APXH_REGION_MMIO:
-	  info ("\tMMIO: %016" PRIx64 " : %016" PRIx64,
-		(uint64_t) r->pfn << PAGE_SHIFT,
-		(r->pfn + r->len) << PAGE_SHIFT);
-	  break;
-	case APXH_REGION_BSY:
-	  info ("\tBIOS: %016" PRIx64 " : %016" PRIx64,
-		(uint64_t) r->pfn << PAGE_SHIFT,
-		(r->pfn + r->len) << PAGE_SHIFT);
-	  break;
-	case APXH_REGION_RAM:
-	  info ("\tRAM : %016" PRIx64 " : %016" PRIx64,
-		(uint64_t) r->pfn << PAGE_SHIFT,
-		(r->pfn + r->len) << PAGE_SHIFT);
-	  for (j = r->pfn; j < (r->pfn + r->len); j++)
-	    {
-	      _pfndb_inittype (j, TYPE_UNKNOWN);
-	    }
-	  break;
-	default:
-	  break;
-	}
-    }
-}
-
-struct physpage *
-physpage_get(pfn_t pfn)
-{
-  return _get_entry(pfn, false);
-}
-
-
-struct pglist pglist_reserved = { 0, };
-struct pglist pglist_free = { 0, };
-
-static bool
-reserved_memory_need(void)
-{
-  bool need;
-
-  spinlock(&pglist_reserved.lock);
-  need = pglist_reserved.pages < (RESERVED_MEMORY/PAGE_SIZE);
-  spinunlock(&pglist_reserved.lock);
-
-  return need;
-}
-
-pfn_t pfn_alloc_kernel(bool mayfail)
-{
-  struct physpage *pg = pglist_rem (&pglist_free);
-  void *va;
-
-  if (!pg && mayfail)
-    return PFN_INVALID;
-
-  if (!pg)
-    {
-      warn ("Using reserved memory!");
-      pg = pglist_rem (&pglist_reserved);
-      assert(pg != NULL);
-      assert(pg->type == TYPE_RESERVED);
-    }
-  else assert (pg->type == TYPE_FREE);
-
-  pg->type = TYPE_SYSTEM;
-
-  va = pfn_get (pg->pfn);
-  memset (va, 0, PAGE_SIZE);
-  pfn_put (pg->pfn, va);
+  /*
+    Assumes: both objects are locked.
+  */
+  dptr = pfn_get(dpfn);
+  sptr = pfn_get(fpfn);
+  memcpy(dptr, sptr, PAGE_SIZE);
+  pfn_put(dpfn, dptr);
+  pfn_put(fpfn, sptr);
   
-  return pg->pfn;
+
+  spinlock_dual(&dest->lock, &src->lock);
+  assert(src->obj == fobj);
+  assert(src->off == foff);
+  assert(dest->obj == NULL);
+  dest->obj = tobj;
+  dest->off = toff;
+  spinunlock_dual(&dest->lock, &src->lock);
+
+  spinlock(&physcache_lock);
+  TAILQ_INSERT_HEAD(&physcache, dest, pageq);
+  spinunlock(&physcache_lock);
+
+  return dpfn;
 }
 
-void pfn_free_kernel(pfn_t pfn)
+/*
+  Page Allocator.
+
+  The normal NUX page allocator is modified to check that the physical
+  memory allocation keeps in the margin of the target allocation for
+  the physical memory cache.
+
+  The physical memory controller intervenes reclaiming pages as
+  needed, to maintain the balance.
+*/
+
+static inline void
+physmem_check (void)
 {
-  struct physpage *pg = physpage_get(pfn);
-
-  assert(pg->pfn == pfn);
-  assert((pg->type == TYPE_SYSTEM) || (pg->type == TYPE_UNKNOWN));
-  if (reserved_memory_need())
-    {
-      pg->type = TYPE_RESERVED;
-      pglist_add(&pglist_reserved, pg);
-    }
-  else
-    {
-      pg->type = TYPE_FREE;
-      pglist_add(&pglist_free, pg);
-    }
+  printf("pfn alloc!\n");
 }
 
-static pfn_t nux_pfn_alloc(int unused)
-{
-  return pfn_alloc_kernel(false);
-}
-
-static void nux_pfn_free(pfn_t pfn)
-{
-  return pfn_free_kernel(pfn);
-}
-
-void physmem_init(void)
+static inline pfn_t
+physmem_pfnalloc (int low)
 {
   pfn_t pfn;
-  struct physpage *pg;
 
-  /* Allocate PFN database. */
-  pfndb_init ();
+  physmem_check();
+  pfn = stree_pfnalloc(low);
+  return pfn;
+}
 
-  /*
-    Steal all pages and switch NUX allocator.
-  */
-  pglist_init(&pglist_reserved);
-  pglist_init(&pglist_free);
+static inline void
+physmem_pfnfree (pfn_t pfn)
+{
+  stree_pfnfree(pfn);
+}
 
-  unsigned reserved_pages = RESERVED_MEMORY / PAGE_SIZE;
-  for (unsigned i = 0; i < reserved_pages; i++)
-    {
-      pfn_t pfn = pfn_alloc(0);
-      assert(pfn != PFN_INVALID);
-      pg = physpage_get(pfn);
-      assert(pg->pfn == pfn);
-      pg->type = TYPE_RESERVED;
-      pglist_add(&pglist_reserved, pg);
-    }
+void
+physmem_init (void)
+{
+  total_pages = pfn_avail();
+  reserved_pages = MIN(RESERVED_MEMORY/PAGE_SIZE, total_pages >> 4);
 
-  while ((pfn = pfn_alloc(0)) != PFN_INVALID)
-    {
-      pg = physpage_get(pfn);
-      assert(pg->pfn == pfn);
-      pg->type = TYPE_FREE;
-      pglist_add(&pglist_free, pg);
-    }
+  info ("Total Memory:    \t%ld Kb.", total_pages * PAGE_SIZE / 1024 );
+  info ("Reserved Memory: \t%ld Kb.", reserved_pages * PAGE_SIZE / 1024 );
+  info ("Available Memory:\t%ld Kb.", (total_pages - reserved_pages) * PAGE_SIZE / 1024);
 
-  info ("Allocator Reserved Memory:\t%"PRId64" Kb.", (uint64_t)(pglist_reserved.pages * PAGE_SIZE) >> 10);
-  info ("Allocator Available Memory:\t%"PRId64" Kb.", (uint64_t)(pglist_free.pages * PAGE_SIZE) >> 10);
-
-  nux_set_allocator(nux_pfn_alloc, nux_pfn_free);
+  nux_set_allocator(physmem_pfnalloc, physmem_pfnfree);
 }
 

@@ -64,6 +64,6 @@
 #define KERN_MEMORY_PRESENT	23	/* Precious Memory Already Present. */
 
 
-#define KERN_THREAD_QUEUED	100	/* Thread has been queued. Retry operation. */
+#define KERN_RETRY		100	/* Thread has been queued. Retry operation. */
 #define KERN_THREAD_TIMEDOUT	101
 #endif

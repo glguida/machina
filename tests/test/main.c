@@ -92,7 +92,7 @@ main (void)
 
   printf("Calling mul 4! %x\n", mul(1, 4, &cnt));
   printf("cnt: %ld\n", cnt);
-  
+
   {
     printf("************************* TEST START *****************************\n");
     mcn_portid_t tmp_port = mcn_reply_port();
@@ -123,16 +123,35 @@ main (void)
   msgh->msgh_local = 3;
   msgh->msgh_msgid = 505050;
   printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
-  printf("MSGIORET: %x", syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+  syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
 
-  for (int i = 0; i < 2*2 + 2; i++)
-    printf("s: %d\n", simple(3));
-  
   create_thread(1, (long)th1, (long)stack + 64 * 1024);
 
   //  while(1)
   //    printf("s: %d\n", simple(3));
 
+  long a = -1;
+
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+  printf("=======================================\n");
+
+	
+  printf("INC: %d\n", user_inc(3, &a));
+  printf("A %ld\n", a);
+  printf("INC: %d\n", user_inc(3, &a));
+  printf("A %ld\n", a);
+  printf("INC: %d\n", user_inc(3, &a));
+  printf("A %ld\n", a);
+
+  while(1);
   return 42;
 }
 
@@ -148,7 +167,7 @@ __srv_user_simple(mcn_portid_t port)
 mcn_return_t
 __srv_user_inc(mcn_portid_t port, long *new)
 {
-  printf("Inc!\n");
+  printf("Inc! %d\n", c);
   c+=1;
   *new = c;
   return KERN_SUCCESS;
