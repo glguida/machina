@@ -151,6 +151,10 @@ main (void)
   printf("INC: %d\n", user_inc(3, &a));
   printf("A %ld\n", a);
 
+  printf("\n--\n\n");
+
+  int *ptr = (int *)0x2000;
+  printf("ptr is %lx\n", *ptr);
   while(1);
   return 42;
 }

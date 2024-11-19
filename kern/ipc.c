@@ -5,7 +5,6 @@
 */
 
 #include "internal.h"
-#include <alloca.h>
 #include <machina/error.h>
 #include <machina/message.h>
 
@@ -126,7 +125,7 @@ ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   if ((ext_size < sizeof(mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
     return MSGIO_SEND_INVALID_DATA;
 
-  message_debug((mcn_msgheader_t *)ext_msg);
+  //  message_debug((mcn_msgheader_t *)ext_msg);
 
   mcn_msgheader_t *int_msg = (mcn_msgheader_t *)kmem_alloc(0, ext_size);
   ps = task_getipcspace(cur_task());
@@ -138,7 +137,7 @@ ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
       return rc;
     }
 
-  message_debug(int_msg);
+  //  message_debug(int_msg);
 
   rc = port_enqueue(int_msg, timeout, false);
   if (rc)
@@ -176,9 +175,9 @@ ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn
 
   const mcn_msgsize_t size = intmsg->msgh_size;
   printf("Internal received %d bytes", size);
-  message_debug(intmsg);
+  //  message_debug(intmsg);
   externalize(ps, intmsg, (volatile mcn_msgheader_t *)cur_kmsgbuf(), size);
-  message_debug((mcn_msgheader_t *)cur_kmsgbuf());
+  //  message_debug((mcn_msgheader_t *)cur_kmsgbuf());
   task_putipcspace(cur_task(), ps);
 
   intmsg_consume(intmsg);

@@ -44,6 +44,7 @@ void
 vmmap_bootstrap(struct vmmap *map)
 {
 
+  vmreg_setup (map);
   umap_bootstrap (&map->umap);
   msgbuf_new(&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
 }

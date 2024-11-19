@@ -39,7 +39,8 @@
 
   Also, the kernel mapping of it is completely unneeded.
 
-  Fix this by allocating a vm region for every thread's TLS.
+  Fix this by allocating a vm region for every thread's TLS. This of
+  course, it's an issue only for the bootstrap process.
 */
 #define VM_MAP_MSGBUF_START (VM_ADDR_MAX - 2 * MACHINA_MAX_THREADS * MSGBUF_SIZE)
 #else
@@ -47,9 +48,8 @@
 #endif
 
 
-#define VM_MAP_PORTS_PAGES 2
-#define VM_MAP_PORTS_SIZE (VM_MAP_PORTS_PAGES * PAGE_SIZE)
-#define VM_MAP_PORTS_END VM_MAP_MSGBUF_START - PAGE_SIZE
-#define VM_MAP_PORTS_START (VM_MAP_PORTS_END - MACHINA_MAX_PORTS * VM_MAP_PORTS_SIZE)
+#define VM_MAP_USER_END (VM_MAP_MSGBUF_START - PAGE_SIZE)
+#define VM_MAP_USER_START 0L
+#define VM_MAP_USER_SIZE (VM_MAP_USER_END - VM_MAP_USER_START)
 
 #endif

@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <nux/nux.h>
 
+#include "vm.h"
+
 /*
   Indirect Map.
 
@@ -15,31 +17,6 @@
   filesystems. Allows to keep a single page for indexing small
   objects, and gradually deeper indirect tables for larger objects.
 */
-
-/*
-  Structure of a ipte:
-
-  - V (valid) bit: implies that the entry is valid: the map has an
-    entry in this.
-
-  - PFN: If zero, the map has an entry but it's not available. In the
-    case of VM objects, it means the entry has to be searched in the
-    pager associated with this object.
-    If non-zero, the page number the data is currently stored in.
-*/
-typedef struct ipte {
-  uint64_t pfn : 63;
-  uint64_t v : 1;
-} ipte_t;
-
-#define IPTE_EMPTY ((ipte_t){ .v = 0, .pfn = 0 })
-#define IPTE_NOPFN ((ipte_t){ .v = 1, .pfn = 0 })
-
-struct imap {
-  ipte_t l1;
-  ipte_t l2;
-  ipte_t l3;
-};
 
 void
 imap_init(struct imap *im)
@@ -61,6 +38,7 @@ _gettable(ipte_t *ipte, const bool alloc)
   pfn_t pfn = pfn_alloc(0);
   assert (pfn != PFN_INVALID);
   ipte->v = 1;
+  ipte->w = 1;
   ipte->pfn = pfn;
   return pfn_get(pfn);
 }
@@ -152,14 +130,16 @@ _get_entry(struct imap *im, unsigned long off, const bool set, ipte_t newval)
   Map the pte at offset off. Returns the old pfn.
 */
 ipte_t
-imap_map(struct imap *im, unsigned long off, pfn_t pfn)
+imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool writable)
 {
   ipte_t new;
 
   new.v = 1;
+  new.w = writable;
   new.pfn = pfn;
   return _get_entry(im, off, true, new);
 }
+
 
 /*
   Get the pte at offset off.
@@ -168,56 +148,4 @@ ipte_t
 imap_lookup(struct imap *im, unsigned long off)
 {
   return _get_entry(im, off, false, IPTE_EMPTY);
-}
-	 
-
-void imap_test(void)
-{
-  struct imap im;
-  ipte_t ipte;
-
-  imap_init(&im);
-
-  printf("ISHIFT: %d IMASK: %x\n", ISHIFT, IMASK);
-  
-  ipte = imap_lookup(&im, 0);
-  printf("lookup 0 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_lookup(&im, ((1L << 9) + 3L) << PAGE_SHIFT);
-  printf("lookup (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_lookup(&im, ((5L << 18) + (1L << 9) + 3L) << PAGE_SHIFT);
-  printf("lookup (5 << 18) + (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, 0, 0x101010);
-  printf("map 0 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, 1 << PAGE_SHIFT, 0x101010);
-  printf("map 1 << PAGE_SHIFT = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, ((1L << 9) + 3L) << PAGE_SHIFT, 0x202020);
-  printf("map (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, ((1L << 9) + 4L) << PAGE_SHIFT, 0x202020);
-  printf("map (1 << 9) + 4 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, ((5L << 18) + (1L << 9) + 3L) << PAGE_SHIFT, 0x303030);
-  printf("map (5 << 18) + (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, ((5L << 18) + (2L << 9) + 3L) << PAGE_SHIFT, 0x303030);
-  printf("map (5 << 18) + (2 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_map(&im, ((5L << 18) + (2L << 9) + 4L) << PAGE_SHIFT, 0x303030);
-  printf("map (5 << 18) + (2 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-
-  ipte = imap_lookup(&im, 0);
-  printf("lookup 0 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_lookup(&im, ((1L << 9) + 3L) << PAGE_SHIFT);
-  printf("lookup (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
-  ipte = imap_lookup(&im, ((5L << 18) + (1L << 9) + 3L) << PAGE_SHIFT);
-  printf("lookup (5 << 18) + (1 << 9) + 3 = %d %"PRIx64"\n", ipte.v, ipte.pfn);
-
 }

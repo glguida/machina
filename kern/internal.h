@@ -16,6 +16,7 @@
 #include <machina/kernparam.h>
 #include <machina/message.h>
 
+#include "ref.h"
 
 /*
   RAM reserved for kernel allocation, when memory is low.
@@ -84,57 +85,7 @@ void unshare_kva(struct umap *umap, uaddr_t uaddr, size_t size);
 
 
 /*
-  Machina Object Refcounting. Or Poor Man's ARC.
-
-  Shared pointers are stored in Machina through ref type, that are
-  pointers embedded in a structure.
-
-  The type reference must defined an unsigned long '_ref_count' field.
-*/
-#define REF_SWAP(_ptr, _new)			\
-  ({						\
-    typeof((_r)) old = (_r);			\
-    *(_ptr) = (_new);				\
-    old;					\
-  })
-
-#define REF_DUP(_r)							\
-  ({									\
-    unsigned long cnt;							\
-    cnt = __atomic_add_fetch (&(_r).obj->_ref_count, 1, __ATOMIC_ACQUIRE); \
-    assert (cnt != 0);							\
-    (_r);								\
-  })
-
-#define REF_MOVE(_r)				\
-  ({						\
-    typeof((_r)) new;				\
-    new = (_r);					\
-    (_r).obj = NULL;				\
-    new;					\
-  })
-
-#define REF_DESTROY(_r)							\
-  ({									\
-    unsigned long cnt = 0;						\
-    if ((_r).obj != NULL)						\
-      {									\
-	cnt = __atomic_fetch_sub (&(_r).obj->_ref_count, 1, __ATOMIC_RELEASE); \
-	assert (cnt != 0);						\
-	(_r).obj = NULL;						\
-    }									\
-    cnt - 1;								\
-  })
-
-/* Get the pointer of the reference.
-
-   Note: This pointer is only meant to be used locally, and not stored
-   in a shared variable.
-*/
-#define REF_GET(_r) ((_r).obj)
-
-
-/* Message Buffers.
+  Message Buffers.
 
   Each thread has a message buffer, a shared area between user and
   kernel used for IPC messages.
@@ -144,30 +95,15 @@ struct msgbuf {
   uaddr_t uaddr;
 };
 
-#define MSGBUF_ORDMAX 1
-struct msgbuf_zentry;
-LIST_HEAD (msgbuflist, msgbuf_zentry);
-struct msgbuf_zone {
-  rb_tree_t rbtree;
-  uintptr_t opq;
-  unsigned long bmap;
-  struct msgbuflist zlist[MSGBUF_ORDMAX];
-  unsigned nfree;
-};
-
-
+struct msgbuf_zone;
 void msgbuf_init(void);
-void msgbuf_new(struct msgbuf_zone *z, vaddr_t vastart, vaddr_t vaend);
 bool msgbuf_alloc(struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb);
 void msgbuf_free(struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb);
 
 
 /*
-
   Timers.
-
 */
-
 struct thread;
 struct timer
 {
@@ -288,22 +224,6 @@ thread_isidle(struct thread *th)
 {
   return thread_uctxt(th) == UCTXT_IDLE;
 }
-
-
-/*
-  Machina VM Map.
-
-*/
-struct vmmap {
-  struct umap umap;
-  struct msgbuf_zone msgbuf_zone;
-};
-
-bool vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf);
-bool vmmap_alloctls (struct vmmap *map, uaddr_t *tls);
-void vmmap_enter(struct vmmap *map);
-void vmmap_bootstrap(struct vmmap *map);
-void vmmap_setup(struct vmmap *map);
 
 
 /*
@@ -492,6 +412,9 @@ portright_unsafe_put(struct port **port)
 {
   *port = NULL;
 }
+
+
+#include "vm.h"
 
 
 /*

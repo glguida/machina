@@ -68,7 +68,7 @@ ipc_kern_exec(void)
       kstest_replies_t kr;
 
       info("KERNEL SERVER INPUT:");
-      message_debug(msgh);
+      //      message_debug(msgh);
       kstest_server(msgh, (mcn_msgheader_t *)&kr);
 
       mcn_msgsize_t size = ((mcn_msgheader_t *)&kr)->msgh_size;
@@ -78,7 +78,7 @@ ipc_kern_exec(void)
       memcpy(reply, &kr, size);
 
       info("KERNEL SERVER OUTPUT");
-      message_debug(reply);
+      //      message_debug(reply);
       port_enqueue(reply, 0, true);
     }
 }

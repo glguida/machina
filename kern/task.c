@@ -8,6 +8,7 @@
 #include <machina/error.h>
 
 #include "internal.h"
+#include "vm.h"
 
 struct slab tasks;
 struct slab portcaps;
@@ -23,7 +24,16 @@ task_bootstrap(void)
   spinlock_init (&t->lock);
   ipcspace_setup(&t->ipcspace);
   t->refcount = 0;
+  vmreg_print (&t->vmmap);
 
+  struct vmobjref ref = vmobj_new(true, 3*4096);
+  //  struct vmobjref ref2 = vmobjref_clone(&ref);
+  vmreg_new (&t->vmmap, 0x1000, ref, 0, 4*4096);
+  vmreg_print (&t->vmmap);
+  vmreg_del (&t->vmmap, 0x3000, 3*4096);
+  vmreg_print (&t->vmmap);
+  vmreg_del (&t->vmmap, 0x1000, 1*4096);
+  vmreg_print (&t->vmmap);
   return t;
 }
 

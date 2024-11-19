@@ -10,6 +10,7 @@
 #include <machina/error.h>
 
 #include "internal.h"
+#include "vm.h"
 
 cpumask_t idlemap;
 
@@ -41,6 +42,8 @@ main (int argc, char *argv[])
   info ("MACHINA Started.");
   physmem_init();
   msgbuf_init();
+  vmreg_init();
+  vmobj_init();
   task_init();
   thread_init();
   port_init();
