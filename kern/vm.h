@@ -22,52 +22,49 @@ enum ipte_npstatus {
 
 typedef union {
   struct {
-    union {
-      struct {
-	uint64_t pfn : 56;
-	uint64_t roshared : 1;
-	uint64_t protmask : 3;
-      } present;
-      struct {
-	uint64_t status : 2;
-      } notpresent;
-    };
+    /* Following fields are valid when p = 1. */
+    uint64_t pfn : 56;
+    uint64_t roshared : 1;
+    uint64_t protmask : 3;
+    /* Following fields are valid when p = 0. */
+    uint64_t status : 3;
+    /* Present bit. */
     uint64_t p : 1;
   };
   uint64_t raw;
 } ipte_t;
 
 enum ipte_status {
-  STIPTE_EMPTY, 	/* Page has never been seen by the kernel. */
-  STIPTE_PAGINGIN, 	/* Page is being paged in. */
-  STIPTE_PAGINGOUT, 	/* Page is being paged out. */
-  STIPTE_PAGED, 	/* Page is not cached in memory. */
-  STIPTE_ROSHARED, 	/* Page is present and shared with other objects. */
-  STIPTE_PRIVATE, 	/* Page is present and mapped only by this object. */
+  STIPTE_EMPTY = 0, 	/* Page has never been seen by the kernel. */
+  STIPTE_PAGINGIN = 1, 	/* Page is being paged in. */
+  STIPTE_PAGINGOUT = 2, 	/* Page is being paged out. */
+  STIPTE_PAGED = 3, 	/* Page is not cached in memory. */
+  STIPTE_ROSHARED = 4, 	/* Page is present and shared with other objects. */
+  STIPTE_PRIVATE = 5, 	/* Page is present and mapped only by this object. */
 };
 
 static inline bool
 ipte_empty(ipte_t *i)
 {
-  return ((i->p == 0) && (i->notpresent.status == IPTE_EMPTY));
+  return ((i->p == 0) && (i->status == IPTE_EMPTY));
 }
 
 static inline bool
 ipte_pagingin(ipte_t *i)
 {
-  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGINGIN));
+  return ((i->p == 0) && (i->status == IPTE_PAGINGIN));
 }
 
 static inline bool
 ipte_pagingout(ipte_t *i)
 {
-  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGINGOUT));
+  return ((i->p == 0) && (i->status == IPTE_PAGINGOUT));
 }
 
 static inline bool
 ipte_paged(ipte_t *i)
 {
-  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGED));
+  return ((i->p == 0) && (i->status == IPTE_PAGED));
 }
 
 static inline bool
@@ -79,27 +76,27 @@ ipte_present(ipte_t *i)
 static inline bool
 ipte_roshared(ipte_t *i)
 {
-  return i->p && i->present.roshared;
+  return i->p && i->roshared;
 }
 
 static inline bool
 ipte_private(ipte_t *i)
 {
-  return i->p && !i->present.roshared;
+  return i->p && !i->roshared;
 }
 
 static inline vm_prot_t
 ipte_protmask(ipte_t *i)
 {
   assert(i->p);
-  return i->present.protmask;
+  return i->protmask;
 }
 
 static inline bool
 ipte_pfn(ipte_t *i)
 {
   assert(i->p);
-  return i->present.pfn;
+  return i->pfn;
 }
 
 static inline enum ipte_status
@@ -115,7 +112,7 @@ ipte_status(ipte_t *i)
     ({ fatal("Invalid ipte entry %lx\n", i->raw); STIPTE_EMPTY; });
 }
 
-#define IPTE_EMPTY 	((ipte_t){ .p = 0, .notpresent.status = IPTE_EMPTY })
+#define IPTE_EMPTY 	((ipte_t){ .p = 0, .status = IPTE_EMPTY })
 
 
 /*
@@ -172,6 +169,20 @@ void memcache_init(void);
 pfn_t memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot_t protmask);
 pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, vmoff_t off, vm_prot_t protmask);
 
+struct cobj_link {
+  struct cacheobj *cobj;
+  vmoff_t off;
+  LIST_ENTRY(cobj_link) list;
+};
+
+struct physmem_page {
+  lock_t lock;
+  unsigned long links_no;
+  LIST_HEAD(,cobj_link) links;
+  TAILQ_ENTRY(physmem_page) pageq;
+};
+
+void memctrl_newpage(struct physmem_page *page);
 
 struct vmobj;
 struct vmobjref {

@@ -22,41 +22,14 @@ struct slab cobjlinks;
   This is allocated as needed, and at the moment once allocated is not
   freed. The DB indexes by pfn.
 
-  There are two type of physpage: ROSHARED and PRIVATE. Private pages
-  are associated with a single VM object. ROSHARED are associated with
-  multiple VM ojbects, but must be strictly read-only.  The other
-  special type is ZEROSHARED. The ZERO page is a special permanent
-  page, always set to zero. It is read-only shared, but being
-  permanent we do not store the object mappings.
+  Each page has a list of Cache Objects (and their offsets) that maps
+  them. This is used to remove mappings when asked to remove the page
+  by the physical memory controller.
+
+  There's a special page, the zero page. It is meant to always be
+  zero, and must be mapped read-only. For this page, we do not store
+  the cache objects linked to it, as it will be never removed.
 */
-
-enum physmem_pgty {
-  PGTY_ZEROSHARED,
-  PGTY_ROSHARED,
-  PGTY_PRIVATE,
-};
-
-struct cobj_link {
-  struct cacheobj *cobj;
-  vmoff_t off;
-  LIST_ENTRY(cobj_link) list;
-};
-
-struct physmem_page {
-  lock_t lock;
-  enum physmem_pgty type;
-  union {
-    struct {
-      struct cacheobj *obj;
-      vmoff_t off;
-    } private;
-    struct {
-      LIST_HEAD(,cobj_link) links;
-    }roshared;
-    struct {} zeroshared;
-  };
-  TAILQ_ENTRY(physmem_page) pageq;
-};
 
 static struct physmem_page **physmem_db = NULL;
 
@@ -113,15 +86,14 @@ _get_entry (pfn_t pfn)
   multiple vm-objects.
 
   Each page (except for the zero page) is put in a circular queue
-  managed by the page reclamation algorithm.
+  managed by the memory controller.
 */
 
-lock_t physcache_lock;
-TAILQ_HEAD(, physmem_page) physcache;
 pfn_t zeropfn = PFN_INVALID;
 struct physmem_page *zeropage;
 
-pfn_t _zeropage_private(struct cacheobj *obj, vmoff_t off)
+static pfn_t
+_zeropage_private(struct cobj_link *cl)
 {
   pfn_t pfn;
   struct physmem_page *page;
@@ -129,19 +101,19 @@ pfn_t _zeropage_private(struct cacheobj *obj, vmoff_t off)
   pfn = pfn_alloc(0);
   assert(pfn != PFN_INVALID);
   page = _get_entry(pfn);
+  
   spinlock_init(&page->lock);
-  page->type = PGTY_PRIVATE;
-  page->private.obj = obj;
-  page->private.off = off;
 
-  spinlock (&physcache_lock);
-  TAILQ_INSERT_HEAD(&physcache, page, pageq);
-  spinunlock(&physcache_lock);
+  LIST_INSERT_HEAD(&page->links, cl, list);
+  page->links_no = 1;
+
+  memctrl_newpage(page);
 
   return pfn;
 }
 
-pfn_t _duplicate_private(pfn_t pfn, struct cacheobj *obj, vmoff_t off)
+static pfn_t
+_duplicate_private(pfn_t pfn, struct cobj_link *cl)
 {
   pfn_t newpfn;
   struct physmem_page *page;
@@ -159,14 +131,11 @@ pfn_t _duplicate_private(pfn_t pfn, struct cacheobj *obj, vmoff_t off)
   
   page = _get_entry(pfn);
   spinlock_init(&page->lock);
-  page->type = PGTY_PRIVATE;
-  page->private.obj = obj;
-  page->private.off = off;
 
-  spinlock (&physcache_lock);
-  TAILQ_INSERT_HEAD(&physcache, page, pageq);
-  spinunlock(&physcache_lock);
+  LIST_INSERT_HEAD(&page->links, cl, list);
+  page->links_no = 1;
 
+  memctrl_newpage(page);
   return pfn;
 }
 
@@ -180,8 +149,12 @@ memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot
       pfn = zeropfn;
   else
     {
-      /* Allow writes. */
-      pfn = _zeropage_private(obj, off);
+      struct cobj_link *cl;
+      cl = slab_alloc(&cobjlinks);
+      assert (cl != NULL);
+      cl->cobj = obj;
+      cl->off = off;
+      pfn = _zeropage_private(cl);
     }
   ipte_t old = cacheobj_map(obj, off, pfn, roshared, protmask);
   printf("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof(old));
@@ -200,38 +173,48 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, vmoff_t off, vm_prot_t protma
   printf("MEMCACHE: unshared %lx %p %lx (mask: %x)\n", pfn, obj, off, protmask);
   spinlock(&page->lock);
 
-  switch (page->type)
+  if (pfn == zeropfn)
     {
-    case PGTY_PRIVATE:
-      fatal ("MEMCACHE: can't unshare private page (obj: %p off: %lx pfn: %lx)\n",
-	     obj, off, pfn);
-      outpfn = PFN_INVALID;
-      break;
+      /* Zero page: No need to remove the link. */
+      struct cobj_link *cl;
+      cl = slab_alloc(&cobjlinks);
+      assert (cl != NULL);
+      cl->cobj = obj;
+      cl->off = off;
+      outpfn = _zeropage_private(cl);
+    }
+  else if (page->links_no == 1)
+    {
+      /* Only one link. No need to alloc a new page. */
+      outpfn = pfn;
+    }
+  else
+    {
+      struct cobj_link *v, *t, *found;
 
-    case PGTY_ZEROSHARED:
-      outpfn = _zeropage_private(obj, off);
-      printf ("MEMCACHE: unsharing zero page to %lx\n", outpfn);
-      break;
-
-#if 0
-    case PGTY_ROSHARED:
-      {
-	struct cobj_link *l = _find_link(page, obj, off);
-	assert(l != NULL);
-	LIST_REMOVE (l, list);
-	slab_free(l);
-	outpfn = _duplicate_private(pfn, obj, off);
+      /*
+	First, find and remove the link.
+      */
+      found = NULL;
+      LIST_FOREACH_SAFE(v, &page->links, list, t) {
+	if ((v->cobj == obj) && (v->off == off))
+	  {
+	    LIST_REMOVE(v, list);
+	    found = v;
+	    break;
+	  }
       }
-      break;
-#endif
+      assert (found != NULL);
 
-    default:
-      fatal ("MEMCACHE: invalid page type (obj: %p off: %lx pfn: %lx type: %d)\n",
-	     obj, off, pfn, page->type);
-      outpfn = PFN_INVALID;
-      break;
+      /*
+	Then, allocate a page and link it to the object.
+      */
+      outpfn = _duplicate_private(pfn, found);
     }
 
+  /*
+    Map in the cache object.
+  */
   assert(outpfn != PFN_INVALID);
   ipte_t old = cacheobj_map(obj, off, outpfn, false, protmask);
   printf("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof(old));
@@ -261,7 +244,6 @@ memcache_init(void)
   assert(zeropfn != PFN_INVALID);
   physmemdb_init();
   zeropage = _get_entry(zeropfn);
-  zeropage->type = PGTY_ZEROSHARED;
 
   slab_register(&cobjlinks, "COBJLINKS", sizeof(struct cobj_link), NULL, 0);
 }

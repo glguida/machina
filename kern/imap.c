@@ -38,15 +38,14 @@ _gettable(ipte_t *ipte, const bool alloc)
   pfn_t pfn = pfn_alloc(0);
   assert (pfn != PFN_INVALID);
   ipte->p = 1;
-  ipte->present.pfn = pfn;
+  ipte->pfn = pfn;
   return pfn_get(pfn);
 }
 
 static inline void
 _puttable(ipte_t ipte, void *ptr)
 {
-  assert(ipte.p);
-  pfn_put(ipte.present.pfn, ptr);
+  pfn_put(ipte_pfn(&ipte), ptr);
 }
 
 #define ISHIFT (PAGE_SHIFT - 3) /* 3 = LOG2(sizeof(ipte)) */
@@ -134,9 +133,9 @@ imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, vm_prot_t
   ipte_t new;
 
   new.p = 1;
-  new.present.roshared = roshared;
-  new.present.protmask = protmask;
-  new.present.pfn = pfn;
+  new.roshared = roshared;
+  new.protmask = protmask;
+  new.pfn = pfn;
   return _get_entry(im, off, true, new);
 }
 
