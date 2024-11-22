@@ -26,7 +26,7 @@ _print_regions(struct vmmap *map)
 
   RB_TREE_FOREACH(next, &map->regions)
     {
-      printf("\t%016lx:%016lx\t%s\t%p", next->start, next->start + next->size, next->type == VMR_TYPE_FREE ? "FREE" : "BUSY", next->umap);
+      printf("\t%016lx:%016lx\t%s", next->start, next->start + next->size, next->type == VMR_TYPE_FREE ? "FREE" : "BUSY");
       if (next->type == VMR_TYPE_USED)
 	{
 	  printf("\tOBJ:%lx\tOFF:%lx", next->objref.obj, next->off);
@@ -88,7 +88,7 @@ rb_regs_compare_key (void *ctx, const void *n, const void *key)
 
   if (va < reg->start)
     return 1;
-  if (va > reg->start + reg->size)
+  if (va >= reg->start + reg->size)
     return -1;
   return 0;
 }
@@ -311,9 +311,10 @@ static void
 vmreg_copy(struct vm_region *to, struct vm_region *from)
 {
   to->type = from->type;
-  to->umap = from->umap;
   to->start = from->start;
   to->size = from->size;
+  to->curprot = from->curprot;
+  to->maxprot = from->maxprot;
   if (from->type == VMR_TYPE_USED)
     to->objref = vmobjref_clone(&from->objref);
   else
@@ -325,9 +326,10 @@ static void
 vmreg_move(struct vm_region *to, struct vm_region *from)
 {
   to->type = from->type;
-  to->umap = from->umap;
   to->start = from->start;
   to->size = from->size;
+  to->curprot = from->curprot;
+  to->maxprot = from->maxprot;
   if (from->type == VMR_TYPE_USED)
     to->objref = vmobjref_move(&from->objref);
   else
@@ -395,7 +397,7 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
 	  reg = slab_alloc(&regions_cache);
 	  assert (reg != NULL);
 	  vmreg_move(reg, &first);
-	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg);
+	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg, &map->umap);
 	  rb_tree_insert_node (&map->regions, (void *) reg);
 	}
       else
@@ -415,7 +417,7 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
 	  reg = slab_alloc(&regions_cache);
 	  assert (reg != NULL);
 	  vmreg_move(reg, &last);
-	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg);
+	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg, &map->umap);
 	  rb_tree_insert_node (&map->regions, (void *) reg);
 	}
       else
@@ -430,14 +432,8 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
 }
 
 void
-vmreg_del (struct vmmap *map, vaddr_t start, size_t size)
+vmmap_free (struct vmmap *map, vaddr_t start, size_t size)
 {
-#if 0
-  vaddr_t end;
-  struct vm_region *reg, *next, first, last;
-#endif
-  printf("DEL %lx %lx\n", start, size);
-
   spinlock(&map->lock);
   _make_hole(map, start, size);
   reg_alloc_free(map, start, size);
@@ -445,108 +441,91 @@ vmreg_del (struct vmmap *map, vaddr_t start, size_t size)
 }
 
 void
-vmreg_new (struct vmmap *map, vaddr_t start, struct vmobjref objref, vmoff_t off, size_t size)
+vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, vmoff_t off, size_t size, vm_prot_t curprot, vm_prot_t maxprot)
 {
-#if 0
-  vaddr_t end;
-  struct vm_region *reg, *next, first, last;
-#endif
-
   spinlock(&map->lock);
-#if 0
-  printf("NEW %lx %lx\n", start, size);
-  start = trunc_page(start);
-  end = round_page(start + size);
-  size = end - start;
 
-  /*
-    Save first and last section.
-  */
-  reg = region_find(map, end);
-  assert(reg->start <= end);
-  assert(end <= (reg->start + reg->size));
-  vmreg_copy(&last, reg);
-  last.size = last.start + last.size - end;
-  last.start = end;
-
-  reg = region_find(map, start);
-  assert(reg->start <= start);
-  assert(start <= (reg->start + reg->size));
-  vmreg_copy(&first, reg);
-  first.size = start - first.start;
-
-  /*
-    Iterate until the end of the range and remove all regions.
-  */
-  next = rb_tree_iterate(&map->regions, reg, RB_DIR_RIGHT);
-  region_remove (map, reg);
-  while (next)
-    {
-      reg = next;
-      assert(reg->start >= start);
-      if (start + size <= reg->start)
-	break;
-
-      next = rb_tree_iterate(&map->regions, reg, RB_DIR_RIGHT);
-      region_remove (map, reg);
-    }
-
-  /*
-    Enter if not empty
-  */
-  if (first.size != 0)
-    {
-      if (first.type == VMR_TYPE_USED)
-	{
-	  reg = slab_alloc(&regions_cache);
-	  assert (reg != NULL);
-	  vmreg_move(reg, &first);
-	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg);
-	  rb_tree_insert_node (&map->regions, (void *) reg);
-	}
-      else
-	{
-	  reg_alloc_free(map, first.start, first.size);
-	}
-    }
-  else
-    {
-      vmreg_consume(&first);
-    }
-
-  if (last.size != 0)
-    {
-      if (last.type == VMR_TYPE_USED)
-	{
-	  reg = slab_alloc(&regions_cache);
-	  assert (reg != NULL);
-	  vmreg_move(reg, &last);
-	  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg);
-	  rb_tree_insert_node (&map->regions, (void *) reg);
-	}
-      else
-	{
-	  reg_alloc_free(map, last.start, last.size);
-	}
-    }
-  else
-    {
-      vmreg_consume(&last);
-    }
-#endif
   _make_hole(map, start, size);
 
   /* Insert the new region. */
-  struct vm_region *reg = (void *)kmem_alloc (1, sizeof(struct vm_region));
+  struct vm_region *reg = slab_alloc(&regions_cache);
   assert (reg != NULL);
-  reg->umap = &map->umap;
   reg->start = start;
   reg->size = size;
+  reg->curprot = curprot;
+  reg->maxprot = maxprot;
   reg->type = VMR_TYPE_USED;
   reg->objref = vmobjref_move(&objref);
-  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg);
+  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg, &map->umap);
   rb_tree_insert_node (&map->regions, (void *) reg);
+
   spinunlock(&map->lock);
+}
+
+bool
+vmmap_fault (struct vmmap *map, vaddr_t va, vm_prot_t reqprot)
+{
+  pfn_t pfn;
+  bool ret = false;
+  struct vm_region *reg;
+
+  printf("VMMAP: Fault at page %p %lx %x\n", map, va, reqprot);
+  
+  spinlock(&map->lock);
+
+  reg = region_find(map, va);
+  if (reg == NULL)
+    {
+      /*
+	Region (not even free) not found at address.
+      */
+      ret = false;
+      goto _fault_return;
+    }
+  printf("VMMAP: Found reg %lx %lx\n", reg->start, reg->start + reg->size);
+  assert(reg->start >= va);
+  assert(va < reg->start + reg->size);
+
+  switch (reg->type)
+    {
+    default:
+      fatal ("Invalid region type %d\n", reg->type);
+      ret = false;
+      break;
+
+    case VMR_TYPE_FREE:
+      printf("VMMAP: FREE region!\n");
+      ret = false;
+      break;
+
+    case VMR_TYPE_USED:
+      if ((reqprot & reg->curprot) != reqprot)
+	{
+	  /*
+	    Insufficient permissions.
+	  */
+	  ret = false;
+	  break;
+	}
+      ret = vmobj_fault(vmobjref_unsafe_get(&reg->objref), reg->off + va - reg->start, reqprot, &pfn);
+      if (ret)
+	{
+	  printf("VMMAP: fault resolved to pfn %lx\n", pfn);
+	  unsigned flags = HAL_PTE_P | HAL_PTE_U;
+	  if (reqprot & VM_PROT_WRITE)
+	    flags |= HAL_PTE_W;
+	  if (reqprot & VM_PROT_EXECUTE)
+	    flags |= HAL_PTE_X;
+	  umap_map(&map->umap, va, pfn, flags, NULL);
+	  umap_commit(&map->umap);
+	  ret = true;
+	}
+      break;
+    }
+
+ _fault_return:
+  spinunlock(&map->lock);
+  return ret;
 }
 
 
@@ -554,7 +533,7 @@ vmreg_new (struct vmmap *map, vaddr_t start, struct vmobjref objref, vmoff_t off
   Setup regions structures for an empty VM Map.
 */
 void
-vmreg_setup (struct vmmap *map)
+vmmap_setupregions (struct vmmap *map)
 {
   struct reg_alloc *z = &map->zones;
   int i;
@@ -574,29 +553,13 @@ vmreg_setup (struct vmmap *map)
 
 
 void
-vmreg_print (struct vmmap *map)
+vmmap_printregions (struct vmmap *map)
 {
-#if 0
-  struct vm_region *next;
-#endif
-
   printf("VM REGIONS for map %p\n", map);
   
   spinlock(&map->lock);
   _print_regions(map);
-#if 0
-  RB_TREE_FOREACH(next, &map->regions)
-    {
-      printf("\t%016lx:%016lx\t%s\t%p", next->start, next->start + next->size, next->type == VMR_TYPE_FREE ? "FREE" : "BUSY", next->umap);
-      if (next->type == VMR_TYPE_USED)
-	{
-	  printf("\tOBJ:%lx\tOFF:%lx", next->objref.obj, next->off);
-	}
-      printf("\n");
-    }
-#endif
   spinunlock(&map->lock);
-
   printf("\n");
 }
 

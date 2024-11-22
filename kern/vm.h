@@ -13,28 +13,110 @@
 
 #include "ref.h"
 
-/*
-  Structure of a ipte:
+enum ipte_npstatus {
+  IPTE_EMPTY = 0,
+  IPTE_PAGINGIN = 1,
+  IPTE_PAGINGOUT = 2,
+  IPTE_PAGED = 3,
+};
 
-  - V (valid) bit: implies that the entry is valid: the map has an
-    entry in this.
-
-  - PFN: If zero, the map has an entry but it's not available. In the
-    case of VM objects, it means the entry has to be searched in the
-    pager associated with this object.
-    If non-zero, the page number the data is currently stored in.
-*/
 typedef union {
   struct {
-    uint64_t pfn : 62;
-    uint64_t w: 1;
-    uint64_t v : 1;
+    union {
+      struct {
+	uint64_t pfn : 56;
+	uint64_t roshared : 1;
+	uint64_t protmask : 3;
+      } present;
+      struct {
+	uint64_t status : 2;
+      } notpresent;
+    };
+    uint64_t p : 1;
   };
   uint64_t raw;
 } ipte_t;
 
-#define IPTE_EMPTY ((ipte_t){ .v = 0, .w = 0, .pfn = 0 })
-#define IPTE_NOPFN ((ipte_t){ .v = 1, .w = 0, .pfn = 0 })
+enum ipte_status {
+  STIPTE_EMPTY, 	/* Page has never been seen by the kernel. */
+  STIPTE_PAGINGIN, 	/* Page is being paged in. */
+  STIPTE_PAGINGOUT, 	/* Page is being paged out. */
+  STIPTE_PAGED, 	/* Page is not cached in memory. */
+  STIPTE_ROSHARED, 	/* Page is present and shared with other objects. */
+  STIPTE_PRIVATE, 	/* Page is present and mapped only by this object. */
+};
+
+static inline bool
+ipte_empty(ipte_t *i)
+{
+  return ((i->p == 0) && (i->notpresent.status == IPTE_EMPTY));
+}
+
+static inline bool
+ipte_pagingin(ipte_t *i)
+{
+  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGINGIN));
+}
+
+static inline bool
+ipte_pagingout(ipte_t *i)
+{
+  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGINGOUT));
+}
+
+static inline bool
+ipte_paged(ipte_t *i)
+{
+  return ((i->p == 0) && (i->notpresent.status == IPTE_PAGED));
+}
+
+static inline bool
+ipte_present(ipte_t *i)
+{
+  return i->p;
+}
+
+static inline bool
+ipte_roshared(ipte_t *i)
+{
+  return i->p && i->present.roshared;
+}
+
+static inline bool
+ipte_private(ipte_t *i)
+{
+  return i->p && !i->present.roshared;
+}
+
+static inline vm_prot_t
+ipte_protmask(ipte_t *i)
+{
+  assert(i->p);
+  return i->present.protmask;
+}
+
+static inline bool
+ipte_pfn(ipte_t *i)
+{
+  assert(i->p);
+  return i->present.pfn;
+}
+
+static inline enum ipte_status
+ipte_status(ipte_t *i)
+{
+  return
+    ipte_empty(i) ? STIPTE_EMPTY :
+    ipte_pagingin(i) ? STIPTE_PAGINGIN :
+    ipte_pagingout(i) ? STIPTE_PAGINGOUT :
+    ipte_paged(i) ? STIPTE_PAGED :
+    ipte_roshared(i) ? STIPTE_ROSHARED :
+    ipte_private(i) ? STIPTE_PRIVATE :
+    ({ fatal("Invalid ipte entry %lx\n", i->raw); STIPTE_EMPTY; });
+}
+
+#define IPTE_EMPTY 	((ipte_t){ .p = 0, .notpresent.status = IPTE_EMPTY })
+
 
 /*
   Indirect Map.
@@ -50,8 +132,16 @@ struct imap {
 };
 
 void imap_init(struct imap *im);
-ipte_t imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool writable);
+ipte_t imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, vm_prot_t mask);
 ipte_t imap_lookup(struct imap *im, unsigned long off);
+
+struct cacheobj_mapping {
+  struct umap *umap;
+  vaddr_t start;
+  size_t size;
+  unsigned long off;
+  LIST_ENTRY(cacheobj_mapping) list;
+};
 
 struct cacheobj {
   rwlock_t lock;
@@ -68,30 +158,47 @@ struct cacheobj {
   /*
     VM regions this cache is mapped into.
   */
-  LIST_HEAD(,vm_region) regions;
+  LIST_HEAD(,cacheobj_mapping) mappings;
 };
 
+struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
-void cacheobj_addregion(struct cacheobj *cobj, struct vm_region *vmreg);
-void cacheobj_delregion(struct cacheobj *cobj, struct vm_region *vmreg);
-ipte_t cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool writable);
+void cacheobj_addmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
+void cacheobj_delmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
+ipte_t cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool roshared, vm_prot_t protmask);
 ipte_t cacheobj_lookup(struct cacheobj *cobj, vmoff_t off);
+
+void memcache_init(void);
+pfn_t memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot_t protmask);
+pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, vmoff_t off, vm_prot_t protmask);
+
+
+struct vmobj;
+struct vmobjref {
+  struct vmobj *obj;
+};
+
+#define VMOBJREF_NULL ((struct vmobjref){.obj = NULL})
 
 struct vmobj
 {
+  /*
+    The lock in a VM object is shared with all objects in the shadow
+    chain.
+  */
+  lock_t *lock;
   bool private;
   unsigned long _ref_count;
   struct cacheobj cobj;
+  struct vmobjref shadow;
+  struct vmobjref copy;
 };
 
 void vmobj_init(void);
 struct vmobjref vmobj_new(bool private, size_t size);
-void vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg);
+void vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg, struct umap *umap);
 void vmobj_delregion(struct vmobj *vmobj, struct vm_region *vmreg);
-
-struct vmobjref {
-  struct vmobj *obj;
-};
+bool vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn);
 
 static inline struct vmobjref
 vmobjref_move(struct vmobjref *objref)
@@ -109,6 +216,12 @@ static inline struct vmobj *
 vmobjref_unsafe_get(struct vmobjref *objref)
 {
   return REF_GET(*objref);
+}
+
+static inline bool
+vmobjref_isnull(struct vmobjref *objref)
+{
+  return vmobjref_unsafe_get(objref) == NULL;
 }
 
 static inline void
@@ -140,14 +253,15 @@ struct vm_region
   struct rb_node rb_regs;
   /*
     This is used as freelist when the region is free.
-    Used as a cache object list when it is not.
   */
   LIST_ENTRY(vm_region) list;
 
-  struct umap *umap;
+  struct cacheobj_mapping *cobjm;
   vaddr_t start;
   size_t size;
 
+  vm_prot_t curprot;
+  vm_prot_t maxprot;
   struct vmobjref objref;
   unsigned long off;
 };
@@ -197,10 +311,14 @@ void vmmap_enter(struct vmmap *map);
 void vmmap_bootstrap(struct vmmap *map);
 void vmmap_setup(struct vmmap *map);
 
-void vmreg_new(struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size);
-void vmreg_del (struct vmmap *map, vaddr_t start, size_t size);
-void vmreg_print (struct vmmap *map);
-void vmreg_setup(struct vmmap *map);
+void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size, vm_prot_t curprot, vm_prot_t maxprot);
+void vmmap_free (struct vmmap *map, vaddr_t start, size_t size);
+bool vmmap_fault (struct vmmap *map, vaddr_t va, vm_prot_t reqfault);
+void vmmap_setupregions (struct vmmap *map);
+void vmmap_printregions (struct vmmap *map);
+
+
+
 void vmreg_init(void);
 
 #endif

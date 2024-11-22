@@ -41,6 +41,7 @@ main (int argc, char *argv[])
 
   info ("MACHINA Started.");
   physmem_init();
+  memcache_init();
   msgbuf_init();
   vmreg_init();
   vmobj_init();
@@ -141,13 +142,24 @@ entry_ex (uctxt_t * uctxt, unsigned ex)
 uctxt_t *
 entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
 {
+  vm_prot_t req;
+
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
   printf("cur_thread(): %p\n", cur_thread());
-  info ("CPU #%d Pagefault at %08lx (%d)", cpu_id (), va, pfi);
+  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
   uctxt_print (uctxt);
-  sched_destroy(cur_thread());
+
+  req = VM_PROT_READ;
+  req |= pfi & HAL_PF_INFO_WRITE ? VM_PROT_WRITE : 0;
+  req |= pfi & HAL_PF_INFO_EXE ? VM_PROT_EXECUTE : 0;
+  
+  if (!vmmap_fault (&cur_task()->vmmap, va, req))
+    {
+      printf("destroying cur thread\n");
+      sched_destroy(cur_thread());
+    }
   return kern_return();
 }
 

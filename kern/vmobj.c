@@ -7,7 +7,9 @@
 #include "internal.h"
 #include "vm.h"
 
+struct slab vmobjlocks;
 struct slab vmobjs;
+struct slab cobjmappings;
 
 struct vmobjref
 vmobj_new(bool private, size_t size)
@@ -16,41 +18,145 @@ vmobj_new(bool private, size_t size)
   struct vmobjref ref;
 
   obj = slab_alloc(&vmobjs);
+  obj->lock = slab_alloc(&vmobjlocks);
+  spinlock_init(obj->lock);
   obj->private = private;
   cacheobj_init (&obj->cobj, size);
+  obj->shadow = VMOBJREF_NULL;
+  obj->copy = VMOBJREF_NULL;
   obj->_ref_count = 1;
   ref.obj = obj;
   return ref;
 }
 
-void
-vmobj_fault(struct vmobj *vmobj, vmoff_t off)
+/*
+  Request the PFN for the object, with permission reqprot.
+*/
+bool
+vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn)
 {
+  bool ret;
   ipte_t ipte;
 
+  spinlock(vmobj->lock);
   info("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
   ipte = cacheobj_lookup(&vmobj->cobj, off);
   info("IPTE IS %lx\n", ipte.raw);
+  switch (ipte_status(&ipte))
+    {
+    case STIPTE_EMPTY:
+      info("IPTE EMPTY");
+      /*
+	XXX: WALK SHADOW HERE.
+      */
+      if (vmobj->private)
+	{
+	  /*
+	    Private objects can request zero pages with no permission limits.
+	  */
+	  *outpfn = memcache_zeropage_new (&vmobj->cobj, off, reqprot & VM_PROT_WRITE ? false : true, VM_PROT_NONE);
+	  ret = true;
+	}
+      else
+	{
+	  /*
+	    XXX: PAGER REQUEST HERE.
+	  */
+	  fatal("PAGER REQUEST UNIMPLEMENTED.");
+	  ret = false;
+	}
+      break;
+
+    case STIPTE_PAGINGIN:
+      info("IPTE PAGING IN");
+      /*
+	XXX: WAIT.
+      */
+      fatal ("PAGEIN UNIMPLEMENTED.");
+      ret = false;
+      break;
+
+    case STIPTE_PAGINGOUT:
+      info("IPTE PAGING OUT");
+      /*
+	XXX: WAIT.
+      */
+      fatal ("PAGEIN UNIMPLEMENTED.");
+      ret = false;
+      break;
+
+    case STIPTE_PAGED:
+      info("IPTE PAGED");
+      
+      /*
+	XXX: PAGER REQUEST.
+      */
+      fatal("PAGER REQUEST UNIMPLEMENTED.");
+      ret = false;
+      break;
+
+    case STIPTE_ROSHARED:
+      info("IPTE ROSHARED (reqprot: %x, protmask: %x", reqprot, ipte_protmask(&ipte));
+      if (reqprot & ipte_protmask(&ipte))
+	{
+	  ret = false;
+	  break;
+	}
+      if (reqprot & VM_PROT_WRITE)
+	*outpfn = memcache_unshare(ipte_pfn(&ipte), &vmobj->cobj, off, ipte_protmask(&ipte));
+      else
+	*outpfn = ipte_pfn(&ipte);
+      ret = true;
+      break;
+    case STIPTE_PRIVATE:
+      info("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot, ipte_protmask(&ipte));
+      if (reqprot & ipte_protmask(&ipte))
+	{
+	  ret = false;
+	  break;
+	}
+      *outpfn = ipte_pfn(&ipte);
+      ret = true;
+      break;
+    }
+  spinunlock(vmobj->lock);
+  return ret;
 }
 
 void
-vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg)
+vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg, struct umap *umap)
 {
-  if (vmreg->type == VMR_TYPE_USED)
-    cacheobj_addregion(&vmobj->cobj, vmreg);
+  struct cacheobj_mapping *cobjm;
+  assert (vmreg->type == VMR_TYPE_USED);
+
+  cobjm = slab_alloc(&cobjmappings);
+  cobjm->umap = umap;
+  cobjm->start = vmreg->start;
+  cobjm->size = vmreg->size;
+  cobjm->off = vmreg->off;
+  vmreg->cobjm = cobjm;
+  spinlock(vmobj->lock);
+  cacheobj_addmapping(&vmobj->cobj, cobjm);
+  spinunlock(vmobj->lock);
 }
 
 void
 vmobj_delregion(struct vmobj *vmobj, struct vm_region *vmreg)
 {
-  if (vmreg->type == VMR_TYPE_USED)
-    cacheobj_delregion(&vmobj->cobj, vmreg);
+  assert (vmreg->type == VMR_TYPE_USED);
+  spinlock(vmobj->lock);
+  cacheobj_delmapping(&vmobj->cobj, vmreg->cobjm);
+  slab_free(vmreg->cobjm);
+  vmreg->cobjm = NULL;
+  spinunlock(vmobj->lock);
 }
 
 void
 vmobj_init(void)
 {
   slab_register(&vmobjs, "VMOBJS", sizeof(struct vmobj), NULL, 0);
+  slab_register(&vmobjlocks, "VMOBJSLOCKS", sizeof(lock_t), NULL, 0);
+  slab_register(&cobjmappings, "COBJMAPPINGS", sizeof(struct cacheobj_mapping), NULL, 0);
 }
 
 

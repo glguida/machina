@@ -24,16 +24,16 @@ task_bootstrap(void)
   spinlock_init (&t->lock);
   ipcspace_setup(&t->ipcspace);
   t->refcount = 0;
-  vmreg_print (&t->vmmap);
+  vmmap_printregions (&t->vmmap);
 
   struct vmobjref ref = vmobj_new(true, 3*4096);
   //  struct vmobjref ref2 = vmobjref_clone(&ref);
-  vmreg_new (&t->vmmap, 0x1000, ref, 0, 4*4096);
-  vmreg_print (&t->vmmap);
-  vmreg_del (&t->vmmap, 0x3000, 3*4096);
-  vmreg_print (&t->vmmap);
-  vmreg_del (&t->vmmap, 0x1000, 1*4096);
-  vmreg_print (&t->vmmap);
+  vmmap_map (&t->vmmap, 0x1000, ref, 0, 4*4096, VM_PROT_ALL, VM_PROT_ALL);
+  vmmap_printregions (&t->vmmap);
+  vmmap_free (&t->vmmap, 0x3000, 3*4096);
+  vmmap_printregions (&t->vmmap);
+  vmmap_free (&t->vmmap, 0x1000, 1*4096);
+  vmmap_printregions (&t->vmmap);
   return t;
 }
 

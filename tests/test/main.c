@@ -153,7 +153,13 @@ main (void)
 
   printf("\n--\n\n");
 
-  int *ptr = (int *)0x2000;
+  volatile int *ptr = (int *)0x2000;
+  printf("ptr is %lx\n", *ptr);
+
+  *ptr = 1;
+  printf("ptr is %lx\n", *ptr);
+
+  ptr = (int *)0x3000;
   printf("ptr is %lx\n", *ptr);
   while(1);
   return 42;

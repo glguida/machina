@@ -39,12 +39,11 @@ vmmap_enter(struct vmmap *map)
   cpu_umap_enter (&map->umap);
 }
 
-
 void
 vmmap_bootstrap(struct vmmap *map)
 {
 
-  vmreg_setup (map);
+  vmmap_setupregions (map);
   umap_bootstrap (&map->umap);
   msgbuf_new(&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
 }
@@ -56,3 +55,4 @@ vmmap_setup(struct vmmap *map)
   umap_init(&map->umap);
   msgbuf_new(&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
 }
+

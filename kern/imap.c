@@ -29,25 +29,24 @@ imap_init(struct imap *im)
 static inline ipte_t *
 _gettable(ipte_t *ipte, const bool alloc)
 {
-  if (ipte->v)
-    return pfn_get(ipte->pfn);
+  if (ipte->p)
+    return pfn_get(ipte_pfn(ipte));
 
   if (!alloc)
     return NULL;
   
   pfn_t pfn = pfn_alloc(0);
   assert (pfn != PFN_INVALID);
-  ipte->v = 1;
-  ipte->w = 1;
-  ipte->pfn = pfn;
+  ipte->p = 1;
+  ipte->present.pfn = pfn;
   return pfn_get(pfn);
 }
 
 static inline void
 _puttable(ipte_t ipte, void *ptr)
 {
-  assert(ipte.v);
-  pfn_put(ipte.pfn, ptr);
+  assert(ipte.p);
+  pfn_put(ipte.present.pfn, ptr);
 }
 
 #define ISHIFT (PAGE_SHIFT - 3) /* 3 = LOG2(sizeof(ipte)) */
@@ -130,13 +129,14 @@ _get_entry(struct imap *im, unsigned long off, const bool set, ipte_t newval)
   Map the pte at offset off. Returns the old pfn.
 */
 ipte_t
-imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool writable)
+imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, vm_prot_t protmask)
 {
   ipte_t new;
 
-  new.v = 1;
-  new.w = writable;
-  new.pfn = pfn;
+  new.p = 1;
+  new.present.roshared = roshared;
+  new.present.protmask = protmask;
+  new.present.pfn = pfn;
   return _get_entry(im, off, true, new);
 }
 
