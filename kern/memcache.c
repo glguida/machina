@@ -140,7 +140,7 @@ _duplicate_private(pfn_t pfn, struct cobj_link *cl)
 }
 
 pfn_t
-memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot_t protmask)
+memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared, mcn_vmprot_t protmask)
 {
   pfn_t pfn;
 
@@ -165,7 +165,7 @@ memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot
   Unshare.
 */
 pfn_t
-memcache_unshare (pfn_t pfn, struct cacheobj *obj, vmoff_t off, vm_prot_t protmask)
+memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask)
 {
   pfn_t outpfn;
   struct physmem_page *page = _get_entry(pfn);

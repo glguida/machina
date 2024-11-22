@@ -28,7 +28,7 @@ task_bootstrap(void)
 
   struct vmobjref ref = vmobj_new(true, 3*4096);
   //  struct vmobjref ref2 = vmobjref_clone(&ref);
-  vmmap_map (&t->vmmap, 0x1000, ref, 0, 4*4096, VM_PROT_ALL, VM_PROT_ALL);
+  vmmap_map (&t->vmmap, 0x1000, ref, 0, 4*4096, MCN_VMPROT_ALL, MCN_VMPROT_ALL);
   vmmap_printregions (&t->vmmap);
   vmmap_free (&t->vmmap, 0x3000, 3*4096);
   vmmap_printregions (&t->vmmap);

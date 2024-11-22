@@ -441,7 +441,7 @@ vmmap_free (struct vmmap *map, vaddr_t start, size_t size)
 }
 
 void
-vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, vmoff_t off, size_t size, vm_prot_t curprot, vm_prot_t maxprot)
+vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, mcn_vmoff_t off, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot)
 {
   spinlock(&map->lock);
 
@@ -463,7 +463,7 @@ vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, vmoff_t off
 }
 
 bool
-vmmap_fault (struct vmmap *map, vaddr_t va, vm_prot_t reqprot)
+vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
 {
   pfn_t pfn;
   bool ret = false;
@@ -512,9 +512,9 @@ vmmap_fault (struct vmmap *map, vaddr_t va, vm_prot_t reqprot)
 	{
 	  printf("VMMAP: fault resolved to pfn %lx\n", pfn);
 	  unsigned flags = HAL_PTE_P | HAL_PTE_U;
-	  if (reqprot & VM_PROT_WRITE)
+	  if (reqprot & MCN_VMPROT_WRITE)
 	    flags |= HAL_PTE_W;
-	  if (reqprot & VM_PROT_EXECUTE)
+	  if (reqprot & MCN_VMPROT_EXECUTE)
 	    flags |= HAL_PTE_X;
 	  umap_map(&map->umap, va, pfn, flags, NULL);
 	  umap_commit(&map->umap);

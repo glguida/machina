@@ -128,7 +128,7 @@ _get_entry(struct imap *im, unsigned long off, const bool set, ipte_t newval)
   Map the pte at offset off. Returns the old pfn.
 */
 ipte_t
-imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, vm_prot_t protmask)
+imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, mcn_vmprot_t protmask)
 {
   ipte_t new;
 

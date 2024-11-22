@@ -85,7 +85,7 @@ ipte_private(ipte_t *i)
   return i->p && !i->roshared;
 }
 
-static inline vm_prot_t
+static inline mcn_vmprot_t
 ipte_protmask(ipte_t *i)
 {
   assert(i->p);
@@ -129,7 +129,7 @@ struct imap {
 };
 
 void imap_init(struct imap *im);
-ipte_t imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, vm_prot_t mask);
+ipte_t imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, mcn_vmprot_t mask);
 ipte_t imap_lookup(struct imap *im, unsigned long off);
 
 struct cacheobj_mapping {
@@ -162,16 +162,16 @@ struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
 void cacheobj_addmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
 void cacheobj_delmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
-ipte_t cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool roshared, vm_prot_t protmask);
-ipte_t cacheobj_lookup(struct cacheobj *cobj, vmoff_t off);
+ipte_t cacheobj_map(struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn, bool roshared, mcn_vmprot_t protmask);
+ipte_t cacheobj_lookup(struct cacheobj *cobj, mcn_vmoff_t off);
 
 void memcache_init(void);
-pfn_t memcache_zeropage_new (struct cacheobj *obj, vmoff_t off, bool roshared, vm_prot_t protmask);
-pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, vmoff_t off, vm_prot_t protmask);
+pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared, mcn_vmprot_t protmask);
+pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask);
 
 struct cobj_link {
   struct cacheobj *cobj;
-  vmoff_t off;
+  mcn_vmoff_t off;
   LIST_ENTRY(cobj_link) list;
 };
 
@@ -209,7 +209,7 @@ void vmobj_init(void);
 struct vmobjref vmobj_new(bool private, size_t size);
 void vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg, struct umap *umap);
 void vmobj_delregion(struct vmobj *vmobj, struct vm_region *vmreg);
-bool vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn);
+bool vmobj_fault(struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot, pfn_t *outpfn);
 
 static inline struct vmobjref
 vmobjref_move(struct vmobjref *objref)
@@ -271,8 +271,8 @@ struct vm_region
   vaddr_t start;
   size_t size;
 
-  vm_prot_t curprot;
-  vm_prot_t maxprot;
+  mcn_vmprot_t curprot;
+  mcn_vmprot_t maxprot;
   struct vmobjref objref;
   unsigned long off;
 };
@@ -322,9 +322,9 @@ void vmmap_enter(struct vmmap *map);
 void vmmap_bootstrap(struct vmmap *map);
 void vmmap_setup(struct vmmap *map);
 
-void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size, vm_prot_t curprot, vm_prot_t maxprot);
+void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot);
 void vmmap_free (struct vmmap *map, vaddr_t start, size_t size);
-bool vmmap_fault (struct vmmap *map, vaddr_t va, vm_prot_t reqfault);
+bool vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqfault);
 void vmmap_setupregions (struct vmmap *map);
 void vmmap_printregions (struct vmmap *map);
 

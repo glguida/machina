@@ -31,7 +31,7 @@ cacheobj_delmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 }
 
 ipte_t
-cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool roshared, vm_prot_t protmask)
+cacheobj_map(struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn, bool roshared, mcn_vmprot_t protmask)
 {
   ipte_t ret;
   off = trunc_page(off);
@@ -41,8 +41,8 @@ cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool roshared, vm_pr
   ret = imap_map(&cobj->map, off, pfn, roshared, protmask);
 #if 0
   LIST_FOREACH (cobjm, &cobj->mappings, list) {
-    vmoff_t obj_offstart = trunc_page(cobjm->off);
-    vmoff_t obj_offend = round_page(cobjm->off + cobjm->size);
+    mcn_vmoff_t obj_offstart = trunc_page(cobjm->off);
+    mcn_vmoff_t obj_offend = round_page(cobjm->off + cobjm->size);
     printf("CACHEOBJ: attempting mapping %lx to va %lx [%lx %lx]\n",
 	   pfn, cobjm->start + off - obj_offstart, obj_offstart, obj_offend);
     if ((off < obj_offstart)
@@ -60,7 +60,7 @@ cacheobj_map(struct cacheobj *cobj, vmoff_t off, pfn_t pfn, bool roshared, vm_pr
 }
 
 ipte_t
-cacheobj_lookup(struct cacheobj *cobj, vmoff_t off)
+cacheobj_lookup(struct cacheobj *cobj, mcn_vmoff_t off)
 {
   ipte_t ret;
 

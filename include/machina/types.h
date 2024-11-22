@@ -32,16 +32,16 @@ typedef unsigned mcn_msgopt_t;
 
 #define MCN_MSGTIMEOUT_NONE 0
 
-typedef unsigned long vmoff_t;
+typedef unsigned long mcn_vmoff_t;
 
-typedef unsigned vm_prot_t;
-#define VM_PROT_NONE	0
-#define VM_PROT_READ	1
-#define VM_PROT_WRITE	2
-#define VM_PROT_EXECUTE	4
-#define VM_PROT_DEFAULT	(VM_PROT_READ|VM_PROT_WRITE)
-#define VM_PROT_ALL	(VM_PROT_READ|VM_PROT_WRITE|VM_PROT_EXECUTE)
+typedef unsigned mcn_vmprot_t;
+#define MCN_VMPROT_NONE		0
+#define MCN_VMPROT_READ		1
+#define MCN_VMPROT_WRITE	2
+#define MCN_VMPROT_EXECUTE	4
+#define MCN_VMPROT_DEFAULT	(MCN_VMPROT_READ|MCN_VMPROT_WRITE)
+#define MCN_VMPROT_ALL		(MCN_VMPROT_READ|MCN_VMPROT_WRITE|MCN_VMPROT_EXECUTE)
 
-#define VM_PROT_NO_CHANGE 8 /* Used by lock_request */
+#define MCN_VMPROT_NO_CHANGE 8 /* Used by lock_request */
 
 #endif

@@ -33,7 +33,7 @@ vmobj_new(bool private, size_t size)
   Request the PFN for the object, with permission reqprot.
 */
 bool
-vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn)
+vmobj_fault(struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot, pfn_t *outpfn)
 {
   bool ret;
   ipte_t ipte;
@@ -54,7 +54,7 @@ vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn)
 	  /*
 	    Private objects can request zero pages with no permission limits.
 	  */
-	  *outpfn = memcache_zeropage_new (&vmobj->cobj, off, reqprot & VM_PROT_WRITE ? false : true, VM_PROT_NONE);
+	  *outpfn = memcache_zeropage_new (&vmobj->cobj, off, reqprot & MCN_VMPROT_WRITE ? false : true, MCN_VMPROT_NONE);
 	  ret = true;
 	}
       else
@@ -102,7 +102,7 @@ vmobj_fault(struct vmobj *vmobj, vmoff_t off, vm_prot_t reqprot, pfn_t *outpfn)
 	  ret = false;
 	  break;
 	}
-      if (reqprot & VM_PROT_WRITE)
+      if (reqprot & MCN_VMPROT_WRITE)
 	*outpfn = memcache_unshare(ipte_pfn(&ipte), &vmobj->cobj, off, ipte_protmask(&ipte));
       else
 	*outpfn = ipte_pfn(&ipte);
