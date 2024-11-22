@@ -159,8 +159,19 @@ main (void)
   *ptr = 1;
   printf("ptr is %lx\n", *ptr);
 
+  printf("task_self is %lx\n", syscall_task_self());
+
+  mcn_vmaddr_t addr;
+  printf("vm allocate %lx\n", syscall_vm_allocate(syscall_task_self(), &addr, 2*1024, 1));
+  printf("Allocated address %lx\n", addr);
+  *(volatile int *)addr = 5;
+  printf("[%lx] is %d\n", addr, *(volatile int *)addr);
+  
   ptr = (int *)0x3000;
   printf("ptr is %lx\n", *ptr);
+
+
+
   while(1);
   return 42;
 }

@@ -47,12 +47,32 @@ syscall_reply_port(void)
 }
 
 mcn_return_t
-syscall_mach_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_t *name)
+syscall_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_t *name)
 {
   mcn_return_t r;
 
-  r = syscall2(__syscall_mach_port_allocate, task, right);
+  r = syscall2(__syscall_port_allocate, task, right);
   if (r == KERN_SUCCESS)
     *name = *(mcn_portid_t *)__local_msgbuf;
+  return r;
+}
+
+mcn_portid_t
+syscall_task_self(void)
+{
+  mcn_return_t r;
+
+  r = syscall0(__syscall_task_self);
+  return r;
+}
+
+mcn_return_t
+syscall_vm_allocate(mcn_portid_t task, mcn_vmaddr_t *addr, unsigned long size, int anywhere)
+{
+  mcn_return_t r;
+
+  *(mcn_vmaddr_t *)__local_msgbuf = *addr;
+  r = syscall3(__syscall_vm_allocate, task, size, anywhere);
+  *addr = *(mcn_vmaddr_t *)__local_msgbuf;
   return r;
 }

@@ -58,6 +58,13 @@ mcn_return_t create_thread(mcn_portid_t test, long pc, long sp)
   return KERN_SUCCESS;
 }
 
+struct task *
+convert_port_to_taskptr(ipc_port_t port)
+{
+  struct portref task_pr = ipcport_to_portref(&port);
+  return port_getkobj(portref_unsafe_get(&task_pr), KOT_TASK);
+}
+
 void
 ipc_kern_exec(void)
 {

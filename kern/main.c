@@ -24,6 +24,7 @@ cpu_kick (void)
 
 __thread char test_2[40];
 
+struct taskref bootstrap_taskref;
 struct thread *bootstrap;
 static int smp_sync = 0;
 
@@ -60,17 +61,16 @@ main (int argc, char *argv[])
   TAILQ_INIT(&cur_cpu()->dead_threads);
   atomic_cpumask_set (&idlemap, cpu_id());
 
-  struct task *t = task_bootstrap();
-  struct thread *th = thread_bootstrap(t);
+  task_bootstrap(&bootstrap_taskref);
+  struct thread *th = thread_bootstrap(taskref_unsafe_get(&bootstrap_taskref));
   hal_umap_load(NULL);
   sched_add(th);
   printf("here");
 
-  rc = port_alloc_kernel(NULL, &portref);
-  assert(rc == KERN_SUCCESS);
+  port_alloc_kernel(NULL, KOT_THREAD, &portref);
   struct portright testpr = portright_from_portref(RIGHT_SEND, portref);
   mcn_portid_t id;
-  rc = task_addportright(t, &testpr, &id);
+  rc = task_addportright(taskref_unsafe_get(&bootstrap_taskref), &testpr, &id);
   printf("Test id is %ld\n", id);
   assert(rc == KERN_SUCCESS);
 
@@ -165,7 +165,7 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
       ps = task_getipcspace (cur_task ());
       ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
       task_putipcspace (cur_task (), ps);
-      simple (portref_to_ipcport (&pr));
+      user_simple (portref_to_ipcport (&pr));
       printf ("destroying cur thread\n");
       sched_destroy (cur_thread ());
     }

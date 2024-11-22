@@ -33,6 +33,7 @@ typedef unsigned mcn_msgopt_t;
 #define MCN_MSGTIMEOUT_NONE 0
 
 typedef unsigned long mcn_vmoff_t;
+typedef unsigned long mcn_vmaddr_t;
 
 typedef unsigned mcn_vmprot_t;
 #define MCN_VMPROT_NONE		0

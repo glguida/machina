@@ -17,7 +17,9 @@ mcn_return_t syscall_msgsend(mcn_msgopt_t option, unsigned long timeout, mcn_por
 mcn_return_t syscall_msgrecv(mcn_portid_t recv, mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify);
 mcn_return_t syscall_reply_port(void);
 
-mcn_return_t syscall_mach_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_t *name);
+mcn_portid_t syscall_task_self(void);
+mcn_return_t syscall_port_allocate(mcn_portid_t task, mcn_portright_t right, mcn_portid_t *name);
+mcn_return_t syscall_vm_allocate(mcn_portid_t task, mcn_vmaddr_t *addr, unsigned long size, int anywhere);
 
 
 #endif

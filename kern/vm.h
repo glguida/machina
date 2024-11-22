@@ -322,6 +322,7 @@ void vmmap_enter(struct vmmap *map);
 void vmmap_bootstrap(struct vmmap *map);
 void vmmap_setup(struct vmmap *map);
 
+mcn_return_t vmmap_alloc (struct vmmap *map, struct vmobjref objref, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t *addrout);
 void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot);
 void vmmap_free (struct vmmap *map, vaddr_t start, size_t size);
 bool vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqfault);

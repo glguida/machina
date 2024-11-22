@@ -310,8 +310,13 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_user"), RCSId);
 
-    fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
-    fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    if (IsKernelUser) {
+        fprintf(file, "#define msgh_request_port\tmsgh_local\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgh_remote\n");
+    } else {
+        fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    }
     fprintf(file, "\n");
 }
 

@@ -11,13 +11,14 @@
 #include <queue.h>
 #include <string.h>
 #include <machina/vm_param.h>
+#include <machina/error.h>
 
 #include "internal.h"
 
 
 struct slab regions_cache;
 
-#define dbgprintf(...)
+#define dbgprintf(...) printf(__VA_ARGS__)
 
 static void
 _print_regions(struct vmmap *map)
@@ -292,8 +293,11 @@ reg_alloc_alloc (struct vmmap *map, size_t size)
   assert (size != 0);
 
   ze = _regalloc_findfree (&map->zones, size);
+  printf("VMREG: ze: %p\n", ze);
   if (ze == NULL)
     goto out;
+
+  printf("VMREG: region alloc %lx\n", ze->start);
 
   addr = ze->start;
   diff = ze->size - size;
@@ -429,6 +433,37 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
     {
       vmreg_consume(&last);
     }
+}
+
+mcn_return_t
+vmmap_alloc (struct vmmap *map, struct vmobjref objref, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t *addrout)
+{
+  vaddr_t addr;
+
+  printf("VMMAP: alloc size %lx\n", size);
+  spinlock(&map->lock);
+  addr = reg_alloc_alloc(map, size);
+
+  /* Insert the new region. */
+  struct vm_region *reg = slab_alloc(&regions_cache);
+  assert (reg != NULL);
+  reg->start = addr;
+  reg->size = size;
+  reg->curprot = curprot;
+  reg->maxprot = maxprot;
+  reg->type = VMR_TYPE_USED;
+  reg->objref = vmobjref_move(&objref);
+  vmobj_addregion (vmobjref_unsafe_get(&reg->objref), reg, &map->umap);
+  rb_tree_insert_node (&map->regions, (void *) reg);
+
+  spinunlock(&map->lock);
+  printf("VMMAP: allocated address; %lx\n", addr);
+
+  if (addr == -1)
+    return KERN_RESOURCE_SHORTAGE;
+
+  *addrout = addr;
+  return KERN_SUCCESS;
 }
 
 void

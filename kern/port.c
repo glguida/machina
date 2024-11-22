@@ -105,7 +105,6 @@ portqueue_enq(struct port_queue *pq, unsigned long timeout, bool force, mcn_msgh
       sched_wait(&pq->send_waitq, timeout);
       return KERN_RETRY;
     }
-
   msgq_enq(&pq->msgq, msgh);
   pq->entries++;
   sched_wakeone(&pq->recv_waitq);
@@ -216,20 +215,41 @@ port_double_unlock(struct port *porta, struct port *portb)
     }
 }
 
-mcn_return_t
-port_alloc_kernel(void *ctx, struct portref *portref)
+void *
+port_getkobj(struct port *port, enum kern_objtype kot)
+{
+  void *obj;
+  spinlock(&port->lock);
+  if (port->type != PORT_KERNEL)
+    {
+      obj = NULL;
+      goto _getkobj_error;
+    }
+  if (port->kernel.kot != kot)
+    {
+      obj = NULL;
+      goto _getkobj_error;
+    }
+  obj = port->kernel.obj;
+
+ _getkobj_error:
+  spinunlock(&port->lock);
+  return obj;
+}
+
+void
+port_alloc_kernel(void *obj, enum kern_objtype kot, struct portref *portref)
 {
   struct port *p;
 
   p = slab_alloc(&ports);
   spinlock_init(&p->lock);
   p->type = PORT_KERNEL;
-  //  p->kernel.ctx = ctx;
+  p->kernel.obj = obj;
+  p->kernel.kot = kot;
 
   portref->obj = p;
   p->_ref_count = 1;
-
-  return KERN_SUCCESS;
 }
 
 mcn_return_t

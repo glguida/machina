@@ -8,12 +8,12 @@
 #include <nux/nux.h>
 #include <nux/hal.h>
 #include <machina/syscall_sw.h>
+#include <machina/error.h>
 
 #include "internal.h"
 
-void
-ipc_kern_exec(void);
-
+void *
+convert_port_to_taskptr(ipc_port_t port);
 
 uctxt_t *
 entry_sysc (uctxt_t * u,
@@ -51,6 +51,42 @@ entry_sysc (uctxt_t * u,
 	  ret = id;
       }
       break;
+    case __syscall_task_self:
+      ret = task_self();
+      break;
+    case __syscall_vm_allocate:
+      {
+	mcn_return_t rc;
+	struct portref task_pr;
+	mcn_vmaddr_t addr = *(mcn_vmaddr_t *)cur_kmsgbuf();
+	struct ipcspace *ps = task_getipcspace(cur_task());
+
+	rc = ipcspace_resolve(ps, MCN_MSGTYPE_COPYSEND, a2, &task_pr);
+	task_putipcspace(cur_task(), ps);
+	if (rc)
+	  {
+	    ret = rc;
+	    break;
+	  }
+
+	ipc_port_t task_intport = portref_to_ipcport(&task_pr);
+	struct task *task = convert_port_to_taskptr(task_intport);
+	if (task == NULL)
+	  {
+	    task_pr = ipcport_to_portref(&task_intport);
+	    portref_consume(task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+	printf("SYSC: vmallocate task %p, addr %lx, size %lx, anywhere? %ld\n",
+	       task, addr, a3, a4);
+	rc = task_vm_allocate(task, &addr, a3, a4);
+	task_pr = ipcport_to_portref(&task_intport);
+	portref_consume(task_pr);
+	*(mcn_vmaddr_t *)cur_kmsgbuf() = addr;
+	ret = rc;
+	break;
+      }
     case 0:
       info("SYSC%ld test passed.", a1);
       break;

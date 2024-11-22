@@ -113,6 +113,23 @@ internalize(struct ipcspace *ps, volatile mcn_msgheader_t *extmsg, mcn_msgheader
   return MSGIO_SUCCESS;
 }
 
+mcn_return_t
+mcn_msg_send_from_kernel (mcn_msgheader_t *hdr, mcn_msgsize_t size)
+{
+  mcn_return_t rc;
+  mcn_msgheader_t *int_msg;
+
+  int_msg = (mcn_msgheader_t *)kmem_alloc(0, size);
+  memcpy(int_msg, hdr, size);
+  rc = port_enqueue(int_msg, 0, true);
+  if (rc)
+    {
+      intmsg_consume(int_msg);
+      kmem_free(0, (vaddr_t)int_msg, size);
+    }
+  return rc;
+}
+
 mcn_msgioret_t
 ipc_msgsend(mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
 {
@@ -167,6 +184,7 @@ ipc_msgrecv(mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout, mcn
     }
 
   rc = port_dequeue(portref_unsafe_get(&recv_pref), timeout, &intmsg);
+  portref_consume(recv_pref);
   if (rc)
     {
       task_putipcspace(cur_task(), ps);

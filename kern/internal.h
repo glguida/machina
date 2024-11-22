@@ -285,13 +285,21 @@ struct port_queue {
 
 void portqueue_init (struct port_queue *pq, unsigned limit);
 
+enum kern_objtype {
+  KOT_TASK,
+  KOT_THREAD,
+};
+
 struct port {
   unsigned long _ref_count; /* Handled by portref. */
 
   lock_t lock;
   enum port_type type;
   union {
-    struct {} kernel;
+    struct {
+      void *obj;
+      enum kern_objtype kot;
+    } kernel;
     struct {} dead;
     struct port_queue queue;
       
@@ -302,12 +310,12 @@ void port_init(void);
 bool port_dead(struct port *);
 bool port_kernel(struct port *);
 enum port_type port_type(struct port *);
-mcn_return_t port_alloc_kernel(void *ctx, struct portref *portref);
+void port_alloc_kernel(void *obj, enum kern_objtype kot, struct portref *portref);
+void *port_getkobj(struct port *port, enum kern_objtype kot);
 mcn_return_t port_alloc_queue(struct portref *portref);
 mcn_return_t port_enqueue(mcn_msgheader_t *msgh, unsigned long timeout, bool force);
 mcn_return_t port_dequeue(struct port *port, unsigned long timeout, mcn_msgheader_t **msghp);
 
-struct port;
 struct portref {
   struct port *obj;
 };
@@ -334,6 +342,12 @@ ipcport_to_portref(ipc_port_t *ipcport)
   *ipcport = 0;
   /* IPC port effectively moved to portref. */
   return portref;
+}
+
+static inline struct portref
+portref_dup(struct portref *portref)
+{
+  return REF_DUP(*portref);
 }
 
 static inline struct port *
@@ -421,23 +435,47 @@ portright_unsafe_put(struct port **port)
   Machina Task.
 
 */
+struct taskref;
 struct task {
   lock_t lock; /* PRIO: task > thread. */
   struct vmmap vmmap;
-  unsigned refcount;
+  unsigned _ref_count;
   LIST_HEAD(,thread) threads;
   struct ipcspace ipcspace;
-  mcn_portid_t task_self;
+  struct portref self;
 };
 
 void task_init(void);
-struct task *task_bootstrap(void);
+void task_bootstrap(struct taskref *taskref);
 void task_enter(struct task *t);
 struct ipcspace * task_getipcspace(struct task *t);
 void task_putipcspace(struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright(struct task *t, struct portright *pr, mcn_portid_t *id);
 mcn_return_t task_allocate_port(struct task *t, mcn_portid_t *newid);
+mcn_return_t task_vm_allocate(struct task *t, vaddr_t *addr, size_t size, bool anywhere);
+mcn_portid_t task_self(void);
 
+struct taskref {
+  struct task *obj;
+};
+
+static inline struct taskref
+taskref_dup(struct taskref *taskref)
+{
+  return REF_DUP(*taskref);
+}
+
+static inline struct task *
+taskref_unsafe_get(struct taskref *taskref)
+{
+  return REF_GET(*taskref);
+}
+
+static inline void
+taskref_consume(struct taskref taskref)
+{
+  /* XXX: DELETE IF */REF_DESTROY(taskref);
+}
 
 /*
   Machina IPC.

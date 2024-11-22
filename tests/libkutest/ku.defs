@@ -1,4 +1,6 @@
-subsystem kerneluser kstest 4000;
+subsystem kerneluser kstest 2000;
+
+userprefix user_;
 
 #include <machina/std_types.defs>
 
