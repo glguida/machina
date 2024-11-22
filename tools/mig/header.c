@@ -156,6 +156,10 @@ WriteEpilog(FILE *file, const char *protect)
 static void
 WriteUserRoutine(FILE *file, const routine_t *rt)
 {
+    if (IsKernelUser && !rt->rtOneWay) {
+        fprintf(file, "/* Routine %s skipped. Not a simple routine. */\n", rt->rtName);
+	return;
+    }
     fprintf(file, "\n");
     fprintf(file, "/* %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
     WriteMigExternal(file);

@@ -288,14 +288,16 @@ WriteIncludes(FILE *file)
     fprintf(file, "#include <stdbool.h>\n");
     fprintf(file, "#include <machina/types.h>\n");
     fprintf(file, "#include <machina/message.h>\n");
-    fprintf(file, "#include <machina/syscalls.h>\n");
     fprintf(file, "#include <machina/error.h>\n");
     if (IsKernelUser)
       {
           fprintf(file, "#include <machina/mig_errors.h>\n");
+	  fprintf(file, "\n");
+	  fprintf(file, "extern mcn_return_t mcn_msg_send_from_kernel(mcn_msgheader_t *, mcn_msgsize_t);\n");
       }
     else
       {
+  	  fprintf(file, "#include <machina/syscalls.h>\n");
 	  fprintf(file, "#include <machina/machina.h>\n");
 	  fprintf(file, "#include <machina/mig.h>\n");
       }
@@ -412,7 +414,10 @@ WriteVarDecls(FILE *file, const routine_t *rt)
     fprintf(file, "\t\tRequest In;\n");
     if (!rt->rtOneWay)
 	fprintf(file, "\t\tReply Out;\n");
-    fprintf(file, "\t} *Mess = (union __mig_msg *)__local_msgbuf;\n");
+    if (IsKernelUser)
+      fprintf(file, "\t} Buf, *Mess = &Buf;\n");
+    else
+      fprintf(file, "\t} *Mess = (union __mig_msg *)__local_msgbuf;\n");
     fprintf(file, "\n");
 
     fprintf(file, "\tregister Request *InP = &Mess->In;\n");
@@ -493,7 +498,7 @@ WriteMsgSend(FILE *file, const routine_t *rt)
 
     if (IsKernelUser)
     {
-	fprintf(file, "\t%s mach_msg_send_from_kernel(", MsgResult);
+	fprintf(file, "\t%s mcn_msg_send_from_kernel(", MsgResult);
 	fprintf(file, "&InP->Head, %s);\n", SendSize);
     }
     else
@@ -1494,6 +1499,10 @@ static void
 WriteRoutine(FILE *file, register const routine_t *rt)
 {
     /* write the stub's declaration */
+    if (IsKernelUser && !rt->rtOneWay) {
+        fprintf(file, "/* Routine %s ignored: not a simple routine. */\n", rt->rtName);
+	return;
+    }
 
     WriteStubDecl(file, rt);
 

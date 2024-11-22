@@ -287,6 +287,9 @@ itCalculateNameInfo(register ipc_type_t *it)
     if (it->itServerType == strNULL)
 	it->itServerType = it->itName;
 
+    /* The following is not needed in machina, where ipcport_t is
+       typedef to mcn_portid_t. */
+#if 0
     /*
      *	KernelServer and KernelUser interfaces get special treatment here.
      *	On the kernel side of the interface, ports are really internal
@@ -301,20 +304,21 @@ itCalculateNameInfo(register ipc_type_t *it)
      */
 
     if (IsKernelServer &&
-	streql(it->itServerType, "mcn_port_t") &&
+	streql(it->itServerType, "mcn_portid_t") &&
 	(((it->itInName == MCN_MSGTYPE_POLYMORPHIC) &&
 	  (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)) ||
 	 MCN_MSGTYPE_IS_PORT(it->itInName) ||
 	 MCN_MSGTYPE_IS_PORT(it->itOutName)))
-	it->itServerType = "ipc_port_t";
+	it->itServerType = "ipcport_t";
 
     if (IsKernelUser &&
-	streql(it->itUserType, "mcn_port_t") &&
+	streql(it->itUserType, "mcn_portid_t") &&
 	(((it->itInName == MCN_MSGTYPE_POLYMORPHIC) &&
 	  (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)) ||
 	 MCN_MSGTYPE_IS_PORT(it->itInName) ||
 	 MCN_MSGTYPE_IS_PORT(it->itOutName)))
-	it->itUserType = "ipc_port_t";
+	it->itUserType = "ipcport_t";
+#endif
 
     if (it->itTransType == strNULL)
 	it->itTransType = it->itServerType;
