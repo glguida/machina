@@ -80,7 +80,9 @@ AC_MK_CONFIG_FILES([
 	libmachina/Makefile
 	kern/Makefile
 	tests/Makefile
-	tests/libkstest/Makefile
+	tests/libkutest/Makefile
+	tests/libkutest/user/Makefile
+	tests/libkutest/kern/Makefile
 	tests/libkstest/user/Makefile
 	tests/libkstest/kern/Makefile
 	tests/libcstest/Makefile

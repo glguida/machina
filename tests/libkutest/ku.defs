@@ -1,0 +1,26 @@
+subsystem kerneluser kstest 4000;
+
+#include <machina/std_types.defs>
+
+simpleroutine simple(
+		test: mcn_port_t);
+
+simpleroutine create_thread(
+	      test: mcn_port_t;
+	      pc: long;
+	      sp: long);
+
+routine inc(
+		test : mcn_port_t;
+	out	new : long);
+
+routine add(
+		test : mcn_port_t;
+		b : long;
+	out	c : long);
+
+
+routine mul(
+		test:	mcn_port_t;
+		b:	int;
+	out	c:	long);
