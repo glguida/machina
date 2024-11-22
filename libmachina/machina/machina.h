@@ -9,8 +9,10 @@
 
 #include <machina/types.h>
 
-mcn_msgioret_t mcn_msgsend(mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify);
-mcn_msgioret_t mcn_msgrecv(mcn_portid_t port, mcn_msgopt_t option, unsigned long timeout, mcn_portid_t notify);
-mcn_portid_t mcn_reply_port(void);
+mcn_msgioret_t mcn_msgsend (mcn_msgopt_t option, unsigned long timeout,
+			    mcn_portid_t notify);
+mcn_msgioret_t mcn_msgrecv (mcn_portid_t port, mcn_msgopt_t option,
+			    unsigned long timeout, mcn_portid_t notify);
+mcn_portid_t mcn_reply_port (void);
 
 #endif

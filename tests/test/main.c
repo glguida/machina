@@ -47,166 +47,177 @@ puts (const char *s)
 }
 
 int
-th1(void)
+th1 (void)
 {
 
-  while(1)
+  while (1)
     {
-      if (syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL))
+      if (syscall_msgrecv (3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL))
 	continue;
-      cstest_server((mcn_msgheader_t *)syscall_msgbuf(), (mcn_msgheader_t *)syscall_msgbuf());
-      (void)syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
+      cstest_server ((mcn_msgheader_t *) syscall_msgbuf (),
+		     (mcn_msgheader_t *) syscall_msgbuf ());
+      (void) syscall_msgsend (MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
     }
 
 }
 
-char stack[64*1024];
+char stack[64 * 1024];
 
 int
 main (void)
 {
   puts ("Hello from userspace, NUX!\n");
 
-  test();
+  test ();
 
-  printf("msgbuf: %p", syscall_msgbuf());
-  printf("ALlocated port %ld\n", mcn_reply_port());
-  printf("ALlocated port %ld\n", mcn_reply_port());
-  printf("ALlocated port %ld\n", mcn_reply_port());
-  printf("ALlocated port %ld\n", mcn_reply_port());
+  printf ("msgbuf: %p", syscall_msgbuf ());
+  printf ("ALlocated port %ld\n", mcn_reply_port ());
+  printf ("ALlocated port %ld\n", mcn_reply_port ());
+  printf ("ALlocated port %ld\n", mcn_reply_port ());
+  printf ("ALlocated port %ld\n", mcn_reply_port ());
 
-  printf("Calling simple! %x\n", simple(1));
+  printf ("Calling simple! %x\n", simple (1));
 
   long cnt;
-  printf("Calling inc! %x\n", inc(1, &cnt));
-  printf("cnt: %ld\n", cnt);
+  printf ("Calling inc! %x\n", inc (1, &cnt));
+  printf ("cnt: %ld\n", cnt);
 
-  printf("Calling inc! %x\n", inc(1, &cnt));
-  printf("cnt: %ld\n", cnt);
+  printf ("Calling inc! %x\n", inc (1, &cnt));
+  printf ("cnt: %ld\n", cnt);
 
-  printf("Calling inc! %x\n", inc(1, &cnt));
-  printf("cnt: %ld\n", cnt);
+  printf ("Calling inc! %x\n", inc (1, &cnt));
+  printf ("cnt: %ld\n", cnt);
 
-  printf("Calling add 3! %x\n", add(1, 3, &cnt));
-  printf("cnt: %ld\n", cnt);
+  printf ("Calling add 3! %x\n", add (1, 3, &cnt));
+  printf ("cnt: %ld\n", cnt);
 
-  printf("Calling mul 4! %x\n", mul(1, 4, &cnt));
-  printf("cnt: %ld\n", cnt);
+  printf ("Calling mul 4! %x\n", mul (1, 4, &cnt));
+  printf ("cnt: %ld\n", cnt);
 
   {
-    printf("************************* TEST START *****************************\n");
-    mcn_portid_t tmp_port = mcn_reply_port();
-    volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
-    msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
+    printf
+      ("************************* TEST START *****************************\n");
+    mcn_portid_t tmp_port = mcn_reply_port ();
+    volatile struct mcn_msgheader *msgh =
+      (struct mcn_msgheader *) syscall_msgbuf ();
+    msgh->msgh_bits =
+      MCN_MSGBITS (MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
     msgh->msgh_size = 40;
     msgh->msgh_remote = 2;
     msgh->msgh_local = tmp_port;
     msgh->msgh_msgid = 2000;
-    asm volatile ("" ::: "memory");
-    printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
-    printf("MSGIORET: %x", syscall_msgrecv(2, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+    asm volatile ("":::"memory");
+    printf ("MSGIORET: %x",
+	    syscall_msgsend (MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+    printf ("MSGIORET: %x",
+	    syscall_msgrecv (2, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
 
-    volatile struct mcn_msgheader *msgr = (struct mcn_msgheader *) syscall_msgbuf();
-    printf("BITS: %lx\n", msgr->msgh_bits);
-    printf("LOCAL: %lx\n", msgr->msgh_local);
-    printf("REMOTE: %lx\n", msgr->msgh_remote);
-    printf("SEQNO: %lx\n", msgr->msgh_seqno);
-    printf("MSGID: %ld\n", msgr->msgh_msgid);
+    volatile struct mcn_msgheader *msgr =
+      (struct mcn_msgheader *) syscall_msgbuf ();
+    printf ("BITS: %lx\n", msgr->msgh_bits);
+    printf ("LOCAL: %lx\n", msgr->msgh_local);
+    printf ("REMOTE: %lx\n", msgr->msgh_remote);
+    printf ("SEQNO: %lx\n", msgr->msgh_seqno);
+    printf ("MSGID: %ld\n", msgr->msgh_msgid);
 
-    printf("************************* TEST END *******************************\n");
+    printf
+      ("************************* TEST END *******************************\n");
   }
 
-  volatile struct mcn_msgheader *msgh = (struct mcn_msgheader *) syscall_msgbuf();
-  msgh->msgh_bits = MCN_MSGBITS(MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
+  volatile struct mcn_msgheader *msgh =
+    (struct mcn_msgheader *) syscall_msgbuf ();
+  msgh->msgh_bits = MCN_MSGBITS (MCN_MSGTYPE_MAKESEND, MCN_MSGTYPE_MAKESEND);
   msgh->msgh_size = 40;
   msgh->msgh_remote = 3;
   msgh->msgh_local = 3;
   msgh->msgh_msgid = 505050;
-  printf("MSGIORET: %x", syscall_msgsend(MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
-  syscall_msgrecv(3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
+  printf ("MSGIORET: %x",
+	  syscall_msgsend (MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
+  syscall_msgrecv (3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
 
-  create_thread(1, (long)th1, (long)stack + 64 * 1024);
+  create_thread (1, (long) th1, (long) stack + 64 * 1024);
 
   //  while(1)
   //    printf("s: %d\n", simple(3));
 
   long a = -1;
 
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
-  printf("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
+  printf ("=======================================\n");
 
-	
-  printf("INC: %d\n", user_inc(3, &a));
-  printf("A %ld\n", a);
-  printf("INC: %d\n", user_inc(3, &a));
-  printf("A %ld\n", a);
-  printf("INC: %d\n", user_inc(3, &a));
-  printf("A %ld\n", a);
 
-  printf("\n--\n\n");
+  printf ("INC: %d\n", user_inc (3, &a));
+  printf ("A %ld\n", a);
+  printf ("INC: %d\n", user_inc (3, &a));
+  printf ("A %ld\n", a);
+  printf ("INC: %d\n", user_inc (3, &a));
+  printf ("A %ld\n", a);
 
-  volatile int *ptr = (int *)0x2000;
-  printf("ptr is %lx\n", *ptr);
+  printf ("\n--\n\n");
+
+  volatile int *ptr = (int *) 0x2000;
+  printf ("ptr is %lx\n", *ptr);
 
   *ptr = 1;
-  printf("ptr is %lx\n", *ptr);
+  printf ("ptr is %lx\n", *ptr);
 
-  printf("task_self is %lx\n", syscall_task_self());
+  printf ("task_self is %lx\n", syscall_task_self ());
 
   mcn_vmaddr_t addr;
-  printf("vm allocate %lx\n", syscall_vm_allocate(syscall_task_self(), &addr, 2*1024, 1));
-  printf("Allocated address %lx\n", addr);
-  *(volatile int *)addr = 5;
-  printf("[%lx] is %d\n", addr, *(volatile int *)addr);
-  
-  ptr = (int *)0x3000;
-  printf("ptr is %lx\n", *ptr);
+  printf ("vm allocate %lx\n",
+	  syscall_vm_allocate (syscall_task_self (), &addr, 2 * 1024, 1));
+  printf ("Allocated address %lx\n", addr);
+  *(volatile int *) addr = 5;
+  printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
+
+  ptr = (int *) 0x3000;
+  printf ("ptr is %lx\n", *ptr);
 
 
 
-  while(1);
+  while (1);
   return 42;
 }
 
 static int c = 0;
 
 mcn_return_t
-__srv_user_simple(mcn_portid_t port)
+__srv_user_simple (mcn_portid_t port)
 {
-  printf("\t\t\t\tSimple port %d!\n", port);
+  printf ("\t\t\t\tSimple port %d!\n", port);
   return KERN_SUCCESS;
 }
 
 mcn_return_t
-__srv_user_inc(mcn_portid_t port, long *new)
+__srv_user_inc (mcn_portid_t port, long *new)
 {
-  printf("Inc! %d\n", c);
-  c+=1;
+  printf ("Inc! %d\n", c);
+  c += 1;
   *new = c;
   return KERN_SUCCESS;
 }
 
 mcn_return_t
-__srv_user_add(mcn_portid_t port, long b, long *new)
+__srv_user_add (mcn_portid_t port, long b, long *new)
 {
-  printf("Inc!\n");
+  printf ("Inc!\n");
   c += b;
   *new = c;
   return KERN_SUCCESS;
 }
 
 mcn_return_t
-__srv_user_mul(mcn_portid_t port, int b, long *new)
+__srv_user_mul (mcn_portid_t port, int b, long *new)
 {
-  printf("Inc!\n");
+  printf ("Inc!\n");
   c *= b;
   *new = c;
   return KERN_SUCCESS;

@@ -43,6 +43,6 @@ typedef unsigned mcn_vmprot_t;
 #define MCN_VMPROT_DEFAULT	(MCN_VMPROT_READ|MCN_VMPROT_WRITE)
 #define MCN_VMPROT_ALL		(MCN_VMPROT_READ|MCN_VMPROT_WRITE|MCN_VMPROT_EXECUTE)
 
-#define MCN_VMPROT_NO_CHANGE 8 /* Used by lock_request */
+#define MCN_VMPROT_NO_CHANGE 8	/* Used by lock_request */
 
 #endif

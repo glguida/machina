@@ -14,13 +14,15 @@
 #include "internal.h"
 
 static lock_t clock_lock;
-static TAILQ_HEAD(, physmem_page) clock_queue;
+/**INDENT-OFF**/
+static TAILQ_HEAD (, physmem_page) clock_queue;
+/**INDENT-ON**/
 
 
 void
-memctrl_newpage(struct physmem_page *page)
+memctrl_newpage (struct physmem_page *page)
 {
   spinlock (&clock_lock);
-  TAILQ_INSERT_HEAD(&clock_queue, page, pageq);
-  spinunlock(&clock_lock);
+  TAILQ_INSERT_HEAD (&clock_queue, page, pageq);
+  spinunlock (&clock_lock);
 }

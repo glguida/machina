@@ -13,103 +13,113 @@
 
 #include "ref.h"
 
-enum ipte_npstatus {
+enum ipte_npstatus
+{
   IPTE_EMPTY = 0,
   IPTE_PAGINGIN = 1,
   IPTE_PAGINGOUT = 2,
   IPTE_PAGED = 3,
 };
 
-typedef union {
-  struct {
+typedef union
+{
+  struct
+  {
     /* Following fields are valid when p = 1. */
-    uint64_t pfn : 56;
-    uint64_t roshared : 1;
-    uint64_t protmask : 3;
+    uint64_t pfn:56;
+    uint64_t roshared:1;
+    uint64_t protmask:3;
     /* Following fields are valid when p = 0. */
-    uint64_t status : 3;
+    uint64_t status:3;
     /* Present bit. */
-    uint64_t p : 1;
+    uint64_t p:1;
   };
   uint64_t raw;
 } ipte_t;
 
-enum ipte_status {
-  STIPTE_EMPTY = 0, 	/* Page has never been seen by the kernel. */
-  STIPTE_PAGINGIN = 1, 	/* Page is being paged in. */
-  STIPTE_PAGINGOUT = 2, 	/* Page is being paged out. */
-  STIPTE_PAGED = 3, 	/* Page is not cached in memory. */
-  STIPTE_ROSHARED = 4, 	/* Page is present and shared with other objects. */
-  STIPTE_PRIVATE = 5, 	/* Page is present and mapped only by this object. */
+enum ipte_status
+{
+  STIPTE_EMPTY = 0,		/* Page has never been seen by the kernel. */
+  STIPTE_PAGINGIN = 1,		/* Page is being paged in. */
+  STIPTE_PAGINGOUT = 2,		/* Page is being paged out. */
+  STIPTE_PAGED = 3,		/* Page is not cached in memory. */
+  STIPTE_ROSHARED = 4,		/* Page is present and shared with other objects. */
+  STIPTE_PRIVATE = 5,		/* Page is present and mapped only by this object. */
 };
 
 static inline bool
-ipte_empty(ipte_t *i)
+ipte_empty (ipte_t * i)
 {
   return ((i->p == 0) && (i->status == IPTE_EMPTY));
 }
 
 static inline bool
-ipte_pagingin(ipte_t *i)
+ipte_pagingin (ipte_t * i)
 {
   return ((i->p == 0) && (i->status == IPTE_PAGINGIN));
 }
 
 static inline bool
-ipte_pagingout(ipte_t *i)
+ipte_pagingout (ipte_t * i)
 {
   return ((i->p == 0) && (i->status == IPTE_PAGINGOUT));
 }
 
 static inline bool
-ipte_paged(ipte_t *i)
+ipte_paged (ipte_t * i)
 {
   return ((i->p == 0) && (i->status == IPTE_PAGED));
 }
 
 static inline bool
-ipte_present(ipte_t *i)
+ipte_present (ipte_t * i)
 {
   return i->p;
 }
 
 static inline bool
-ipte_roshared(ipte_t *i)
+ipte_roshared (ipte_t * i)
 {
   return i->p && i->roshared;
 }
 
 static inline bool
-ipte_private(ipte_t *i)
+ipte_private (ipte_t * i)
 {
   return i->p && !i->roshared;
 }
 
 static inline mcn_vmprot_t
-ipte_protmask(ipte_t *i)
+ipte_protmask (ipte_t * i)
 {
-  assert(i->p);
+  assert (i->p);
   return i->protmask;
 }
 
 static inline bool
-ipte_pfn(ipte_t *i)
+ipte_pfn (ipte_t * i)
 {
-  assert(i->p);
+  assert (i->p);
   return i->pfn;
 }
 
 static inline enum ipte_status
-ipte_status(ipte_t *i)
+ipte_status (ipte_t * i)
 {
   return
-    ipte_empty(i) ? STIPTE_EMPTY :
-    ipte_pagingin(i) ? STIPTE_PAGINGIN :
-    ipte_pagingout(i) ? STIPTE_PAGINGOUT :
-    ipte_paged(i) ? STIPTE_PAGED :
-    ipte_roshared(i) ? STIPTE_ROSHARED :
-    ipte_private(i) ? STIPTE_PRIVATE :
-    ({ fatal("Invalid ipte entry %lx\n", i->raw); STIPTE_EMPTY; });
+    ipte_empty (i) ? STIPTE_EMPTY :
+    ipte_pagingin (i) ? STIPTE_PAGINGIN :
+    ipte_pagingout (i) ? STIPTE_PAGINGOUT :
+    ipte_paged (i) ? STIPTE_PAGED :
+    ipte_roshared (i) ? STIPTE_ROSHARED :
+    ipte_private (i) ? STIPTE_PRIVATE : (
+						{
+						fatal
+						("Invalid ipte entry %lx\n",
+						 i->raw);
+						STIPTE_EMPTY;
+						}
+  );
 }
 
 #define IPTE_EMPTY 	((ipte_t){ .p = 0, .status = IPTE_EMPTY })
@@ -122,70 +132,86 @@ ipte_status(ipte_t *i)
   filesystems. Allows to keep a single page for indexing small
   objects, and gradually deeper indirect tables for larger objects.
 */
-struct imap {
+struct imap
+{
   ipte_t l1;
   ipte_t l2;
   ipte_t l3;
 };
 
-void imap_init(struct imap *im);
-ipte_t imap_map(struct imap *im, unsigned long off, pfn_t pfn, bool roshared, mcn_vmprot_t mask);
-ipte_t imap_lookup(struct imap *im, unsigned long off);
+void imap_init (struct imap *im);
+ipte_t imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
+		 mcn_vmprot_t mask);
+ipte_t imap_lookup (struct imap *im, unsigned long off);
 
-struct cacheobj_mapping {
+/**INDENT-OFF**/
+struct cacheobj_mapping
+{
   struct umap *umap;
   vaddr_t start;
   size_t size;
   unsigned long off;
-  LIST_ENTRY(cacheobj_mapping) list;
+  LIST_ENTRY (cacheobj_mapping) list;
 };
 
-struct cacheobj {
+struct cacheobj
+{
   rwlock_t lock;
   /*
-    Size of the memory object.
-  */
+     Size of the memory object.
+   */
   size_t size;
 
   /*
-    Offset to PFN map.
-  */
+     Offset to PFN map.
+   */
   struct imap map;
 
   /*
-    VM regions this cache is mapped into.
-  */
-  LIST_HEAD(,cacheobj_mapping) mappings;
+     VM regions this cache is mapped into.
+   */
+  LIST_HEAD (, cacheobj_mapping) mappings;
 };
+/**INDENT-ON**/
 
 struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
-void cacheobj_addmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
-void cacheobj_delmapping(struct cacheobj *cobj, struct cacheobj_mapping *cobjm);
-ipte_t cacheobj_map(struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn, bool roshared, mcn_vmprot_t protmask);
-ipte_t cacheobj_lookup(struct cacheobj *cobj, mcn_vmoff_t off);
+void cacheobj_addmapping (struct cacheobj *cobj,
+			  struct cacheobj_mapping *cobjm);
+void cacheobj_delmapping (struct cacheobj *cobj,
+			  struct cacheobj_mapping *cobjm);
+ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
+		     bool roshared, mcn_vmprot_t protmask);
+ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 
-void memcache_init(void);
-pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared, mcn_vmprot_t protmask);
-pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask);
+void memcache_init (void);
+pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
+			     bool roshared, mcn_vmprot_t protmask);
+pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+			mcn_vmprot_t protmask);
 
-struct cobj_link {
+/**INDENT-OFF**/
+struct cobj_link
+{
   struct cacheobj *cobj;
   mcn_vmoff_t off;
-  LIST_ENTRY(cobj_link) list;
+  LIST_ENTRY (cobj_link) list;
 };
 
-struct physmem_page {
+struct physmem_page
+{
   lock_t lock;
   unsigned long links_no;
-  LIST_HEAD(,cobj_link) links;
-  TAILQ_ENTRY(physmem_page) pageq;
+  LIST_HEAD (, cobj_link) links;
+  TAILQ_ENTRY (physmem_page) pageq;
 };
+/**INDENT-ON**/
 
-void memctrl_newpage(struct physmem_page *page);
+void memctrl_newpage (struct physmem_page *page);
 
 struct vmobj;
-struct vmobjref {
+struct vmobjref
+{
   struct vmobj *obj;
 };
 
@@ -194,9 +220,9 @@ struct vmobjref {
 struct vmobj
 {
   /*
-    The lock in a VM object is shared with all objects in the shadow
-    chain.
-  */
+     The lock in a VM object is shared with all objects in the shadow
+     chain.
+   */
   lock_t *lock;
   bool private;
   unsigned long _ref_count;
@@ -205,40 +231,42 @@ struct vmobj
   struct vmobjref copy;
 };
 
-void vmobj_init(void);
-struct vmobjref vmobj_new(bool private, size_t size);
-void vmobj_addregion(struct vmobj *vmobj, struct vm_region *vmreg, struct umap *umap);
-void vmobj_delregion(struct vmobj *vmobj, struct vm_region *vmreg);
-bool vmobj_fault(struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot, pfn_t *outpfn);
+void vmobj_init (void);
+struct vmobjref vmobj_new (bool private, size_t size);
+void vmobj_addregion (struct vmobj *vmobj, struct vm_region *vmreg,
+		      struct umap *umap);
+void vmobj_delregion (struct vmobj *vmobj, struct vm_region *vmreg);
+bool vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
+		  pfn_t * outpfn);
 
 static inline struct vmobjref
-vmobjref_move(struct vmobjref *objref)
+vmobjref_move (struct vmobjref *objref)
 {
-  return REF_MOVE(*objref);
+  return REF_MOVE (*objref);
 }
 
 static inline struct vmobjref
-vmobjref_clone(struct vmobjref *objref)
+vmobjref_clone (struct vmobjref *objref)
 {
-  return REF_DUP(*objref);
+  return REF_DUP (*objref);
 }
 
 static inline struct vmobj *
-vmobjref_unsafe_get(struct vmobjref *objref)
+vmobjref_unsafe_get (struct vmobjref *objref)
 {
-  return REF_GET(*objref);
+  return REF_GET (*objref);
 }
 
 static inline bool
-vmobjref_isnull(struct vmobjref *objref)
+vmobjref_isnull (struct vmobjref *objref)
 {
-  return vmobjref_unsafe_get(objref) == NULL;
+  return vmobjref_unsafe_get (objref) == NULL;
 }
 
 static inline void
-vmobjref_consume(struct vmobjref objref)
+vmobjref_consume (struct vmobjref objref)
 {
-  /* XXX: DELETE IF */REF_DESTROY(objref);
+  /* XXX: DELETE IF */ REF_DESTROY (objref);
 }
 
 struct vm_region;
@@ -252,20 +280,21 @@ struct reg_alloc
   unsigned nfree;
 };
 
+/**INDENT-OFF**/
 struct vm_region
 {
 #define VMR_TYPE_FREE 0
 #define VMR_TYPE_USED 1
   uint8_t type;
-  
+
   /*
-    Region Allocator.
-  */
+     Region Allocator.
+   */
   struct rb_node rb_regs;
   /*
-    This is used as freelist when the region is free.
-  */
-  LIST_ENTRY(vm_region) list;
+     This is used as freelist when the region is free.
+   */
+  LIST_ENTRY (vm_region) list;
 
   struct cacheobj_mapping *cobjm;
   vaddr_t start;
@@ -276,11 +305,13 @@ struct vm_region
   struct vmobjref objref;
   unsigned long off;
 };
+/**INDENT-ON**/
 
 #define MSGBUF_ORDMAX 1
 struct msgbuf_zentry;
 LIST_HEAD (msgbuflist, msgbuf_zentry);
-struct msgbuf_zone {
+struct msgbuf_zone
+{
   rb_tree_t rbtree;
   uintptr_t opq;
   unsigned long bmap;
@@ -288,42 +319,47 @@ struct msgbuf_zone {
   unsigned nfree;
 };
 
-void msgbuf_new(struct msgbuf_zone *z, vaddr_t vastart, vaddr_t vaend);
+void msgbuf_new (struct msgbuf_zone *z, vaddr_t vastart, vaddr_t vaend);
 
 /*
   Machina VM Map.
 */
-struct vmmap {
+struct vmmap
+{
   lock_t lock;
 
   /*
-    VM Regions handling.
-  */
+     VM Regions handling.
+   */
   struct rb_tree regions;
   struct reg_alloc zones;
   size_t total;
   size_t free;
 
   /*
-    User pagetable mappings.
-  */
+     User pagetable mappings.
+   */
   struct umap umap;
 
   /*
-    Message Buffer allocation.
-  */
+     Message Buffer allocation.
+   */
   struct msgbuf_zone msgbuf_zone;
 };
 
 struct msgbuf;
 bool vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf);
-bool vmmap_alloctls (struct vmmap *map, uaddr_t *tls);
-void vmmap_enter(struct vmmap *map);
-void vmmap_bootstrap(struct vmmap *map);
-void vmmap_setup(struct vmmap *map);
+bool vmmap_alloctls (struct vmmap *map, uaddr_t * tls);
+void vmmap_enter (struct vmmap *map);
+void vmmap_bootstrap (struct vmmap *map);
+void vmmap_setup (struct vmmap *map);
 
-mcn_return_t vmmap_alloc (struct vmmap *map, struct vmobjref objref, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t *addrout);
-void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref, unsigned long off, size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot);
+mcn_return_t vmmap_alloc (struct vmmap *map, struct vmobjref objref,
+			  size_t size, mcn_vmprot_t curprot,
+			  mcn_vmprot_t maxprot, vaddr_t * addrout);
+void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref,
+		unsigned long off, size_t size, mcn_vmprot_t curprot,
+		mcn_vmprot_t maxprot);
 void vmmap_free (struct vmmap *map, vaddr_t start, size_t size);
 bool vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqfault);
 void vmmap_setupregions (struct vmmap *map);
@@ -331,6 +367,6 @@ void vmmap_printregions (struct vmmap *map);
 
 
 
-void vmreg_init(void);
+void vmreg_init (void);
 
 #endif

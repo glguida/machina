@@ -10,7 +10,7 @@
 #include <machina/types.h>
 #include <machina/mig_errors.h>
 
-mcn_portid_t mig_get_reply_port(void);
-void  mig_dealloc_reply_port(void);
+mcn_portid_t mig_get_reply_port (void);
+void mig_dealloc_reply_port (void);
 
 #endif

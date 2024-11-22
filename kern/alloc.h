@@ -78,12 +78,12 @@ msbit (unsigned long x)
 }
 
 static inline void
-_zone_detachentry (__ZONE_T *z, struct __ZENTRY *ze)
+_zone_detachentry (__ZONE_T * z, struct __ZENTRY *ze)
 {
   uint32_t msb;
 
   assert (ze->size != 0);
-  msb = MIN(ORDMAX - 1, msbit (ze->size));
+  msb = MIN (ORDMAX - 1, msbit (ze->size));
   assert (msb < ORDMAX);
 
   LIST_REMOVE (ze, list);
@@ -96,12 +96,12 @@ _zone_detachentry (__ZONE_T *z, struct __ZENTRY *ze)
 }
 
 static inline void
-_zone_attachentry (__ZONE_T *z, struct __ZENTRY *ze)
+_zone_attachentry (__ZONE_T * z, struct __ZENTRY *ze)
 {
   uint32_t msb;
 
   assert (ze->size != 0);
-  msb = MIN(ORDMAX - 1, msbit (ze->size));
+  msb = MIN (ORDMAX - 1, msbit (ze->size));
   assert (msb < ORDMAX);
 
   dbgprintf ("LIST_INSERT(%p + %d, %p), bmap (%lx ->", z->zlist, msb,
@@ -116,7 +116,7 @@ _zone_attachentry (__ZONE_T *z, struct __ZENTRY *ze)
 }
 
 static inline struct __ZENTRY *
-_zone_findfree (__ZONE_T *zn, size_t size)
+_zone_findfree (__ZONE_T * zn, size_t size)
 {
   unsigned long tmp;
   unsigned int minbit;
@@ -144,14 +144,14 @@ _zone_findfree (__ZONE_T *zn, size_t size)
 }
 
 static inline void
-zone_remove (__ZONE_T *z, struct __ZENTRY *ze)
+zone_remove (__ZONE_T * z, struct __ZENTRY *ze)
 {
   _zone_detachentry (z, ze);
   ___freeptr (ze, z->opq);
 }
 
 static inline void
-zone_create (__ZONE_T *z, zaddr_t zaddr, size_t size)
+zone_create (__ZONE_T * z, zaddr_t zaddr, size_t size)
 {
   struct __ZENTRY *ze, *pze = NULL, *nze = NULL;
   zaddr_t fprev = zaddr, lnext = zaddr + size;
@@ -177,7 +177,7 @@ zone_create (__ZONE_T *z, zaddr_t zaddr, size_t size)
 
 
 static inline void
-zone_free (__ZONE_T *z, zaddr_t zaddr, size_t size)
+zone_free (__ZONE_T * z, zaddr_t zaddr, size_t size)
 {
 
   assert (size != 0);
@@ -186,7 +186,7 @@ zone_free (__ZONE_T *z, zaddr_t zaddr, size_t size)
 }
 
 static inline zaddr_t
-zone_alloc (__ZONE_T *z, size_t size)
+zone_alloc (__ZONE_T * z, size_t size)
 {
   struct __ZENTRY *ze;
   zaddr_t addr = (zaddr_t) - 1;
@@ -211,7 +211,7 @@ out:
 }
 
 static inline void
-zone_init (__ZONE_T *z, uintptr_t opq)
+zone_init (__ZONE_T * z, uintptr_t opq)
 {
   int i;
 

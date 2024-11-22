@@ -12,20 +12,18 @@
 
 typedef struct
 {
-  uint32_t msgt_name : 8,
-    msgt_size : 8,
-    msgt_number : 12,
-    msgt_inline : 1,
-    msgt_longform : 1,
-    msgt_deallocate : 1,
-    msgt_unused : 1;
+  uint32_t msgt_name:8,
+    msgt_size:8,
+    msgt_number:12,
+    msgt_inline:1, msgt_longform:1, msgt_deallocate:1, msgt_unused:1;
 } mcn_msgtype_t;
 
-typedef	struct	{
-  mcn_msgtype_t		msgtl_header;
-  unsigned short	msgtl_name;
-  unsigned short	msgtl_size;
-  unsigned	       	msgtl_number;
+typedef struct
+{
+  mcn_msgtype_t msgtl_header;
+  unsigned short msgtl_name;
+  unsigned short msgtl_size;
+  unsigned msgtl_number;
 } mcn_msgtype_long_t;
 
 typedef uint8_t mcn_msgtype_name_t;
@@ -122,7 +120,8 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_RCV_BODY_ERROR  0x1000400c
 
 
-typedef struct mcn_msgheader {
+typedef struct mcn_msgheader
+{
   mcn_msgbits_t msgh_bits;
   mcn_msgsize_t msgh_size;
   mcn_portid_t msgh_remote;

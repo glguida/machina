@@ -7,10 +7,12 @@
 #include "internal.h"
 
 lock_t timers_lock = 0;
-static LIST_HEAD (, timer) timers = LIST_HEAD_INITIALIZER (timers);
+static
+LIST_HEAD (, timer)
+  timers = LIST_HEAD_INITIALIZER (timers);
 
-void
-timer_run (void)
+     void
+     timer_run (void)
 {
   int updated;
   uint64_t cnt = timer_gettime ();
@@ -46,7 +48,7 @@ void
 timer_register (struct timer *t, uint64_t nsecs)
 {
   struct timer *c;
-  uint64_t curtime = timer_gettime();
+  uint64_t curtime = timer_gettime ();
   uint64_t time = curtime + nsecs;
 
   if (!t->valid)
@@ -97,4 +99,3 @@ timer_remove (struct timer *timer)
   spinunlock (&timers_lock);
   timer->valid = 0;
 }
-
