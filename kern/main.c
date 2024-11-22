@@ -12,6 +12,8 @@
 #include "internal.h"
 #include "vm.h"
 
+#include <ku.h>
+
 cpumask_t idlemap;
 
 void
@@ -157,8 +159,15 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
   
   if (!vmmap_fault (&cur_task()->vmmap, va, req))
     {
-      printf("destroying cur thread\n");
-      sched_destroy(cur_thread());
+      printf ("Sending simple\n");
+      struct portref pr;
+      struct ipcspace *ps;
+      ps = task_getipcspace (cur_task ());
+      ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
+      task_putipcspace (cur_task (), ps);
+      simple (portref_to_ipcport (&pr));
+      printf ("destroying cur thread\n");
+      sched_destroy (cur_thread ());
     }
   return kern_return();
 }
