@@ -316,6 +316,8 @@ enum kern_objtype
 {
   KOT_TASK,
   KOT_THREAD,
+  KOT_VMOBJ,
+  KOT_VMOBJ_NAME,
 };
 
 struct port
@@ -400,9 +402,9 @@ ipcport_unsafe_get (ipc_port_t ipcport)
 }
 
 static inline void
-portref_consume (struct portref portref)
+portref_consume (struct portref *portref)
 {
-  /* XXX: DELETE IF */ REF_DESTROY (portref);
+  /* XXX: DELETE IF */ REF_DESTROY (*portref);
 }
 
 
@@ -495,8 +497,10 @@ void task_putipcspace (struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright (struct task *t, struct portright *pr,
 				mcn_portid_t * id);
 mcn_return_t task_allocate_port (struct task *t, mcn_portid_t * newid);
+mcn_return_t task_vm_map (struct task *t, vaddr_t *addr, size_t size, unsigned long mask, bool anywhere, struct vmobjref objref, mcn_vmoff_t off, bool copy, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, mcn_vminherit_t inherit);
 mcn_return_t task_vm_allocate (struct task *t, vaddr_t * addr, size_t size,
 			       bool anywhere);
+mcn_return_t task_vm_region (struct task *t, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off);
 mcn_portid_t task_self (void);
 
 struct taskref

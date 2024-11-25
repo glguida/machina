@@ -1,4 +1,4 @@
-LIBRARY=ks_kern
+LIBRARY=ku_kern
 SRCS+= ku.c
 
 @COMPILE_LIBEC@

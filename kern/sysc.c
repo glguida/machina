@@ -14,6 +14,29 @@
 
 void *convert_port_to_taskptr (ipc_port_t port);
 
+mcn_return_t
+syscall_getport(mcn_portid_t port, struct portref *portref)
+{
+  mcn_return_t rc;
+
+  struct ipcspace *ps = task_getipcspace (cur_task ());
+  rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, port, portref);
+  task_putipcspace (cur_task (), ps);
+  return rc;
+}
+
+mcn_return_t
+syscall_setport(struct portref portref, mcn_portid_t *portid)
+{
+  mcn_return_t rc;
+  struct portright right = portright_from_portref(RIGHT_SEND, portref);
+
+  struct ipcspace *ps = task_getipcspace (cur_task ());
+  rc = ipcspace_insertright (ps, &right, portid);
+  task_putipcspace (cur_task (), ps);
+  return rc;
+}
+
 uctxt_t *
 entry_sysc (uctxt_t * u,
 	    unsigned long a1, unsigned long a2, unsigned long a3,
@@ -55,38 +78,141 @@ entry_sysc (uctxt_t * u,
     case __syscall_task_self:
       ret = task_self ();
       break;
-    case __syscall_vm_allocate:
+    case __syscall_vm_map:
       {
-	mcn_return_t rc;
-	struct portref task_pr;
-	mcn_vmaddr_t addr = *(mcn_vmaddr_t *) cur_kmsgbuf ();
-	struct ipcspace *ps = task_getipcspace (cur_task ());
+	volatile struct __syscall_vm_map_in in = * (volatile struct __syscall_vm_map_in *)cur_kmsgbuf ();
+	struct portref task_pr, vmobj_pr;
+	struct task *task;
+	struct vmobjref vmobjref;
+	vaddr_t vaddr;
 
-	rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, a2, &task_pr);
-	task_putipcspace (cur_task (), ps);
-	if (rc)
-	  {
-	    ret = rc;
-	    break;
-	  }
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
 
-	ipc_port_t task_intport = portref_to_ipcport (&task_pr);
-	struct task *task = convert_port_to_taskptr (task_intport);
+	/*
+	  XXX: THE FOLLOWING SHOULD GET REFERENCES NOT POINTERS!
+	*/
+	task = port_getkobj (portref_unsafe_get (&task_pr), KOT_TASK);
 	if (task == NULL)
 	  {
-	    task_pr = ipcport_to_portref (&task_intport);
-	    portref_consume (task_pr);
+	    portref_consume(&task_pr);
 	    ret = KERN_INVALID_NAME;
 	    break;
 	  }
+
+	ret = syscall_getport(in.objname, &vmobj_pr);
+	if (ret)
+	  {
+	    portref_consume(&task_pr);
+	    break;
+	  }
+
+	/*
+	  XXX: THE FOLLOWING SHOULD GET REFERENCES NOT POINTERS!
+	*/
+	vmobjref = vmobjref_from_nameport (&vmobj_pr);
+	if (vmobjref_isnull(&vmobjref))
+	  {
+	    portref_consume(&vmobj_pr);
+	    portref_consume(&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	printf ("SYSC: map task %p addr %lx size %lx mask %lx anywhere ? %d\n",
+		task, in.addr, in.size, in.mask, in.anywhere, in.objname, in.off, in.copy, in.curprot, in.maxprot, in.inherit);
+	vaddr = in.addr;
+	ret = task_vm_map(task, &vaddr, in.size, in.mask, in.anywhere, vmobjref, in.off, in.copy, in.curprot, in.maxprot, in.inherit);
+	
+	portref_consume(&vmobj_pr);
+	portref_consume(&task_pr);
+	*(mcn_vmaddr_t *) cur_kmsgbuf () = vaddr;
+      }
+      break;
+    case __syscall_vm_allocate:
+      {
+	mcn_vmaddr_t addr = *(mcn_vmaddr_t *) cur_kmsgbuf ();
+	struct portref task_pr;
+	struct task *task;
+
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
+
+	/*
+	  XXX: THE FOLLOWING SHOULD GET REFERENCES NOT POINTERS!
+	*/
+	task = port_getkobj (portref_unsafe_get (&task_pr), KOT_TASK);
+	if (task == NULL)
+	  {
+	    portref_consume (&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
 	printf
 	  ("SYSC: vmallocate task %p, addr %lx, size %lx, anywhere? %ld\n",
 	   task, addr, a3, a4);
-	rc = task_vm_allocate (task, &addr, a3, a4);
-	task_pr = ipcport_to_portref (&task_intport);
-	portref_consume (task_pr);
+	ret = task_vm_allocate (task, &addr, a3, a4);
+	portref_consume (&task_pr);
 	*(mcn_vmaddr_t *) cur_kmsgbuf () = addr;
-	ret = rc;
+	break;
+      }
+
+    case __syscall_vm_region:
+      {
+	struct portref task_pr;
+	struct task *task;
+
+	printf("SYSC: VMREGION GETPORT %lx\n", a2);
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
+
+	/*
+	  XXX: THE FOLLOWING SHOULD GET REFERENCES NOT POINTERS!
+	*/
+	task = port_getkobj (portref_unsafe_get (&task_pr), KOT_TASK);
+	if (task == NULL)
+	  {
+	    portref_consume (&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	mcn_vmaddr_t addr = *(volatile mcn_vmaddr_t *) cur_kmsgbuf ();
+	volatile struct __syscall_vm_region_out *out = cur_kmsgbuf ();
+	size_t size;
+	mcn_vmprot_t curprot, maxprot;
+	mcn_vminherit_t inherit;
+	bool shared;
+	struct portref portref;
+	mcn_portid_t objname;
+	mcn_vmoff_t off;
+
+	printf ("SYSC: vmregion task %p addr %lx\n", task, addr);
+	ret = task_vm_region (task,
+			      &addr, &size, &curprot, &maxprot, &inherit, &shared, &portref, &off);
+	if (ret)
+	  break;
+
+	ret = syscall_setport(portref, &objname);
+	if (ret)
+	  {
+	    portref_consume (&portref);
+	    break;
+	  }
+
+	out->addr = addr;
+	out->size = size;
+	out->curprot = curprot;
+	out->maxprot = maxprot;
+	out->inherit = inherit;
+	out->shared = shared;
+	out->objname = objname;
+	out->off = off;
+	ret = KERN_SUCCESS;
 	break;
       }
     case 0:

@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <nux/nux.h>
 
-#include "vm.h"
+#include "internal.h"
 
 /*
   Indirect Map.
@@ -50,6 +50,7 @@ _puttable (ipte_t ipte, void *ptr)
 
 #define ISHIFT (PAGE_SHIFT - 3)	/* 3 = LOG2(sizeof(ipte)) */
 #define IMASK ((1 << ISHIFT) - 1)
+#define IENTRIES (1 << ISHIFT)
 #define L1IDX(off) ((off >> PAGE_SHIFT) & IMASK)
 #define L2IDX(off) ((off >> (PAGE_SHIFT + ISHIFT)) & IMASK)
 #define L3IDX(off) ((off >> (PAGE_SHIFT + 2 * ISHIFT)) & IMASK)
@@ -148,4 +149,69 @@ ipte_t
 imap_lookup (struct imap *im, unsigned long off)
 {
   return _get_entry (im, off, false, IPTE_EMPTY);
+}
+
+/*
+  Imap iterator.
+*/
+
+void
+_scan_l1 (ipte_t *l1ptr, unsigned long base, void (*fn)(unsigned long, ipte_t *))
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    if (l1ptr[i].p)
+      fn(base + (unsigned long)i * PAGE_SIZE, l1ptr + i);
+}
+
+void
+_scan_l2 (ipte_t *l2ptr, unsigned long base, void (*fn)(unsigned long, ipte_t*))
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    {
+      ipte_t *l1ptr = _gettable(l2ptr + i, false);
+      if (!l1ptr)
+	continue;
+      _scan_l1(l1ptr, base + (i << (PAGE_SHIFT + ISHIFT)), fn);
+      _puttable(l2ptr[i], l1ptr);
+    }
+}
+
+void
+_scan_l3 (ipte_t *l3ptr, unsigned long base, void (*fn)(unsigned long, ipte_t *))
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    {
+      ipte_t *l2ptr = _gettable(l3ptr + i, false);
+      if (!l2ptr)
+	continue;
+      _scan_l2(l2ptr, base + (i << (PAGE_SHIFT + ISHIFT + ISHIFT)), fn);
+      _puttable(l3ptr[i], l2ptr);
+    }
+}
+
+void
+imap_foreach (struct imap *im, void (*fn)(unsigned long off, ipte_t *ipte))
+{
+  ipte_t *table;
+
+  table = _gettable (&im->l1, false);
+  if (table)
+    {
+      _scan_l1(table, 0, fn);
+      _puttable (im->l1, table);
+    }
+
+  table = _gettable (&im->l2, false);
+  if (table)
+    {
+      _scan_l2(table, 0, fn);
+      _puttable (im->l2, table);
+    }
+
+  table = _gettable (&im->l3, false);
+  if (table)
+    {
+      _scan_l3(table, 0, fn);
+      _puttable (im->l3, table);
+    }
 }

@@ -11,6 +11,8 @@
 #include <cs.h>
 #include <cs_server.h>
 
+#define printf(...) printf("\t\tTEST: " __VA_ARGS__);
+
 void
 putchar (int c)
 {
@@ -164,23 +166,60 @@ main (void)
   printf ("\n--\n\n");
 
   volatile int *ptr = (int *) 0x2000;
-  printf ("ptr is %lx\n", *ptr);
+  //  printf ("ptr is %lx\n", *ptr);
 
-  *ptr = 1;
-  printf ("ptr is %lx\n", *ptr);
+  //  *ptr = 1;
+  //  printf ("ptr is %lx\n", *ptr);
 
   printf ("task_self is %lx\n", syscall_task_self ());
 
   mcn_vmaddr_t addr;
   printf ("vm allocate %lx\n",
-	  syscall_vm_allocate (syscall_task_self (), &addr, 2 * 1024, 1));
+	  syscall_vm_allocate (syscall_task_self (), &addr, 3 * 4096, 1));
   printf ("Allocated address %lx\n", addr);
   *(volatile int *) addr = 5;
   printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
 
+
+  {
+    mcn_vmaddr_t newaddr;
+    unsigned long size;
+    mcn_vmprot_t curprot;
+    mcn_vmprot_t maxprot;
+    mcn_vminherit_t inherit;
+    unsigned shared;
+    mcn_portid_t nameid;
+    mcn_vmoff_t off;
+
+    addr = addr + 0x800;
+    printf ("vm_region %lx\n", syscall_vm_region (syscall_task_self (), &addr, &size, &curprot, &maxprot, &inherit, &shared, &nameid, &off));
+    printf(
+	   "\t%Addr: %lx\n\tSize: %lx\n\tCurprot: %lx\n\tMaxprot: %lx\n\tnameid: %lx\n\tOff: %lx\n",
+	   addr, size, curprot, maxprot, nameid, off);
+
+    printf ("vm map %lx\n",
+   	    syscall_vm_map (syscall_task_self (), &newaddr, size, 0, 1, nameid, off, 1, curprot, maxprot, inherit));
+
+    printf("New Addr is %lx\n", newaddr);
+    //    printf("[%lx] = %x\n",   newaddr, *(volatile int *) newaddr);
+    printf("Writing ff to new addr\n");
+    *(volatile int *) newaddr = 0xff;
+    printf("Reading from new addr\n");
+    printf("[%lx] = %x\n",   newaddr, *(volatile int *) newaddr);
+    printf("Reading from old addr\n");
+    printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
+
+    addr += 4096;
+    newaddr += 4096;
+    *(volatile int *) addr = 0xff;
+    printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
+    printf ("[%lx] is %d\n", newaddr, *(volatile int *) newaddr);
+
+    
+  }
+
   ptr = (int *) 0x3000;
   printf ("ptr is %lx\n", *ptr);
-
 
 
   while (1);

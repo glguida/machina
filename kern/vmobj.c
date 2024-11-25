@@ -19,44 +19,96 @@ vmobj_new (bool private, size_t size)
 
   obj = slab_alloc (&vmobjs);
   obj->lock = slab_alloc (&vmobjlocks);
+  port_alloc_kernel ((void *) obj, KOT_VMOBJ, &obj->control_port);
+  port_alloc_kernel ((void *) obj, KOT_VMOBJ_NAME, &obj->name_port);
   spinlock_init (obj->lock);
   obj->private = private;
   cacheobj_init (&obj->cobj, size);
   obj->shadow = VMOBJREF_NULL;
-  obj->copy = VMOBJREF_NULL;
+  obj->copy = NULL;
   obj->_ref_count = 1;
   ref.obj = obj;
   return ref;
 }
 
+struct vmobjref
+vmobj_shadowcopy (struct vmobjref *ref)
+{
+  struct vmobj *new = slab_alloc (&vmobjs);
+  struct vmobj *obj = vmobjref_unsafe_get(ref);
+
+  spinlock (obj->lock);
+  new->lock = obj->lock; /* Shadow chains share the same lock. */
+  cacheobj_shadow (&obj->cobj, &new->cobj);
+  obj->private = true;
+
+  struct vmobjref newref = (struct vmobjref){ .obj = new, };
+  new->_ref_count = 1;
+
+  /* Insert new object between current object and its copy. */
+  new->shadow = REF_DUP(*ref);
+  new->copy = obj->copy;
+  obj->copy = new;
+  if (new->copy)
+    new->copy->shadow = REF_DUP(newref);
+
+  spinunlock(obj->lock);
+
+  return newref;
+}
+
+
 /*
   Request the PFN for the object, with permission reqprot.
 */
 bool
-vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
+vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	     pfn_t * outpfn)
 {
   bool ret;
   ipte_t ipte;
+  struct vmobj *vmobj;
 
-  spinlock (vmobj->lock);
+  spinlock (tgtobj->lock);
+  printf("VMOBJ: FAULT FOR OBJECT %p START =============================\n", tgtobj);
+  vmobj = tgtobj;
+ _fault_redo:
+  
   info ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
   ipte = cacheobj_lookup (&vmobj->cobj, off);
+
   info ("IPTE IS %lx\n", ipte.raw);
   switch (ipte_status (&ipte))
     {
     case STIPTE_EMPTY:
       info ("IPTE EMPTY");
+
       /*
-         XXX: WALK SHADOW HERE.
-       */
-      if (vmobj->private)
+	If we have a shadow, search for a page there.
+      */
+      if (vmobjref_unsafe_get(&vmobj->shadow) != NULL)
+	{
+	  vmobj = vmobjref_unsafe_get(&vmobj->shadow);
+	  goto _fault_redo;
+	}
+      else if (vmobj->private)
 	{
 	  /*
 	     Private objects can request zero pages with no permission limits.
 	   */
+	  if (tgtobj->copy)
+	    {
+	      /*
+		There's a copy. This was a zero page. Push the zero page.
+	      */
+	      struct vmobj *copy_obj = tgtobj->copy;
+	      ipte_t copy_ipte = cacheobj_lookup (&tgtobj->cobj, off);
+	      printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %"PRIx64"\n", &copy_obj->cobj, off, ipte.raw);
+	      if (ipte_empty(&copy_ipte))
+		memcache_zeropage_new (&copy_obj->cobj, off, true, MCN_VMPROT_NONE);
+	    }
 	  *outpfn =
-	    memcache_zeropage_new (&vmobj->cobj, off,
+	    memcache_zeropage_new (&tgtobj->cobj, off,
 				   reqprot & MCN_VMPROT_WRITE ? false : true,
 				   MCN_VMPROT_NONE);
 	  ret = true;
@@ -100,17 +152,36 @@ vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       break;
 
     case STIPTE_ROSHARED:
-      info ("IPTE ROSHARED (reqprot: %x, protmask: %x", reqprot,
+      info ("IPTE ROSHARED (reqprot: %x, protmask: %x)", reqprot,
 	    ipte_protmask (&ipte));
       if (reqprot & ipte_protmask (&ipte))
 	{
 	  ret = false;
 	  break;
 	}
+      printf("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
+      if (tgtobj != vmobj)
+	{
+	  /*
+	    If we are in shadow fault, we have to share it with the
+	    target imap fisrt.
+	   */
+	  memcache_share (ipte_pfn (&ipte), &tgtobj->cobj, off, ipte_protmask (&ipte));
+	}
       if (reqprot & MCN_VMPROT_WRITE)
-	*outpfn =
-	  memcache_unshare (ipte_pfn (&ipte), &vmobj->cobj, off,
-			    ipte_protmask (&ipte));
+	{
+	  if (tgtobj->copy)
+	    {
+	      struct vmobj *copy_obj = tgtobj->copy;
+	      ipte_t copy_ipte = cacheobj_lookup (&tgtobj->cobj, off);
+	      printf ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"PRIx64"\n", ipte_pfn(&ipte), &copy_obj->cobj, off, ipte.raw);
+	      if (ipte_empty(&copy_ipte))
+		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off, ipte_protmask (&ipte));
+	    }
+	  *outpfn =
+	    memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
+			      ipte_protmask (&ipte));
+	}
       else
 	*outpfn = ipte_pfn (&ipte);
       ret = true;
@@ -127,7 +198,8 @@ vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       ret = true;
       break;
     }
-  spinunlock (vmobj->lock);
+  printf("VMOBJ FAULT END =============================\n");
+  spinunlock (tgtobj->lock);
   return ret;
 }
 
@@ -157,6 +229,14 @@ vmobj_delregion (struct vmobj *vmobj, struct vm_region *vmreg)
   cacheobj_delmapping (&vmobj->cobj, vmreg->cobjm);
   slab_free (vmreg->cobjm);
   vmreg->cobjm = NULL;
+  spinunlock (vmobj->lock);
+}
+
+void
+vmobj_nameport_clone (struct vmobj *vmobj, struct portref *portref)
+{
+  spinlock (vmobj->lock);
+  *portref = portref_dup(&vmobj->name_port);
   spinunlock (vmobj->lock);
 }
 

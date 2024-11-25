@@ -1,4 +1,4 @@
-subsystem kerneluser kstest 2000;
+subsystem kerneluser kutest 2000;
 
 userprefix user_;
 

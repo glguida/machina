@@ -443,8 +443,8 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
 }
 
 mcn_return_t
-vmmap_alloc (struct vmmap *map, struct vmobjref objref, size_t size,
-	     mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t * addrout)
+vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
+	     size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t * addrout)
 {
   vaddr_t addr;
 
@@ -461,6 +461,7 @@ vmmap_alloc (struct vmmap *map, struct vmobjref objref, size_t size,
   reg->maxprot = maxprot;
   reg->type = VMR_TYPE_USED;
   reg->objref = vmobjref_move (&objref);
+  reg->off = off;
   vmobj_addregion (vmobjref_unsafe_get (&reg->objref), reg, &map->umap);
   rb_tree_insert_node (&map->regions, (void *) reg);
 
@@ -501,10 +502,43 @@ vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref,
   reg->maxprot = maxprot;
   reg->type = VMR_TYPE_USED;
   reg->objref = vmobjref_move (&objref);
+  reg->off = off;
   vmobj_addregion (vmobjref_unsafe_get (&reg->objref), reg, &map->umap);
   rb_tree_insert_node (&map->regions, (void *) reg);
 
   spinunlock (&map->lock);
+}
+
+mcn_return_t
+vmmap_region (struct vmmap *map, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off)
+{
+  struct vm_region *reg;
+
+  spinlock(&map->lock);
+  reg = region_find (map, *addr);
+  if (reg == NULL)
+    {
+      spinunlock (&map->lock);
+      return KERN_INVALID_ADDRESS;
+    }
+  if (reg->type != VMR_TYPE_USED)
+    {
+      spinunlock (&map->lock);
+      return KERN_INVALID_ADDRESS;
+    }
+
+  *addr = reg->start;
+  printf("VMMAP: SIZE is %lx\n", reg->size);
+  *size = reg->size;
+  *curprot = reg->curprot;
+  *maxprot = reg->maxprot;
+  *inherit = MCN_VMINHERIT_DEFAULT; /* XXX: FIXME */
+  *shared = true; /* XXX: FIXME */
+  vmobj_nameport_clone (vmobjref_unsafe_get(&reg->objref), portref);
+  *off = reg->off;
+
+  spinunlock(&map->lock);
+  return KERN_SUCCESS;
 }
 
 bool
@@ -528,7 +562,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
       goto _fault_return;
     }
   printf ("VMMAP: Found reg %lx %lx\n", reg->start, reg->start + reg->size);
-  assert (reg->start >= va);
+  assert (va >= reg->start);
   assert (va < reg->start + reg->size);
 
   switch (reg->type)

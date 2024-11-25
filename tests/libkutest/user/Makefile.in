@@ -1,4 +1,4 @@
-LIBRARY=ks_user
+LIBRARY=ku_user
 SRCS+= ku.c
 
 @COMPILE_LIBMACHINA@

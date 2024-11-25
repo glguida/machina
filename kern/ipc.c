@@ -35,9 +35,15 @@ void
 intmsg_consume (mcn_msgheader_t * intmsg)
 {
   if (intmsg->msgh_remote != 0)
-    portref_consume (ipcport_to_portref (&intmsg->msgh_remote));
+    {
+      struct portref port = ipcport_to_portref (&intmsg->msgh_remote);
+      portref_consume (&port);
+    }
   if (intmsg->msgh_local != 0)
-    portref_consume (ipcport_to_portref (&intmsg->msgh_local));
+    {
+      struct portref port = ipcport_to_portref (&intmsg->msgh_local);
+      portref_consume (&port);
+    }
 }
 
 static mcn_msgioret_t
@@ -52,7 +58,7 @@ externalize (struct ipcspace *ps, mcn_msgheader_t * intmsg,
 
   struct portref local_pref = ipcport_to_portref (&intmsg->msgh_local);
   local = ipcspace_lookup (ps, portref_unsafe_get (&local_pref));
-  portref_consume (local_pref);
+  portref_consume (&local_pref);
 
   remote = MCN_PORTID_NULL;
   if (intmsg->msgh_remote != 0)
@@ -191,7 +197,7 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
     }
 
   rc = port_dequeue (portref_unsafe_get (&recv_pref), timeout, &intmsg);
-  portref_consume (recv_pref);
+  portref_consume (&recv_pref);
   if (rc)
     {
       task_putipcspace (cur_task (), ps);

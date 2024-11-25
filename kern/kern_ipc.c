@@ -63,8 +63,7 @@ create_thread (mcn_portid_t test, long pc, long sp)
 struct task *
 convert_port_to_taskptr (ipc_port_t port)
 {
-  struct portref task_pr = ipcport_to_portref (&port);
-  return port_getkobj (portref_unsafe_get (&task_pr), KOT_TASK);
+  return port_getkobj (ipcport_unsafe_get (port), KOT_TASK);
 }
 
 void

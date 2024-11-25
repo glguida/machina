@@ -40,9 +40,16 @@ typedef unsigned mcn_vmprot_t;
 #define MCN_VMPROT_READ		1
 #define MCN_VMPROT_WRITE	2
 #define MCN_VMPROT_EXECUTE	4
+
 #define MCN_VMPROT_DEFAULT	(MCN_VMPROT_READ|MCN_VMPROT_WRITE)
 #define MCN_VMPROT_ALL		(MCN_VMPROT_READ|MCN_VMPROT_WRITE|MCN_VMPROT_EXECUTE)
-
 #define MCN_VMPROT_NO_CHANGE 8	/* Used by lock_request */
+
+typedef unsigned mcn_vminherit_t;
+#define MCN_VMINHERIT_SHARE ((mcn_vminherit_t) 0)
+#define MCN_VMINHERIT_COPY  ((mcn_vminherit_t) 1)
+#define MCN_VMINHERIT_NONE  ((mcn_vminherit_t) 2)
+
+#define MCN_VMINHERIT_DEFAULT MCN_VMINHERIT_COPY
 
 #endif

@@ -7,12 +7,12 @@
 #include "internal.h"
 
 lock_t timers_lock = 0;
-static
-LIST_HEAD (, timer)
-  timers = LIST_HEAD_INITIALIZER (timers);
+/**INDENT-OFF**/
+static LIST_HEAD (, timer) timers = LIST_HEAD_INITIALIZER (timers);
+/**INDENT-ON**/
 
-     void
-     timer_run (void)
+void
+timer_run (void)
 {
   int updated;
   uint64_t cnt = timer_gettime ();

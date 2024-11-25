@@ -136,7 +136,7 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   page->links_no = 1;
 
   memctrl_newpage (page);
-  return pfn;
+  return newpfn;
 }
 
 pfn_t
@@ -163,7 +163,38 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
 }
 
 /*
-  Unshare.
+  Share Page.
+*/
+void
+memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask)
+{
+  struct physmem_page *page = _get_entry (pfn);
+
+  printf ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj, off, protmask);
+  spinlock(&page->lock);
+
+  if (pfn != zeropfn)
+    {
+      struct cobj_link *cl;
+      cl = slab_alloc (&cobjlinks);
+      assert (cl != NULL);
+      cl->cobj = obj;
+      cl->off = off;
+      LIST_INSERT_HEAD (&page->links, cl, list);
+      page->links_no++;
+    }
+
+  ipte_t old = cacheobj_map (obj, off, pfn, true, protmask);
+  printf ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+
+  spinunlock(&page->lock);
+}
+
+
+/*
+  Unshare Page.
+
+  OBJ will receive a private copy of PFN at offset OFF.
 */
 pfn_t
 memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
@@ -172,7 +203,7 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   pfn_t outpfn;
   struct physmem_page *page = _get_entry (pfn);
 
-  printf ("MEMCACHE: unshared %lx %p %lx (mask: %x)\n", pfn, obj, off,
+  printf ("MEMCACHE: Unshare %lx %p %lx (mask: %x)\n", pfn, obj, off,
 	  protmask);
   spinlock (&page->lock);
 
@@ -188,12 +219,14 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
     }
   else if (page->links_no == 1)
     {
+      printf("MEMCACHE: ONLY ONE LINK!\n");
       /* Only one link. No need to alloc a new page. */
       outpfn = pfn;
     }
   else
     {
       struct cobj_link *v, *t, *found;
+      printf("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
 
       /*
          First, find and remove the link.
@@ -203,6 +236,7 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       {
 	if ((v->cobj == obj) && (v->off == off))
 	  {
+	    page->links_no -= 1;
 	    LIST_REMOVE (v, list);
 	    found = v;
 	    break;
