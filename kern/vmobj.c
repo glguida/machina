@@ -59,6 +59,31 @@ vmobj_shadowcopy (struct vmobjref *ref)
 
 
 /*
+  Insert a zero page in the VM object.
+
+  If we're requesting a writable map, push the shared zero page to the copy.
+*/
+static pfn_t
+_vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off, mcn_vmprot_t reqprot)
+{
+  if (reqprot & MCN_VMPROT_WRITE)
+    {
+      if (obj->copy)
+	{
+	  struct vmobj *copy_obj = obj->copy;
+	  ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
+	  printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %"PRIx64"\n", &copy_obj->cobj, off, copy_ipte.raw);
+	  if (ipte_empty(&copy_ipte))
+	    memcache_zeropage_new (&copy_obj->cobj, off, true, MCN_VMPROT_NONE);
+	}
+      return memcache_zeropage_new (&obj->cobj, off, false, MCN_VMPROT_NONE);
+    }
+  else
+    return memcache_zeropage_new (&obj->cobj, off, true, MCN_VMPROT_NONE);
+}
+
+
+/*
   Request the PFN for the object, with permission reqprot.
 */
 bool
@@ -94,23 +119,9 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       else if (vmobj->private)
 	{
 	  /*
-	     Private objects can request zero pages with no permission limits.
-	   */
-	  if (tgtobj->copy)
-	    {
-	      /*
-		There's a copy. This was a zero page. Push the zero page.
-	      */
-	      struct vmobj *copy_obj = tgtobj->copy;
-	      ipte_t copy_ipte = cacheobj_lookup (&tgtobj->cobj, off);
-	      printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %"PRIx64"\n", &copy_obj->cobj, off, ipte.raw);
-	      if (ipte_empty(&copy_ipte))
-		memcache_zeropage_new (&copy_obj->cobj, off, true, MCN_VMPROT_NONE);
-	    }
-	  *outpfn =
-	    memcache_zeropage_new (&tgtobj->cobj, off,
-				   reqprot & MCN_VMPROT_WRITE ? false : true,
-				   MCN_VMPROT_NONE);
+	    Private objects can request zero pages directly.
+	  */
+	  *outpfn = _vmobj_insertzeropage (tgtobj, off, reqprot);
 	  ret = true;
 	}
       else
@@ -173,7 +184,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	  if (tgtobj->copy)
 	    {
 	      struct vmobj *copy_obj = tgtobj->copy;
-	      ipte_t copy_ipte = cacheobj_lookup (&tgtobj->cobj, off);
+	      ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
 	      printf ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"PRIx64"\n", ipte_pfn(&ipte), &copy_obj->cobj, off, ipte.raw);
 	      if (ipte_empty(&copy_ipte))
 		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off, ipte_protmask (&ipte));
@@ -189,6 +200,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
     case STIPTE_PRIVATE:
       info ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
 	    ipte_protmask (&ipte));
+      assert (tgtobj == vmobj); /* A shadowed page cannot point to a private page. */
       if (reqprot & ipte_protmask (&ipte))
 	{
 	  ret = false;
