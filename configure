@@ -2288,11 +2288,11 @@ fi
 
 case ${ARCH} in #(
   i386) :
-    tool_prefix=i686-unknown-elf ;; #(
+    tool_prefix=i686-unknown-elf upmachine=I386 ;; #(
   amd64) :
-    tool_prefix=amd64-unknown-elf ;; #(
+    tool_prefix=amd64-unknown-elf upmachine=AMD64 ;; #(
   riscv64) :
-    tool_prefix=riscv64-unknown-elf ;; #(
+    tool_prefix=riscv64-unknown-elf upmachine=RISCV64 ;; #(
   *) :
     as_fn_error $? "Supported Architectures: i386, amd64, riscv64" "$LINENO" 5 ;; #(
   *) :
@@ -4055,6 +4055,7 @@ fi
 
 machine=${ARCH}
 
+
 # Check whether --enable-opt was given.
 if test ${enable_opt+y}
 then :
@@ -4083,7 +4084,7 @@ fi
 
 MACHINE=${machine}
 
-CONFIGURE_FLAGS="${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
+CONFIGURE_FLAGS="${optflags} ${wflags} -DMCN_MACHINE_${upmachine}=1 -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
 
 APXH_SUBDIRS=${apxh_subdirs}
 

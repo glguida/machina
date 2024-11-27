@@ -15,7 +15,7 @@ type boolean_t = MCN_MSGTYPE_BOOLEAN;
 type kern_return_t = int;
 type pointer_t = ulong;
 
-type mcn_port_t = MCN_MSGTYPE_COPYSEND
+type mcn_portid_t = MCN_MSGTYPE_COPYSEND
      ctype : mcn_portid_t;
 
 type mcn_port_moverecv_t = MCN_MSGTYPE_MOVERECV
@@ -40,6 +40,5 @@ type mcn_port_once_t = MCN_MSGTYPE_PORTONCE
 
 type mcn_port_poly_t = polymorphic
      ctype : mcn_portid_t;
-
 
 #endif

@@ -17,6 +17,21 @@ vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
 bool
 vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
 {
+  enum tlsvariant {
+  TLS_VARIANT_I = 1,
+  TLS_VARIANT_II = 2,
+  } tlsv;
+
+#if MCN_MACHINE_RISCV64
+  tlsv = TLS_VARIANT_I;
+#endif
+#if MCN_MACHINE_AMD64
+  tlsv = TLS_VARIANT_II;
+#endif
+#if MCN_MACHINE_I386
+  tlsv = TLS_VARIANT_II;
+#endif
+
   /*
      XXX: TLS SUPPORT.
 
@@ -26,10 +41,21 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
    */
   struct msgbuf tlsmb;
   assert (msgbuf_alloc (&map->umap, &map->msgbuf_zone, &tlsmb));
-  *(unsigned long *) (tlsmb.kaddr + MSGBUF_SIZE - sizeof (long)) =
-    tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
-  printf ("tls is %lx\n", (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long));
-  *tls = (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
+  switch (tlsv)
+    {
+    case TLS_VARIANT_I:
+      *(unsigned long *) tlsmb.kaddr = tlsmb.uaddr;
+      *tls = (long) tlsmb.uaddr;
+      break;
+    default:
+    case TLS_VARIANT_II:
+      *(unsigned long *) (tlsmb.kaddr + MSGBUF_SIZE - sizeof (long)) =
+	tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
+      *tls = (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
+      break;
+    }
+  printf ("tls [%s] is %lx\n", tlsv == TLS_VARIANT_I ? "variant I" : "variant II", (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long));
+
   return true;
 }
 

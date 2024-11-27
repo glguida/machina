@@ -19,9 +19,9 @@ if test x"${ARCH}" == x ; then
 fi
 
 AS_CASE([${ARCH}],
-	[i386], [tool_prefix=i686-unknown-elf],
-	[amd64], [tool_prefix=amd64-unknown-elf],
-	[riscv64], [tool_prefix=riscv64-unknown-elf],
+	[i386], [tool_prefix=i686-unknown-elf upmachine=I386],
+	[amd64], [tool_prefix=amd64-unknown-elf upmachine=AMD64],
+	[riscv64], [tool_prefix=riscv64-unknown-elf upmachine=RISCV64],
 	[*], [AC_MSG_ERROR([Supported Architectures: i386, amd64, riscv64])])
 
 AC_ARG_VAR([TOOLCHAIN],[toolchain prefix @<:@default: <ARCH>-elf@:>@])
@@ -55,6 +55,7 @@ fi
 
 machine=${ARCH}
 
+
 AC_ARG_ENABLE([opt],
 	AS_HELP_STRING([--disable-opt],[compile without compiler optimizations]))
 AS_IF([test "x$enable_opt" != "xno"],
@@ -68,7 +69,7 @@ AS_IF([test "x$enable_relax" != "xno"],
 	[wflags=''])
 
 AC_SUBST(MACHINE, ${machine})
-AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
+AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE_${upmachine}=1 -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
 AC_SUBST(APXH_SUBDIRS, [${apxh_subdirs}])
 
 AC_CONFIG_FILES([tools/mig/mig:tools/mig/mig.in], [chmod +x tools/mig/mig])

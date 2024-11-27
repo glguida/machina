@@ -163,14 +163,20 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
 
   if (!vmmap_fault (&cur_task ()->vmmap, va, req))
     {
+      mcn_return_t rc;
       printf ("Sending simple\n");
       struct portref pr;
       struct ipcspace *ps;
       ps = task_getipcspace (cur_task ());
-      ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
+      ipcspace_debug(ps);
+      rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
       task_putipcspace (cur_task (), ps);
-      user_simple (portref_to_ipcport (&pr));
-      printf ("destroying cur thread\n");
+      if (!rc)
+	{
+	  printf("user simple\n");
+	  user_simple (portref_to_ipcport (&pr));
+	  printf ("destroying cur thread\n");
+	}
       sched_destroy (cur_thread ());
     }
   return kern_return ();

@@ -26,13 +26,15 @@ thread_idle (void)
 }
 
 struct thread *
-thread_new (struct task *t, long ip, long sp)
+thread_new (struct task *t, long ip, long sp, long gp)
 {
   struct thread *th;
 
   th = slab_alloc (&threads);
   th->uctxt = (uctxt_t *) (th + 1);
   spinlock_init (&th->lock);
+
+  printf("Allocated thread %p (%lx %lx)\n", th, ip, sp);
 
   spinlock (&t->lock);
   if (!vmmap_allocmsgbuf (&t->vmmap, &th->msgbuf))
@@ -49,10 +51,15 @@ thread_new (struct task *t, long ip, long sp)
     }
   th->task = t;
   LIST_INSERT_HEAD (&t->threads, th, list_entry);
-  uctxt_init (th->uctxt, ip, sp);
+  uctxt_init (th->uctxt, ip, sp, gp);
+  printf("Thread: %p\n", th);
+  uctxt_print (th->uctxt);
+  printf("---------------\n");
   uctxt_settls (th->uctxt, th->tls);
   timer_init (&th->timeout);
   uctxt_print (th->uctxt);
+  printf("---------------\n");
+  printf("---------------\n");
   spinunlock (&t->lock);
 
 
@@ -64,7 +71,7 @@ thread_bootstrap (struct task *t)
 {
   struct thread *th;
 
-  th = thread_new (t, 0, 0);
+  th = thread_new (t, 0, 0, 0);
   if (th == NULL)
     {
       fatal ("Cannot allocate boot thread.");

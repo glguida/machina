@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <rbtree.h>
+#include <string.h>
 #include <nux/hal.h>
 #include <nux/nux.h>
 #include <nux/cpumask.h>
@@ -29,45 +30,10 @@
 /*
   Machina Physical Memory Handling.
 
-  At boot, machina creates a `struct physpage` for each RAM page, and
-  switches to a list-based allocator (as opposed to NUX bitmap-tree based one.
-
-  Each page is typed, and each type contain associated data.
+  A page in machina can be unused, allocated by the kernel, or used by
+  the physical memory cache.
 */
-
-
 void physmem_init (void);
-
-#define TYPE_UNKNOWN 0		/* Page type is unknown. Either non-ram or early nux-allocated. */
-#define TYPE_RESERVED 2		/* Reserved for system use in emergency settings. */
-#define TYPE_FREE 3		/* Page available immediately for allocation. */
-#define TYPE_STANDBY 4		/* Page available for allocation but still containing WSET data. */
-#define TYPE_MODIFIED 5		/* Page contents need to return to pager before being reused. */
-#define TYPE_WSET 6		/* Page being actively used by a working set. */
-#define TYPE_SYSTEM 7		/* Page is allocated by system. */
-#define TYPE_NONRAM 8		/* Page is not RAM or Firmware-allocated. */
-
-struct physpage
-{
-  LIST_ENTRY (physpage) list_entry;
-  pfn_t pfn;
-  uint8_t type;
-  union
-  {
-    struct
-    {
-      uint8_t dirty:1;
-      uint8_t accessed:1;
-    } wset;
-  } u;
-};
-
-#include "pglist.h"
-
-/*
-  Get the `struct physpage` associated with a PFN.
-*/
-struct physpage *physpage_get (pfn_t pfn);
 
 /*
   Allocate a page for kernel use, if `mayfail` is false then allocate
@@ -222,7 +188,7 @@ struct thread
 };
 /**INDENT-ON**/
 
-struct thread *thread_new (struct task *t, long ip, long sp);
+struct thread *thread_new (struct task *t, long ip, long sp, long gp);
 struct thread *thread_idle (void);
 struct thread *thread_bootstrap (struct task *t);
 void thread_enter (struct thread *th);
@@ -395,16 +361,22 @@ portref_unsafe_get (struct portref *portref)
   return REF_GET (*portref);
 }
 
+static inline void
+portref_consume (struct portref *portref)
+{
+  /* XXX: DELETE IF */ REF_DESTROY (*portref);
+}
+
 static inline struct port *
 ipcport_unsafe_get (ipc_port_t ipcport)
 {
   return (struct port *) (uintptr_t) ipcport;
 }
 
-static inline void
-portref_consume (struct portref *portref)
+static inline bool
+ipcport_isnull (ipc_port_t ipcport)
 {
-  /* XXX: DELETE IF */ REF_DESTROY (*portref);
+  return ipcport_unsafe_get (ipcport) == NULL;
 }
 
 
@@ -667,6 +639,9 @@ typename_debug (mcn_msgtype_name_t name)
 static inline void
 message_debug (mcn_msgheader_t * msgh)
 {
+  void *ptr = (void *)(msgh + 1);
+  void *end = (void *)msgh + msgh->msgh_size;
+
   printf ("===== Message %p =====\n", msgh);
   printf ("  bits:   [ R: %s - L: %s ]\n",
 	  typename_debug (MCN_MSGBITS_REMOTE (msgh->msgh_bits)),
@@ -676,6 +651,35 @@ message_debug (mcn_msgheader_t * msgh)
   printf ("  local:  %lx\n", (long) msgh->msgh_local);
   printf ("  seqno:  %lx\n", (long) msgh->msgh_seqno);
   printf ("  msgid:  %ld\n", (long) msgh->msgh_msgid);
+  while (ptr < end)
+    {
+      mcn_msgtype_t *ty = ptr;
+      mcn_msgtype_long_t *longty = ptr;
+      unsigned name, size, number;
+
+      name = ty->msgt_longform ? longty->msgtl_name : ty->msgt_name;
+      size = ty->msgt_longform ? longty->msgtl_size : ty->msgt_size;
+      number = ty->msgt_longform ? longty->msgtl_number : ty->msgt_number;
+
+      printf("  - %s (size: %d, number: %d, inline: %d, longform: %d, deallocate: %d)\n",
+	     typename_debug(name),
+	     size,
+	     number,
+	     ty->msgt_inline,
+	     ty->msgt_longform,
+	     ty->msgt_deallocate);
+
+      ptr += ty->msgt_longform ? sizeof(mcn_msgtype_long_t) : sizeof(mcn_msgtype_t);
+      if (ty->msgt_inline)
+	{
+	  ptr += (size >> 3) == 8 ? 4 : 0; /* Align. */
+	  printf ("  - bytes: ");
+	  for (int i = 0; i < (size >> 3); i++)
+	    printf("%02x ", *(char *)ptr++);
+	  printf("\n");
+	}
+    }
+
   printf ("==================================\n");
 }
 

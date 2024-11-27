@@ -110,7 +110,7 @@ ipte_status (ipte_t * i)
     ipte_private (i) ? STIPTE_PRIVATE : (
 						{
 						fatal
-						("Invalid ipte entry %lx\n",
+						("Invalid ipte entry %"PRIx64"\n",
 						 i->raw);
 						STIPTE_EMPTY;
 						}

@@ -218,6 +218,8 @@ main (void)
     
   }
 
+  user_sendport(3, 8, 7);
+
   ptr = (int *) 0x3000;
   printf ("ptr is %lx\n", *ptr);
 
@@ -259,5 +261,12 @@ __srv_user_mul (mcn_portid_t port, int b, long *new)
   printf ("Inc!\n");
   c *= b;
   *new = c;
+  return KERN_SUCCESS;
+}
+
+mcn_return_t
+__srv_user_sendport (mcn_portid_t resp, mcn_portid_t port, mcn_portid_t port2)
+{
+  printf("Port is %ld %ld\n", port, port2);
   return KERN_SUCCESS;
 }

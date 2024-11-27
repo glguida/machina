@@ -7,13 +7,15 @@
 #ifndef _MACHINA_TYPES_H_
 #define _MACHINA_TYPES_H_
 
+#include <stdint.h>
+
 typedef unsigned long ulong_t;
 
 typedef unsigned long mcn_portid_t;
 #define MCN_PORTID_NULL 0
 #define MCN_PORTID_DEAD -1
 
-typedef unsigned mcn_portright_t;
+typedef uint8_t mcn_portright_t;
 #define MCN_PORTRIGHT_SEND 0
 #define MCN_PORTRIGHT_RECEIVE 1
 #define MCN_PORTRIGHT_SENDONCE 2

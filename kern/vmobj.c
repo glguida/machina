@@ -102,7 +102,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   info ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
   ipte = cacheobj_lookup (&vmobj->cobj, off);
 
-  info ("IPTE IS %lx\n", ipte.raw);
+  info ("IPTE IS %"PRIx64"\n", ipte.raw);
   switch (ipte_status (&ipte))
     {
     case STIPTE_EMPTY:

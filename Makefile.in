@@ -1,4 +1,4 @@
-SUBDIRS= tools/mig nux libmachina kern bootstrap tests
+SUBDIRS= nux tools/mig tests libmachina kern bootstrap
 
 NUX_DIR=@NUXBUILDROOT@
 APXH_DIR=$(NUX_DIR)/apxh

@@ -5,20 +5,36 @@ subsystem cstest 2000;
 serverprefix __srv_;
 
 simpleroutine user_simple(
-		test: mcn_port_t);
+		test: mcn_portid_t);
 
 
 routine user_inc(
-		test : mcn_port_t;
+		test : mcn_portid_t;
 	out	new : long);
 
 routine user_add(
-		test : mcn_port_t;
+		test : mcn_portid_t;
 		b : long;
 	out	c : long);
 
 
 routine user_mul(
-		test:	mcn_port_t;
+		test:	mcn_portid_t;
 		b:	int;
 	out	c:	long);
+
+
+routine user_sendport(
+		test:  mcn_portid_t;
+		port: mcn_portid_t;
+		port2: mcn_portid_t);
+
+/*
+type long_array_t = array[] of long;
+type long_array_ext_t = ^array[] of long;
+routine user_var(
+		test: mcn_portid_t;
+		b:    long_array_t;
+		c:    long_array_t;
+		d:    long_array_ext_t);
+		*/

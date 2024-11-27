@@ -134,6 +134,7 @@ port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout, bool force)
   struct port *port;
 
   port = ipcport_unsafe_get (msgh->msgh_local);
+  printf("port = %p\n", port);
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
 

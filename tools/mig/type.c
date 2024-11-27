@@ -934,7 +934,7 @@ init_type(void)
     itCalculateNameInfo(itDummyType);
 
     itRequestPortType = itAlloc();
-    itRequestPortType->itName = "mcn_port_t";
+    itRequestPortType->itName = "mcn_portid_t";
     itRequestPortType->itInName = MCN_MSGTYPE_COPYSEND;
     itRequestPortType->itInNameStr = "MCN_MSGTYPE_COPYSEND";
     itRequestPortType->itOutName = MCN_MSGTYPE_PORTSEND;
@@ -945,7 +945,7 @@ init_type(void)
     itCalculateNameInfo(itRequestPortType);
 
     itZeroReplyPortType = itAlloc();
-    itZeroReplyPortType->itName = "mcn_port_t";
+    itZeroReplyPortType->itName = "mcn_portid_t";
     itZeroReplyPortType->itInName = 0;
     itZeroReplyPortType->itInNameStr = "0";
     itZeroReplyPortType->itOutName = 0;
@@ -956,7 +956,7 @@ init_type(void)
     itCalculateNameInfo(itZeroReplyPortType);
 
     itRealReplyPortType = itAlloc();
-    itRealReplyPortType->itName = "mcn_port_t";
+    itRealReplyPortType->itName = "mcn_portid_t";
     itRealReplyPortType->itInName = MCN_MSGTYPE_MAKEONCE;
     itRealReplyPortType->itInNameStr = "MCN_MSGTYPE_MAKEONCE";
     itRealReplyPortType->itOutName = MCN_MSGTYPE_PORTONCE;

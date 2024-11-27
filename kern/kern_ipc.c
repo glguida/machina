@@ -14,7 +14,7 @@
 mcn_return_t
 simple (mcn_portid_t test)
 {
-  info ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", test);
+  info ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", (long)test);
   return KERN_SUCCESS;
 }
 
@@ -49,7 +49,7 @@ create_thread (mcn_portid_t test, long pc, long sp)
 
   printf ("\n\tcreate thread called (%lx %lx)\n", pc, sp);
 
-  th = thread_new (cur_task (), pc, sp);
+  th = thread_new (cur_task (), pc, sp, uctxt_getgp(cur_thread()->uctxt));
   if (th == NULL)
     return KERN_RESOURCE_SHORTAGE;
 
@@ -76,7 +76,7 @@ ipc_kern_exec (void)
       kstest_replies_t kr;
 
       info ("KERNEL SERVER INPUT:");
-      //      message_debug(msgh);
+      message_debug(msgh);
       kstest_server (msgh, (mcn_msgheader_t *) & kr);
 
       mcn_msgsize_t size = ((mcn_msgheader_t *) & kr)->msgh_size;
@@ -86,7 +86,7 @@ ipc_kern_exec (void)
       memcpy (reply, &kr, size);
 
       info ("KERNEL SERVER OUTPUT");
-      //      message_debug(reply);
+      message_debug(reply);
       port_enqueue (reply, 0, true);
     }
 }
