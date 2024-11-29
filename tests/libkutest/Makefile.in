@@ -11,4 +11,4 @@ user: user/ku.c user/ku.h
 kern: kern/ku.c kern/ku.h
 
 CLEAN_FILES+= kern/ku.c kern/ku.h user/ku.c user/ku.h
-ALL_TARGET+= kern/ku.c kern/ku.h
+ALL_TARGET+= kern/ku.c kern/ku.h user/ku.c user/ku.h

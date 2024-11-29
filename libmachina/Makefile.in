@@ -1,8 +1,23 @@
 LIBRARY=machina
 
+HAL_MACHINE=@MACHINE@
+
+ifeq ($(HAL_MACHINE),i386)
+ARCH_DIR=i386
+endif
+
+ifeq ($(HAL_MACHINE),amd64)
+ARCH_DIR=amd64
+endif
+
+ifeq ($(HAL_MACHINE),riscv64)
+ARCH_DIR=riscv64
+endif
+
 CFLAGS+= -I$(SRCDIR) -Wno-prio-ctor-dtor
 
 SRCS+= syscalls.c mcn.c mig.c
+SRCS+= $(ARCH_DIR)/crt0.S
 
 @COMPILE_LIBNUX_USER@
 @COMPILE_LIBEC@

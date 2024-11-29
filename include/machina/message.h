@@ -56,7 +56,7 @@ typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_COPYSEND		0x13
 #define MCN_MSGTYPE_MAKESEND		0x14
 #define MCN_MSGTYPE_MAKEONCE		0x15
-#define MCN_MSGTYPE_LAST		0x17
+#define MCN_MSGTYPE_LAST		0x16
 
 #define MCN_MSGTYPE_PORTRECV		0x10
 #define MCN_MSGTYPE_PORTONCE		0x12
@@ -87,8 +87,6 @@ typedef uint32_t mcn_msgsize_t;
 
 typedef uint32_t mcn_msgid_t;
 
-typedef uint32_t mcn_seqno_t;
-
 typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_SUCCESS  0x00000000
 
@@ -98,7 +96,6 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_MSG_IPC_KERNEL  0x00000800
 #define MSGIO_MSG_VM_KERNEL  0x00000400
 
-#define MSGIO_SEND_IN_PROGRESS  0x10000001
 #define MSGIO_SEND_INVALID_DATA  0x10000002
 #define MSGIO_SEND_INVALID_DEST  0x10000003
 #define MSGIO_SEND_TIMED_OUT  0x10000004
@@ -115,7 +112,6 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_SEND_INVALID_TYPE  0x1000000f
 #define MSGIO_SEND_INVALID_HEADER 0x10000010
 
-#define MSGIO_RCV_IN_PROGRESS  0x10004001
 #define MSGIO_RCV_INVALID_NAME  0x10004002
 #define MSGIO_RCV_TIMED_OUT  0x10004003
 #define MSGIO_RCV_TOO_LARGE  0x10004004

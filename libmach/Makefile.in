@@ -1,0 +1,25 @@
+#
+# libmach for Mach3
+#
+
+LIBRARY=mach
+
+CFLAGS+= -I$(SRCDIR)/include
+
+@COMPILE_LIBMACHINA@
+@COMPILE_LIBCOMPAT_MACH3@
+@COMPILE_LIBNUX_USER@
+@COMPILE_LIBEC@
+
+.PHONY: always_mig
+
+mach_user.c: @LIBCOMPAT_MACH3_SRCDIR@/include/mach/mach.defs @MIG@ @MIGCOM@ always_mig
+	@MIG@ -isystem $(SRCROOT)/include -I$(SRCROOT)/libcompat_mach3/include \
+		-user $@ \
+		-header ../include/mach/mach_interface.h \
+		-server /dev/null \
+		$?
+
+SRCS+= mach_user.c
+
+

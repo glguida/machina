@@ -11,6 +11,7 @@ AC_NUXROOT_DIR([${nux_dir}])
 AC_LIBEC_DIR([${libec_dir}])
 
 AC_LIB_DIR(libmachina,libmachina)
+AC_LIB_DIR(libcompat_mach3,libcompat_mach3)
 
 AC_ARG_VAR([ARCH], [The architecture to compile for: i386, amd64 or riscv64])
 
@@ -19,8 +20,8 @@ if test x"${ARCH}" == x ; then
 fi
 
 AS_CASE([${ARCH}],
-	[i386], [tool_prefix=i686-unknown-elf upmachine=I386],
-	[amd64], [tool_prefix=amd64-unknown-elf upmachine=AMD64],
+	[i386], [tool_prefix=i686-unknown-elf] [upmachine=I386],
+	[amd64], [tool_prefix=amd64-unknown-elf] [upmachine=AMD64],
 	[riscv64], [tool_prefix=riscv64-unknown-elf upmachine=RISCV64],
 	[*], [AC_MSG_ERROR([Supported Architectures: i386, amd64, riscv64])])
 
@@ -78,9 +79,12 @@ AC_SUBST(MIGCOM, '$(BUILDROOT)/tools/mig/migcom')
 
 AC_MK_CONFIG_FILES([
 	Makefile
+	libmach/Makefile
+	libcompat_mach3/Makefile
 	libmachina/Makefile
 	kern/Makefile
 	tests/Makefile
+	tests/ipc_test/Makefile
 	tests/libkutest/Makefile
 	tests/libkutest/user/Makefile
 	tests/libkutest/kern/Makefile

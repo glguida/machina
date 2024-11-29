@@ -1,0 +1,18 @@
+HAL_MACHINE=@MACHINE@
+
+CFLAGS+=-Wno-error=endif-labels
+
+NOINST=y
+PROGRAM=test
+
+SRCS+= main.c mtest.c nstest.c ntest.c ptest.c stest.c utest.c utils.c
+
+@COMPILE_LIBCOMPAT_MACH3@
+@LINK_LIBCOMPAT_MACH3@
+@COMPILE_LIBMACHINA@
+@LINK_LIBMACHINA@
+@COMPILE_LIBNUX_USER@
+@LINK_LIBNUX_USER@
+@COMPILE_LIBEC@
+@LINK_LIBEC@
+

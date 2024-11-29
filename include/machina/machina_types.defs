@@ -1,0 +1,111 @@
+#include <machina/std_types.defs>
+
+type mcn_portstatus_t = struct [9] of int;
+
+type mcn_task_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: task_t convert_port_to_task(mcn_portid_t)
+		outtran: mcn_portid_t convert_task_to_port(task_t)
+		destructor: task_deallocate(task_t)
+#endif
+		;
+
+
+type mcn_thread_t = mcn_portid_t
+	      	ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: thread_t convert_port_to_thread(mcn_portid_t)
+		outtran: mcn_portid_t convert_thread_to_port(thread_t)
+		destructor: thread_deallocate(thread_t)
+#endif
+		;
+
+type mcn_task_array_t = ^array[] of mcn_task_t;
+type mcn_thread_array_t = ^array[] of mcn_thread_t;
+type mcn_threadstate_t = array[*:32] of long;
+
+
+type mcn_vmtask_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vm_map_t convert_port_to_map(mcn_portid_t)
+		destructor: vm_map_deallocate(vm_map_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_ipcspace_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: ipc_space_t convert_port_to_space(mcn_portid_t)
+		destructor: space_deallocate(ipc_space_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_vmaddr_t = long;
+type mcn_vmoff_t = long;
+type mcn_vmsize_t = long;
+type mcn_vmprot_t = int;
+type mcn_vminherit_t = int;
+
+
+type mcn_memobj_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: ipc_port_t null_conversion(mcn_portid_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_memobj_ctrl_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vm_object_t vm_object_lookup(mcn_portid_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_memobj_name_t = mcn_portid_t
+		ctype: mcn_portid_t;
+
+
+type mcn_host_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: host_t convert_port_to_host(mcn_portid_t)
+		outtran: mcn_portid_t convert_host_to_port(host_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_host_priv_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: host_t convert_port_to_host_priv(mcn_portid_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_processor_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_t convert_port_to_processor(mcn_portid_t)
+		outtran: mcn_portid_t convert_processor_to_port(processor_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_processor_set_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_processor_set_name_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset_name(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_name_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_emulvec_t = ^array[] of mcn_vmoff_t;
