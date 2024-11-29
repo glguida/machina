@@ -79,6 +79,27 @@ typedef unsigned mcn_vminherit_t;
 
 #define MCN_VMINHERIT_DEFAULT MCN_VMINHERIT_COPY
 
+
+typedef mcn_portid_t mcn_task_t;
+typedef mcn_task_t *mcn_task_array_t;
+typedef mcn_task_t mcn_vmtask_t;
+typedef mcn_task_t mcn_ipcspace_t;
+
+typedef mcn_portid_t mcn_thread_t;
+typedef mcn_thread_t *mcn_thread_array_t;
+
+typedef mcn_portid_t mcn_host_t;
+typedef mcn_portid_t mcn_host_priv_t;
+
+typedef mcn_portid_t mcn_processor_t;
+typedef mcn_portid_t *mcn_processor_array_t;
+
+typedef mcn_portid_t mcn_processor_set_t;
+typedef mcn_portid_t mcn_processor_set_name_t;
+typedef mcn_portid_t *mcn_processor_array_t;
+
+typedef mcn_vmoff_t *mcn_emulvec_t;
+
 typedef mcn_portid_t mcn_memobj_t;
 #define MCN_MEMOBJ_NULL MCN_PORTID_NULL
 
