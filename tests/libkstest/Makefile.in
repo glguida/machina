@@ -1,15 +1,13 @@
 SUBDIRS+=user kern
 
-KERNEL_SERVER_DEFS=ks.defs
+#KERNEL_SERVER_DEFS=ks.defs
 
-.PHONY: always_mig
+#.PHONY: always_mig
 
-kern/%.c user/%.c kern/%.h user/%.h: $(SRCDIR)/%.defs @MIG@ @MIGCOM@ always_mig
-	@MIG@ -isystem $(SRCROOT)/include -server kern/$*.c -user user/$*.c -header user/$*.h -sheader kern/$*.h $<
+#kern/%.c user/%.c kern/%.h user/%.h: $(SRCDIR)/%.defs 
+#	@MIG@ -isystem $(SRCROOT)/include -server kern/$*.c -user user/$*.c -header user/$*.h -sheader kern/$*.h $<
+#user: user/ks.c user/ks.h
+#kern: kern/ks.c kern/ks.h
 
-
-user: user/ks.c user/ks.h
-kern: kern/ks.c kern/ks.h
-
-CLEAN_FILES+= kern/ks.c kern/ks.h user/ks.c user/ks.h
-ALL_TARGET+= kern/ks.c kern/ks.h
+#CLEAN_FILES+= kern/ks.c kern/ks.h user/ks.c user/ks.h
+#ALL_TARGET+= kern/ks.c kern/ks.h user/ks.c user/ks.h

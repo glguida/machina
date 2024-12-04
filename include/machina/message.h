@@ -12,21 +12,29 @@
 
 typedef struct
 {
-  uint32_t msgt_name : 8,
-    msgt_size : 8,
-    msgt_number : 12,
-    msgt_inline : 1,
-    msgt_longform : 1,
-    msgt_deallocate : 1,
-    msgt_unused : 1;
+  uint32_t msgt_name:8,
+    msgt_size:8,
+    msgt_number:12,
+    msgt_inline:1,
+    msgt_longform:1,
+    msgt_deallocate:1,
+    msgt_unused:1;
 } mcn_msgtype_t;
 
-typedef	struct	{
-  mcn_msgtype_t		msgtl_header;
-  unsigned short	msgtl_name;
-  unsigned short	msgtl_size;
-  unsigned	       	msgtl_number;
+#define MCN_MSGTYPE_SIZE 4
+
+
+typedef struct
+{
+  mcn_msgtype_t msgtl_header;
+  uint8_t msgtl_name;
+  uint8_t msgtl_size;
+  uint16_t msgtl_number;
 } mcn_msgtype_long_t;
+
+#define MCN_MSGTYPE_LONG_SIZE 8
+
+typedef unsigned mcn_msgtype_number_t;
 
 typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_UNSTRUCTURED	0x00
@@ -49,7 +57,7 @@ typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_COPYSEND		0x13
 #define MCN_MSGTYPE_MAKESEND		0x14
 #define MCN_MSGTYPE_MAKEONCE		0x15
-#define MCN_MSGTYPE_LAST		0x17
+#define MCN_MSGTYPE_LAST		0x16
 
 #define MCN_MSGTYPE_PORTRECV		0x10
 #define MCN_MSGTYPE_PORTONCE		0x12
@@ -65,6 +73,10 @@ typedef uint8_t mcn_msgtype_name_t;
   (((_x) >= MCN_MSGTYPE_MOVESEND) &&		\
    ((_x) <= MCN_MSGTYPE_MAKEONCE))
 
+#define MCN_MSGTYPE_IS_RIGHT(_x)		\
+  (((_x) >= MCN_MSGTYPE_MOVERECV) &&		\
+   ((_x) <= MCN_MSGTYPE_MOVEONCE))
+
 
 typedef uint32_t mcn_msgbits_t;
 #define MCN_MSGBITS_NONE	0x00000
@@ -78,9 +90,7 @@ typedef uint32_t mcn_msgbits_t;
 
 typedef uint32_t mcn_msgsize_t;
 
-typedef unsigned long mcn_msgid_t;
-
-typedef unsigned long mcn_seqno_t;
+typedef uint32_t mcn_msgid_t;
 
 typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_SUCCESS  0x00000000
@@ -91,7 +101,6 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_MSG_IPC_KERNEL  0x00000800
 #define MSGIO_MSG_VM_KERNEL  0x00000400
 
-#define MSGIO_SEND_IN_PROGRESS  0x10000001
 #define MSGIO_SEND_INVALID_DATA  0x10000002
 #define MSGIO_SEND_INVALID_DEST  0x10000003
 #define MSGIO_SEND_TIMED_OUT  0x10000004
@@ -108,7 +117,6 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_SEND_INVALID_TYPE  0x1000000f
 #define MSGIO_SEND_INVALID_HEADER 0x10000010
 
-#define MSGIO_RCV_IN_PROGRESS  0x10004001
 #define MSGIO_RCV_INVALID_NAME  0x10004002
 #define MSGIO_RCV_TIMED_OUT  0x10004003
 #define MSGIO_RCV_TOO_LARGE  0x10004004
@@ -120,9 +128,11 @@ typedef mcn_return_t mcn_msgioret_t;
 #define MSGIO_RCV_IN_SET   0x1000400a
 #define MSGIO_RCV_HEADER_ERROR  0x1000400b
 #define MSGIO_RCV_BODY_ERROR  0x1000400c
+#define MSGIO_RCV_INVALID_MEMORY 0x1000400d
 
 
-typedef struct mcn_msgheader {
+typedef struct mcn_msgheader
+{
   mcn_msgbits_t msgh_bits;
   mcn_msgsize_t msgh_size;
   mcn_portid_t msgh_remote;
@@ -130,5 +140,8 @@ typedef struct mcn_msgheader {
   mcn_seqno_t msgh_seqno;
   mcn_msgid_t msgh_msgid;
 } mcn_msgheader_t;
+
+#define MCN_MSGHEADER_SIZE_64 (4 + 4 + 8 + 8 + 4 + 4)
+#define MCN_MSGHEADER_SIZE_32 (4 + 4 + 4 + 4 + 4 + 4)
 
 #endif

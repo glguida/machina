@@ -1,0 +1,19 @@
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
+#ifndef _MACHINA_STD_TYPES_MACHINE_H_
+#define _MACHINA_STD_TYPES_MACHINE_H_
+
+type char = MCN_MSGTYPE_CHAR;
+type short = MCN_MSGTYPE_INT16;
+type unsigned = MCN_MSGTYPE_INT32;
+type int = MCN_MSGTYPE_INT32;
+type long = MCN_MSGTYPE_INT32;
+
+type ulong = MCN_MSGTYPE_INT32
+     ctype: ulong_t;
+
+#endif

@@ -639,10 +639,19 @@ CFLAGS
 CC
 TOOLCHAIN
 ARCH
+LINK_LIBKMACH3
+COMPILE_LIBKMACH3
+LIBKMACH3_BUILDDIR
+LIBKMACH3_SRCDIR
+LINK_LIBMACH3
+COMPILE_LIBMACH3
+LIBMACH3_BUILDDIR
+LIBMACH3_SRCDIR
 LINK_LIBMACHINA
 COMPILE_LIBMACHINA
 LIBMACHINA_BUILDDIR
 LIBMACHINA_SRCDIR
+COMPILE_IN_KERNEL
 EMBED_LIBEC
 LINK_LIBEC
 COMPILE_LIBEC
@@ -2265,6 +2274,8 @@ libec_dir=nux/libec
 
 
 
+COMPILE_IN_KERNEL="include "'$(SRCROOT)'"/kern/compile-in-kernel.mk"
+
 
 	LIBMACHINA_SRCDIR='$(SRCROOT)'/libmachina
 
@@ -2280,6 +2291,34 @@ libec_dir=nux/libec
 
 
 
+	LIBMACH3_SRCDIR='$(SRCROOT)'/libmach3/user
+
+	LIBMACH3_BUILDDIR='$(BUILDROOT)'/libmach3/user
+
+	COMPILE_LIBMACH3="include "'$(BUILDROOT)'"/mk/libmach3-compile.mk"
+
+	LINK_LIBMACH3="include "'$(BUILDROOT)'"/mk/libmach3-link.mk"
+
+	ac_config_files="$ac_config_files mk/libmach3-compile.mk:libmach3/user/libmach3-compile.mk.in"
+
+	ac_config_files="$ac_config_files mk/libmach3-link.mk:libmach3/user/libmach3-link.mk.in"
+
+
+
+	LIBKMACH3_SRCDIR='$(SRCROOT)'/libmach3/kern
+
+	LIBKMACH3_BUILDDIR='$(BUILDROOT)'/libmach3/kern
+
+	COMPILE_LIBKMACH3="include "'$(BUILDROOT)'"/mk/libkmach3-compile.mk"
+
+	LINK_LIBKMACH3="include "'$(BUILDROOT)'"/mk/libkmach3-link.mk"
+
+	ac_config_files="$ac_config_files mk/libkmach3-compile.mk:libmach3/kern/libkmach3-compile.mk.in"
+
+	ac_config_files="$ac_config_files mk/libkmach3-link.mk:libmach3/kern/libkmach3-link.mk.in"
+
+
+
 
 
 if test x"${ARCH}" == x ; then
@@ -2288,11 +2327,11 @@ fi
 
 case ${ARCH} in #(
   i386) :
-    tool_prefix=i686-unknown-elf ;; #(
+    tool_prefix=i686-unknown-elf upmachine=I386 ;; #(
   amd64) :
-    tool_prefix=amd64-unknown-elf ;; #(
+    tool_prefix=amd64-unknown-elf upmachine=AMD64 ;; #(
   riscv64) :
-    tool_prefix=riscv64-unknown-elf ;; #(
+    tool_prefix=riscv64-unknown-elf upmachine=RISCV64 ;; #(
   *) :
     as_fn_error $? "Supported Architectures: i386, amd64, riscv64" "$LINENO" 5 ;; #(
   *) :
@@ -4055,6 +4094,7 @@ fi
 
 machine=${ARCH}
 
+
 # Check whether --enable-opt was given.
 if test ${enable_opt+y}
 then :
@@ -4083,7 +4123,7 @@ fi
 
 MACHINE=${machine}
 
-CONFIGURE_FLAGS="${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
+CONFIGURE_FLAGS="${optflags} ${wflags} -DMCN_MACHINE_${upmachine}=1 -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"
 
 APXH_SUBDIRS=${apxh_subdirs}
 
@@ -4103,13 +4143,31 @@ MIGCOM='$(BUILDROOT)/tools/mig/migcom'
 	ac_config_files="$ac_config_files libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk"
 
 
+	ac_config_files="$ac_config_files libmach3/Makefile:${mk_dir}/top.mk:libmach3/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files libmach3/user/Makefile:${mk_dir}/top.mk:libmach3/user/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files libmach3/kern/Makefile:${mk_dir}/top.mk:libmach3/kern/Makefile.in:${mk_dir}/bottom.mk"
+
+
 	ac_config_files="$ac_config_files kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk"
 
 
-	ac_config_files="$ac_config_files tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk"
+	ac_config_files="$ac_config_files tests/ipc_test/Makefile:${mk_dir}/top.mk:tests/ipc_test/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkutest/Makefile:${mk_dir}/top.mk:tests/libkutest/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkutest/user/Makefile:${mk_dir}/top.mk:tests/libkutest/user/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkutest/kern/Makefile:${mk_dir}/top.mk:tests/libkutest/kern/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk"
@@ -4844,12 +4902,22 @@ do
     "mk/libec-embed.mk") CONFIG_FILES="$CONFIG_FILES mk/libec-embed.mk:${libec_dir}/libec-embed.mk.in" ;;
     "mk/libmachina-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libmachina-compile.mk:libmachina/libmachina-compile.mk.in" ;;
     "mk/libmachina-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libmachina-link.mk:libmachina/libmachina-link.mk.in" ;;
+    "mk/libmach3-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libmach3-compile.mk:libmach3/user/libmach3-compile.mk.in" ;;
+    "mk/libmach3-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libmach3-link.mk:libmach3/user/libmach3-link.mk.in" ;;
+    "mk/libkmach3-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libkmach3-compile.mk:libmach3/kern/libkmach3-compile.mk.in" ;;
+    "mk/libkmach3-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libkmach3-link.mk:libmach3/kern/libkmach3-link.mk.in" ;;
     "tools/mig/mig") CONFIG_FILES="$CONFIG_FILES tools/mig/mig:tools/mig/mig.in" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile:${mk_dir}/top.mk:Makefile.in:${mk_dir}/bottom.mk" ;;
     "libmachina/Makefile") CONFIG_FILES="$CONFIG_FILES libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/Makefile:${mk_dir}/top.mk:libmach3/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/user/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/user/Makefile:${mk_dir}/top.mk:libmach3/user/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/kern/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/kern/Makefile:${mk_dir}/top.mk:libmach3/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "kern/Makefile") CONFIG_FILES="$CONFIG_FILES kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk" ;;
-    "tests/libkstest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/ipc_test/Makefile") CONFIG_FILES="$CONFIG_FILES tests/ipc_test/Makefile:${mk_dir}/top.mk:tests/ipc_test/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkutest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/Makefile:${mk_dir}/top.mk:tests/libkutest/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkutest/user/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/user/Makefile:${mk_dir}/top.mk:tests/libkutest/user/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkutest/kern/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/kern/Makefile:${mk_dir}/top.mk:tests/libkutest/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkstest/user/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkstest/kern/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/kern/Makefile:${mk_dir}/top.mk:tests/libkstest/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libcstest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libcstest/Makefile:${mk_dir}/top.mk:tests/libcstest/Makefile.in:${mk_dir}/bottom.mk" ;;

@@ -10,47 +10,52 @@
 #include <nux/types.h>
 #include <string.h>
 
-struct pglist {
+struct pglist
+{
   lock_t lock;
-  LIST_HEAD(, physpage) list;
+    LIST_HEAD (, physpage) list;
   unsigned long pages;
 };
 
-static inline void pglist_init(struct pglist *pl)
+static inline void
+pglist_init (struct pglist *pl)
 {
-  memset(pl, 0, sizeof(*pl));
+  memset (pl, 0, sizeof (*pl));
 }
 
-static inline struct physpage *pglist_rem(struct pglist *pl)
+static inline struct physpage *
+pglist_rem (struct pglist *pl)
 {
   struct physpage *pg;
 
-  spinlock(&pl->lock);
+  spinlock (&pl->lock);
   pg = LIST_FIRST (&pl->list);
   if (pg)
     {
       LIST_REMOVE (pg, list_entry);
       pl->pages--;
     }
-  spinunlock(&pl->lock);
-  
+  spinunlock (&pl->lock);
+
   return pg;
 }
 
-static inline void pglist_add(struct pglist *pl, struct physpage *pg)
+static inline void
+pglist_add (struct pglist *pl, struct physpage *pg)
 {
-  spinlock(&pl->lock);
-  LIST_INSERT_HEAD(&pl->list, pg, list_entry);
+  spinlock (&pl->lock);
+  LIST_INSERT_HEAD (&pl->list, pg, list_entry);
   pl->pages++;
-  spinunlock(&pl->lock);
+  spinunlock (&pl->lock);
 }
 
-static inline unsigned long pglist_pages(struct pglist *pl)
+static inline unsigned long
+pglist_pages (struct pglist *pl)
 {
   unsigned long pages;
-  spinlock(&pl->lock);
+  spinlock (&pl->lock);
   pages = pl->pages;
-  spinunlock(&pl->lock);
+  spinunlock (&pl->lock);
   return pages;
 }
 

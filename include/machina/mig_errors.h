@@ -21,7 +21,8 @@
 #define MIG_SERVER_DIED -308
 #define MIG_DESTROY_REQUEST -309
 
-typedef struct {
+typedef struct
+{
   mcn_msgheader_t Head;
   mcn_msgtype_t RetCodeType;
   mcn_return_t RetCode;

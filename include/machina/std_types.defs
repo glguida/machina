@@ -7,16 +7,27 @@
 #ifndef _MACHINA_STD_TYPES_H_
 #define _MACHINA_STD_TYPES_H_
 
-#if MCN_MACHINE==amd64
-#include "std_types_amd64.defs"
+#ifdef MIG_32BIT
+#include "std_types_32.defs"
+#else
+#include "std_types_64.defs"
 #endif
 
-type boolean_t = MCN_MSGTYPE_BOOLEAN;
-type kern_return_t = int;
-type pointer_t = ulong;
+type mcn_pointer_t = ^array[] of MACH_MSG_TYPE_BYTE
+		ctype: mcn_vmoff_t;
 
-type mcn_port_t = MCN_MSGTYPE_COPYSEND
+type mcn_bool_t = MCN_MSGTYPE_BOOLEAN;
+type mcn_return_t = int;
+
+type mcn_portid_t = MCN_MSGTYPE_COPYSEND
      ctype : mcn_portid_t;
+
+type mcn_portid_array_t = array[] of mcn_portid_t;
+
+type mcn_portname_t = MCN_MSGTYPE_PORTNAME
+     ctype : mcn_portid_t;
+
+type mcn_portname_array_t = array[] of mcn_portname_t;
 
 type mcn_port_moverecv_t = MCN_MSGTYPE_MOVERECV
      ctype : mcn_portid_t;
@@ -40,6 +51,5 @@ type mcn_port_once_t = MCN_MSGTYPE_PORTONCE
 
 type mcn_port_poly_t = polymorphic
      ctype : mcn_portid_t;
-
 
 #endif

@@ -1,6 +1,12 @@
 LIBRARY=ks_user
 SRCS+= ks.c
 
+.PHONY: always_mig
+always_mig: @MIG@ @MIGCOM@
+
+%.c %.h: $(SRCDIR)/../%.defs always_mig
+	@MIG@ -isystem $(SRCROOT)/include -server /dev/null -user $*.c -header $*.h $<
+
 @COMPILE_LIBMACHINA@
 @COMPILE_LIBNUX_USER@
 @COMPILE_LIBEC@

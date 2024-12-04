@@ -10,7 +10,10 @@ AC_MK_DIR([${nux_dir}/mk])
 AC_NUXROOT_DIR([${nux_dir}])
 AC_LIBEC_DIR([${libec_dir}])
 
+AC_SUBST(COMPILE_IN_KERNEL,["include "'$(SRCROOT)'"/kern/compile-in-kernel.mk"])
 AC_LIB_DIR(libmachina,libmachina)
+AC_LIB_DIR(libmach3,libmach3/user)
+AC_LIB_DIR(libkmach3,libmach3/kern)
 
 AC_ARG_VAR([ARCH], [The architecture to compile for: i386, amd64 or riscv64])
 
@@ -19,9 +22,9 @@ if test x"${ARCH}" == x ; then
 fi
 
 AS_CASE([${ARCH}],
-	[i386], [tool_prefix=i686-unknown-elf],
-	[amd64], [tool_prefix=amd64-unknown-elf],
-	[riscv64], [tool_prefix=riscv64-unknown-elf],
+	[i386], [tool_prefix=i686-unknown-elf] [upmachine=I386],
+	[amd64], [tool_prefix=amd64-unknown-elf] [upmachine=AMD64],
+	[riscv64], [tool_prefix=riscv64-unknown-elf upmachine=RISCV64],
 	[*], [AC_MSG_ERROR([Supported Architectures: i386, amd64, riscv64])])
 
 AC_ARG_VAR([TOOLCHAIN],[toolchain prefix @<:@default: <ARCH>-elf@:>@])
@@ -55,6 +58,7 @@ fi
 
 machine=${ARCH}
 
+
 AC_ARG_ENABLE([opt],
 	AS_HELP_STRING([--disable-opt],[compile without compiler optimizations]))
 AS_IF([test "x$enable_opt" != "xno"],
@@ -68,7 +72,7 @@ AS_IF([test "x$enable_relax" != "xno"],
 	[wflags=''])
 
 AC_SUBST(MACHINE, ${machine})
-AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE=${machine} -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
+AC_SUBST(CONFIGURE_FLAGS, ["${optflags} ${wflags} -DMCN_MACHINE_${upmachine}=1 -I\$(SRCROOT)/include -I\$(BUILDROOT)/include -I\$(SRCROOT)/${nux_dir}/include -I\$(BUILDROOT)/${nux_dir}/include"])
 AC_SUBST(APXH_SUBDIRS, [${apxh_subdirs}])
 
 AC_CONFIG_FILES([tools/mig/mig:tools/mig/mig.in], [chmod +x tools/mig/mig])
@@ -78,9 +82,15 @@ AC_SUBST(MIGCOM, '$(BUILDROOT)/tools/mig/migcom')
 AC_MK_CONFIG_FILES([
 	Makefile
 	libmachina/Makefile
+	libmach3/Makefile
+	libmach3/user/Makefile
+	libmach3/kern/Makefile
 	kern/Makefile
 	tests/Makefile
-	tests/libkstest/Makefile
+	tests/ipc_test/Makefile
+	tests/libkutest/Makefile
+	tests/libkutest/user/Makefile
+	tests/libkutest/kern/Makefile
 	tests/libkstest/user/Makefile
 	tests/libkstest/kern/Makefile
 	tests/libcstest/Makefile

@@ -1,0 +1,7 @@
+INCDIR=include/mach/machine
+
+INCS+= \
+boolean.h \
+vm_param.h \
+vm_types.h \
+kern_return.h

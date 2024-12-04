@@ -8,8 +8,34 @@
 #include <nux/nux.h>
 #include <nux/hal.h>
 #include <machina/syscall_sw.h>
+#include <machina/error.h>
 
 #include "internal.h"
+
+void *convert_port_to_taskptr (ipc_port_t port);
+
+mcn_return_t
+syscall_getport(mcn_portid_t port, struct portref *portref)
+{
+  mcn_return_t rc;
+
+  struct ipcspace *ps = task_getipcspace (cur_task ());
+  rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, port, portref);
+  task_putipcspace (cur_task (), ps);
+  return rc;
+}
+
+mcn_return_t
+syscall_setport(struct portref portref, mcn_portid_t *portid)
+{
+  mcn_return_t rc;
+  struct portright right = portright_from_portref(RIGHT_SEND, portref);
+
+  struct ipcspace *ps = task_getipcspace (cur_task ());
+  rc = ipcspace_insertright (ps, &right, portid);
+  task_putipcspace (cur_task (), ps);
+  return rc;
+}
 
 uctxt_t *
 entry_sysc (uctxt_t * u,
@@ -17,77 +43,227 @@ entry_sysc (uctxt_t * u,
 	    unsigned long a4, unsigned long a5, unsigned long a6,
 	    unsigned long a7)
 {
+  long ret = 0;
+
+  if (cur_thread ()->uctxt != UCTXT_IDLE)
+    *cur_thread ()->uctxt = *u;
+
+
   switch (a1)
     {
     case __syscall_msgbuf:
-      uctxt_setret(u, cur_umsgbuf());
+      ret = cur_umsgbuf ();
       break;
-    case __syscall_msg:
-      uctxt_setret(u, ipc_msg((mcn_msgopt_t)a2, (mcn_portid_t)a3, a4, (mcn_portid_t)a5));
+    case __syscall_msgrecv:
+      ret =
+	ipc_msgrecv ((mcn_portid_t) a2, (mcn_msgopt_t) a3, a4,
+		     (mcn_portid_t) a5);
       break;
-    case __syscall_reply_port: {
-      mcn_return_t rc;
-      mcn_portid_t id;
+    case __syscall_msgsend:
+      ret = ipc_msgsend ((mcn_msgopt_t) a2, a3, (mcn_portid_t) a4);
+      break;
+    case __syscall_reply_port:
+      {
+	mcn_return_t rc;
+	mcn_portid_t id;
 
-      rc = task_allocate_port(cur_task(), &id);
-      printf("Allocated port %d [%ld]\n", rc, id);
-      if (rc)
-	uctxt_setret(u, MCN_PORTID_NULL);
-      else
-	uctxt_setret(u, id);
-      portspace_print(&cur_task()->portspace);
-    }
+	rc = task_allocate_port (cur_task (), &id);
+	printf ("Allocated port %d [%ld]\n", rc, id);
+	if (rc)
+	  ret = MCN_PORTID_NULL;
+	else
+	  ret = id;
+      }
       break;
+    case __syscall_task_self:
+      ret = task_self ();
+      break;
+    case __syscall_vm_map:
+      {
+	volatile struct __syscall_vm_map_in in = * (volatile struct __syscall_vm_map_in *)cur_kmsgbuf ();
+	struct portref task_pr, vmobj_pr;
+	struct taskref tref;
+	struct vmobjref vmobjref;
+	vaddr_t vaddr;
+
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
+
+	tref = port_get_taskref (portref_unsafe_get (&task_pr));
+	if (taskref_isnull(tref))
+	  {
+	    portref_consume(&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	ret = syscall_getport(in.objname, &vmobj_pr);
+	if (ret)
+	  {
+	    portref_consume(&task_pr);
+	    break;
+	  }
+
+	vmobjref = port_get_vmobjref_from_name (portref_unsafe_get (&vmobj_pr));
+	if (vmobjref_isnull(&vmobjref))
+	  {
+	    portref_consume(&vmobj_pr);
+	    portref_consume(&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	printf ("SYSC: map task %p addr %lx size %lx mask %lx anywhere ? %d\n",
+		taskref_unsafe_get(&tref), in.addr, in.size, in.mask, in.anywhere, in.objname, in.off, in.copy, in.curprot, in.maxprot, in.inherit);
+	vaddr = in.addr;
+	ret = task_vm_map(taskref_unsafe_get(&tref), &vaddr, in.size, in.mask, in.anywhere, vmobjref, in.off, in.copy, in.curprot, in.maxprot, in.inherit);
+	
+	portref_consume(&vmobj_pr);
+	portref_consume(&task_pr);
+	*(mcn_vmaddr_t *) cur_kmsgbuf () = vaddr;
+      }
+      break;
+    case __syscall_vm_allocate:
+      {
+	mcn_vmaddr_t addr = *(mcn_vmaddr_t *) cur_kmsgbuf ();
+	struct portref task_pr;
+	struct taskref tref;
+
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
+
+	tref = port_get_taskref (portref_unsafe_get (&task_pr));
+	if (taskref_isnull(tref))
+	  {
+	    portref_consume (&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	printf
+	  ("SYSC: vmallocate task %p, addr %lx, size %lx, anywhere? %ld\n",
+	   taskref_unsafe_get(&tref), addr, a3, a4);
+	ret = task_vm_allocate (taskref_unsafe_get(&tref), &addr, a3, a4);
+	portref_consume (&task_pr);
+	*(mcn_vmaddr_t *) cur_kmsgbuf () = addr;
+	break;
+      }
+
+    case __syscall_vm_region:
+      {
+	struct portref task_pr;
+	struct taskref tref;
+
+	printf("SYSC: VMREGION GETPORT %lx\n", a2);
+	ret = syscall_getport(a2, &task_pr);
+	if (ret)
+	  break;
+
+	tref = port_get_taskref (portref_unsafe_get (&task_pr));
+	if (taskref_isnull(tref))
+	  {
+	    portref_consume (&task_pr);
+	    ret = KERN_INVALID_NAME;
+	    break;
+	  }
+
+	mcn_vmaddr_t addr = *(volatile mcn_vmaddr_t *) cur_kmsgbuf ();
+	volatile struct __syscall_vm_region_out *out = cur_kmsgbuf ();
+	size_t size;
+	mcn_vmprot_t curprot, maxprot;
+	mcn_vminherit_t inherit;
+	bool shared;
+	struct portref portref;
+	mcn_portid_t objname;
+	mcn_vmoff_t off;
+
+	printf ("SYSC: vmregion task %p addr %lx\n", taskref_unsafe_get(&tref), addr);
+	ret = task_vm_region (taskref_unsafe_get(&tref),
+			      &addr, &size, &curprot, &maxprot, &inherit, &shared, &portref, &off);
+	if (ret)
+	  break;
+
+	ret = syscall_setport(portref, &objname);
+	if (ret)
+	  {
+	    portref_consume (&portref);
+	    break;
+	  }
+
+	out->addr = addr;
+	out->size = size;
+	out->curprot = curprot;
+	out->maxprot = maxprot;
+	out->inherit = inherit;
+	out->shared = shared;
+	out->objname = objname;
+	out->off = off;
+	ret = KERN_SUCCESS;
+	break;
+      }
     case 0:
-      info("SYSC%ld test passed.", a1);
+      info ("SYSC%ld test passed.", a1);
       break;
+      ret = 0;
     case 1:
-      assert(a2 == 1);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 2:
-      assert(a2 == 1);
-      assert(a3 == 2);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      assert (a3 == 2);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 3:
-      assert(a2 == 1);
-      assert(a3 == 2);
-      assert(a4 == 3);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      assert (a3 == 2);
+      assert (a4 == 3);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 4:
-      assert(a2 == 1);
-      assert(a3 == 2);
-      assert(a4 == 3);
-      assert(a5 == 4);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      assert (a3 == 2);
+      assert (a4 == 3);
+      assert (a5 == 4);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 5:
-      assert(a2 == 1);
-      assert(a3 == 2);
-      assert(a4 == 3);
-      assert(a5 == 4);
-      assert(a6 == 5);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      assert (a3 == 2);
+      assert (a4 == 3);
+      assert (a5 == 4);
+      assert (a6 == 5);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 6:
-      assert(a2 == 1);
-      assert(a3 == 2);
-      assert(a4 == 3);
-      assert(a5 == 4);
-      assert(a6 == 5);
-      assert(a7 == 6);
-      info("SYSC%ld test passed.", a1);
+      assert (a2 == 1);
+      assert (a3 == 2);
+      assert (a4 == 3);
+      assert (a5 == 4);
+      assert (a6 == 5);
+      assert (a7 == 6);
+      info ("SYSC%ld test passed.", a1);
+      ret = 0;
       break;
     case 4096:
       putchar (a2);
+      ret = 0;
       break;
 
     default:
       info ("Received unknown syscall %ld %ld %ld %ld %ld %ld %ld\n",
 	    a1, a2, a3, a4, a5, a6, a7);
+      ret = -1;
       break;
     }
-  return u;
+
+  uctxt_setret (cur_thread ()->uctxt, ret);
+  return kern_return ();
 }

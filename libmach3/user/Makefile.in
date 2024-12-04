@@ -1,0 +1,35 @@
+LIBRARY=mach3
+
+@COMPILE_LIBEC@
+@COMPILE_LIBNUX_USER@
+@COMPILE_LIBMACHINA@
+
+CFLAGS+=-I@LIBMACH3_SRCDIR@/../include -Iinclude/mach
+CPPFLAGS+=-Wno-endif-labels
+
+.PHONY: always_mig
+
+always_mig: @MIG@ @MIGCOM@
+	-mkdir -p include/mach
+
+mach_user.c: @LIBMACH3_SRCDIR@/../include/mach/mach.defs always_mig
+	@MIG@ -isystem $(SRCROOT)/include -I @LIBMACH3_SRCDIR@/../include \
+		-user $@ \
+		-header include/mach/mach_interface.h \
+		-server /dev/null \
+		$<
+
+%_user.c: @LIBMACH3_SRCDIR@/../include/mach/%.defs always_mig
+	@MIG@ -isystem $(SRCROOT)/include -I @LIBMACH3_SRCDIR@/../include \
+		-user $@ \
+		-header include/mach/$*.h \
+		-server /dev/null \
+		$<
+
+SRCS+= mach_user.c mach_port_user.c mach_host_user.c
+
+
+CLEAN_FILES += \
+		mach_user.c include/mach/mach_interface.h \
+		mach_port_user.c include/mach/mach_port_interface.h \
+		mach_host_user.c include/mach/mach_host_interface.h

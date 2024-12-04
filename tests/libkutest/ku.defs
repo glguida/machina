@@ -1,0 +1,28 @@
+subsystem kerneluser kutest 2000;
+
+userprefix user_;
+
+#include <machina/std_types.defs>
+
+simpleroutine simple(
+		test: mcn_portid_t);
+
+simpleroutine create_thread(
+	      test: mcn_portid_t;
+	      pc: long;
+	      sp: long);
+
+routine inc(
+		test : mcn_portid_t;
+	out	new : long);
+
+routine add(
+		test : mcn_portid_t;
+		b : long;
+	out	c : long);
+
+
+routine mul(
+		test:	mcn_portid_t;
+		b:	int;
+	out	c:	long);

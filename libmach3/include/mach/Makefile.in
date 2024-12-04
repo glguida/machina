@@ -1,0 +1,37 @@
+INCDIR=include/mach
+INCSUBDIRS=machine
+
+INCS+= \
+boolean.h \
+boot_info.h \
+error.h \
+exception.h \
+host_info.h \
+kern_return.h \
+mach_param.h \
+mach_traps.h \
+mach_types.h \
+machine.h \
+memory_object.h \
+message.h \
+mig_errors.h \
+msg_type.h \
+norma_special_ports.h \
+notify.h \
+policy.h \
+port.h \
+processor_info.h \
+std_types.h \
+syscall_sw.h \
+task_info.h \
+task_special_ports.h \
+thread_info.h \
+thread_special_ports.h \
+thread_status.h \
+thread_switch.h \
+time_value.h \
+vm_attributes.h \
+vm_inherit.h \
+vm_param.h \
+vm_prot.h \
+vm_statistics.h

@@ -1,0 +1,91 @@
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
+#include <machina/std_types.defs>
+
+type mcn_task_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: taskref_t taskport_to_taskref(mcn_portid_t)
+		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
+		destructor: taskref_consume(taskref_t)
+#endif
+		;
+
+
+type mcn_thread_t = mcn_portid_t
+	      	ctype: mcn_portid_t
+#if KERNEL_SERVER
+#warning KERNEL SERVER
+		intran: threadref_t threadport_to_threadref(mcn_portid_t)
+		outtran: mcn_portid_t threadref_to_threadport(threadref_t)
+		destructor: taskref_consume(threadref_t)
+#endif
+		;
+
+type mcn_vmobjctrl_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vmobjref_t vmobjctrlport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjctrlport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_vmobjname_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vmobjref_t vmobjnameport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjnameport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_host_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: host_t port_to_host(mcn_portid_t)
+		outtran: mcn_portid_t host_to_port(host_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_hostpriv_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: hostpriv_t port_to_hostpriv(mcn_portid_t)
+		outtran: mcn_portid_t hostpriv_to_port(hostpriv_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_processor_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_t convert_port_to_processor(mcn_portid_t)
+		outtran: mcn_portid_t convert_processor_to_port(processor_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_procset_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+type mcn_procset_name_t = mcn_portid_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset_name(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_name_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+#if	KERNEL_SERVER
+simport <kern.h>;
+#endif

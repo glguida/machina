@@ -1,0 +1,21 @@
+LIBRARY=kmach3
+
+CFLAGS+=-I$(SRCDIR)/../include -I$(SRCDIR) -Wno-endif-labels -DKERNEL
+
+.PHONY: always_mig
+
+always_mig: @MIG@ @MIGCOM@
+
+%_server.c: @LIBMACH3_SRCDIR@/../include/mach/%.defs always_mig
+	@MIG@ -isystem $(SRCROOT)/include -I @LIBMACH3_SRCDIR@/../include \
+		-server $@ \
+		-sheader $*.h \
+		-user /dev/null \
+		-DKERNEL_SERVER \
+		$<
+
+SRCS+= mach_server.c mach_port_server.c # mach_host_server.c
+
+@COMPILE_IN_KERNEL@
+@COMPILE_LIBEC@
+@COMPILE_LIBNUX@

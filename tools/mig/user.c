@@ -286,16 +286,19 @@ WriteIncludes(FILE *file)
     }
 
     fprintf(file, "#include <stdbool.h>\n");
+    fprintf(file, "#include <string.h>\n");
     fprintf(file, "#include <machina/types.h>\n");
     fprintf(file, "#include <machina/message.h>\n");
-    fprintf(file, "#include <machina/syscalls.h>\n");
     fprintf(file, "#include <machina/error.h>\n");
     if (IsKernelUser)
       {
           fprintf(file, "#include <machina/mig_errors.h>\n");
+	  fprintf(file, "\n");
+	  fprintf(file, "extern mcn_return_t mcn_msg_send_from_kernel(mcn_msgheader_t *, mcn_msgsize_t);\n");
       }
     else
       {
+  	  fprintf(file, "#include <machina/syscalls.h>\n");
 	  fprintf(file, "#include <machina/machina.h>\n");
 	  fprintf(file, "#include <machina/mig.h>\n");
       }
@@ -308,8 +311,13 @@ WriteGlobalDecls(FILE *file)
     if (RCSId != strNULL)
 	WriteRCSDecl(file, strconcat(SubsystemName, "_user"), RCSId);
 
-    fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
-    fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    if (IsKernelUser) {
+        fprintf(file, "#define msgh_request_port\tmsgh_local\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgh_remote\n");
+    } else {
+        fprintf(file, "#define msgh_request_port\tmsgh_remote\n");
+	fprintf(file, "#define msgh_reply_port\t\tmsgh_local\n");
+    }
     fprintf(file, "\n");
 }
 
@@ -365,8 +373,8 @@ WriteRequestHead(FILE *file, const routine_t *rt)
 		WriteHeaderPortType(rt->rtReplyPort));
     }
 
-    fprintf(file, "\tInP->Head.msgh_size = %d;\n", rt->rtRequestSize);
-    fprintf(file, "\t/* msgh_size passed as argument */\n");
+    fprintf(file, "\tInP->Head.msgh_size = msgh_size;\n");
+    //    fprintf(file, "\t/* msgh_size passed as argument */\n");
 
     /*
      *	KernelUser stubs need to cast the request and reply ports
@@ -412,7 +420,10 @@ WriteVarDecls(FILE *file, const routine_t *rt)
     fprintf(file, "\t\tRequest In;\n");
     if (!rt->rtOneWay)
 	fprintf(file, "\t\tReply Out;\n");
-    fprintf(file, "\t} *Mess = (union __mig_msg *)__local_msgbuf;\n");
+    if (IsKernelUser)
+      fprintf(file, "\t} Buf, *Mess = &Buf;\n");
+    else
+      fprintf(file, "\t} *Mess = (union __mig_msg *)__local_msgbuf;\n");
     fprintf(file, "\n");
 
     fprintf(file, "\tregister Request *InP = &Mess->In;\n");
@@ -424,15 +435,17 @@ WriteVarDecls(FILE *file, const routine_t *rt)
 	fprintf(file, "\tmcn_return_t msg_result;\n");
 
     if (!rt->rtSimpleFixedRequest)
-	fprintf(file, "\tboolean_t msgh_simple = %s;\n",
+	fprintf(file, "\tbool msgh_simple = %s;\n",
 		strbool(rt->rtSimpleSendRequest));
     else if (!rt->rtOneWay &&
 	     !(rt->rtSimpleCheckReply && rt->rtSimpleReceiveReply)) {
 	fprintf(file, "#if\tTypeCheck\n");
-	fprintf(file, "\tboolean_t msgh_simple;\n");
+	fprintf(file, "\tbool msgh_simple;\n");
 	fprintf(file, "#endif\t/* TypeCheck */\n");
     }
 
+    fprintf(file, "\tunsigned int msgh_size;\n");
+#if 0
     if (rt->rtNumRequestVar > 0)
 	fprintf(file, "\tunsigned int msgh_size;\n");
     else if (!rt->rtOneWay && !rt->rtNoReplyArgs)
@@ -441,6 +454,7 @@ WriteVarDecls(FILE *file, const routine_t *rt)
 	fprintf(file, "\tunsigned int msgh_size;\n");
 	fprintf(file, "#endif\t/* TypeCheck */\n");
     }
+#endif
 
     /* if either request or reply is variable, we need msgh_size_delta */
     if ((rt->rtMaxRequestPos > 0) ||
@@ -493,16 +507,16 @@ WriteMsgSend(FILE *file, const routine_t *rt)
 
     if (IsKernelUser)
     {
-	fprintf(file, "\t%s mach_msg_send_from_kernel(", MsgResult);
+	fprintf(file, "\t%s mcn_msg_send_from_kernel(", MsgResult);
 	fprintf(file, "&InP->Head, %s);\n", SendSize);
     }
     else
     {
-        fprintf(file, "\t%s mcn_msg(MCN_MSGOPT_SEND|%s,",
+        fprintf(file, "\t%s mcn_msgsend(%s,",
 		MsgResult,
 		rt->rtMsgOption->argVarName);
 	fprintf(file,
-		" MCN_PORTID_NULL, MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n"
+		" MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n"
 		);
     }
 
@@ -554,19 +568,18 @@ WriteMsgSendReceive(FILE *file, const routine_t *rt)
     else
 	strcpy(SendSize, "msgh_size");
 
-    fprintf(file, "\tmsg_result = mach_msg(&InP->Head, MACH_SEND_MSG|%s, %s, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);\n",
-	    rt->rtMsgOption->argVarName,
-	    SendSize);
+    fprintf(file, "\tmsg_result = mcn_msgsend(%s, MCN_MSGTIMEOUT_NONE, MCN_PORTID_NULL);\n",
+	    rt->rtMsgOption->argVarName);
 
-    fprintf(file, "\tif (msg_result != MACH_MSG_SUCCESS)\n");
+    fprintf(file, "\tif (msg_result != MSGIO_SUCCESS)\n");
     WriteMsgError(file, rt, "msg_result");
     fprintf(file, "\n");
 
-    fprintf(file, "\tmsg_result = mach_msg(&OutP->Head, MACH_RCV_MSG|%s%s, 0, sizeof(Reply), InP->Head.msgh_local_port, %s, MACH_PORT_NULL);\n",
+    fprintf(file, "\tmsg_result = mcn_msgrecv(InP->Head.msgh_local, %s%s, %s, MCN_PORTID_NULL);\n",
 	    rt->rtMsgOption->argVarName,
 	    rt->rtWaitTime != argNULL ? "|MACH_RCV_TIMEOUT" : "",
-	    rt->rtWaitTime != argNULL ? rt->rtWaitTime->argVarName : "MACH_MSG_TIMEOUT_NONE");
-    WriteMsgCheckReceive(file, rt, "MACH_MSG_SUCCESS");
+	    rt->rtWaitTime != argNULL ? rt->rtWaitTime->argVarName : "MCN_MSGTIMEOUT_NONE");
+    WriteMsgCheckReceive(file, rt, "MSGIO_SUCCESS");
     fprintf(file, "\n");
 }
 
@@ -717,7 +730,7 @@ WriteAdjustMsgSimple(FILE *file, register const argument_t *arg)
     {
 	register const char *ref = arg->argByReferenceUser ? "*" : "";
 
-	fprintf(file, "\tif (MCN_MSGTYPE_PORT_ANY(%s%s))\n",
+	fprintf(file, "\tif (MCN_MSGTYPE_IS_PORT(%s%s))\n",
 		ref, arg->argVarName);
 	fprintf(file, "\t\tmsgh_simple = false;\n");
 	fprintf(file, "\n");
@@ -896,7 +909,6 @@ WriteFinishMsgSize(FILE *file, register const argument_t *arg)
     /* No more In arguments.  If this is the only variable In
        argument, the previous msgh_size value is the minimum
        request size. */
-
     if (arg->argRequestPos == 0) {
 	fprintf(file, "\tmsgh_size = %d + (",
 			arg->argRoutine->rtRequestSize);
@@ -998,7 +1010,11 @@ WriteRequestArgs(FILE *file, register const routine_t *rt)
      * Finish the message size.
      */
     if (lastVarArg != argNULL)
-	WriteFinishMsgSize(file, lastVarArg);
+      WriteFinishMsgSize(file, lastVarArg);
+    else
+      fprintf(file, "\tmsgh_size = %d;\n",
+	      rt->rtRequestSize);
+
 }
 
 /*************************************************************
@@ -1048,7 +1064,7 @@ WriteCheckIdentity(FILE *file, const routine_t *rt)
 	/* Expecting a complex message, or may vary at run time. */
 
 	fprintf(file, "\tmsgh_size = OutP->Head.msgh_size;\n");
-	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgh_bits & MCN_MSBITS_COMPLEX);\n");
+	fprintf(file, "\tmsgh_simple = !(OutP->Head.msgh_bits & MCN_MSGBITS_COMPLEX);\n");
 	fprintf(file, "\n");
 
 	fprintf(file, "\tif (((msgh_size %s %d)",
@@ -1116,7 +1132,7 @@ WriteTypeCheck(FILE *file, register const argument_t *arg)
 	if (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)
 	{
 	    if (!rt->rtSimpleCheckReply)
-		fprintf(file, "\t    (MCN_MSGTYPE_PORT_ANY(%sOutP->%s%smsgt%s_name) && msgh_simple) ||\n",
+		fprintf(file, "\t    (MCN_MSGTYPE_IS_PORT(%sOutP->%s%smsgt%s_name) && msgh_simple) ||\n",
 			arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 			arg->argTTName,
 			arg->argLongForm ? "." : ")->",
@@ -1495,6 +1511,10 @@ static void
 WriteRoutine(FILE *file, register const routine_t *rt)
 {
     /* write the stub's declaration */
+    if (IsKernelUser && !rt->rtOneWay) {
+        fprintf(file, "/* Routine %s ignored: not a simple routine. */\n", rt->rtName);
+	return;
+    }
 
     WriteStubDecl(file, rt);
 

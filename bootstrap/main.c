@@ -44,7 +44,7 @@ main (void)
 {
   puts ("Hello from userspace, NUX!\n");
 
-  test();
+  test ();
 
   return 42;
 }

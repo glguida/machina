@@ -8,4 +8,4 @@ user/%_server.c user/%.c user/%_server.h user/%.h: $(SRCDIR)/%.defs @MIG@ @MIGCO
 user: user/cs.c user/cs.h user/cs_server.c user/cs_server.h
 
 CLEAN_FILES+= user/cs_server.c user/cs_server.h user/cs.c user/cs.h
-ALL_TARGET+= user/cs_server.c user/cs.h
+ALL_TARGET+= user/cs_server.c user/cs.h user/cs.c user/cs.h

@@ -1,0 +1,6 @@
+LIBRARY=ku_kern
+SRCS+= ku.c
+
+@COMPILE_LIBEC@
+@COMPILE_LIBNUX@
+

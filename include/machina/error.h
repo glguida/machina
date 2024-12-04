@@ -25,12 +25,12 @@
 #define ssub_emask    err_system(0xfff)
 #define code_emask    0x3ff
 
-#define err_kern      err_system(0x00) /* Kernel. */
-#define err_us        err_system(0x01) /* Userspace Library. */
-#define err_server    err_system(0x02) /* Userspace Servers.  */
-#define err_ipc       err_system(0x04) /* Machina IPC Errors. */
-#define err_bootstrap err_system(0x05) /* Bootstrap Errors. */
-#define err_local     err_system(0x3e) /* User-defined Errors. */
+#define err_kern      err_system(0x00)	/* Kernel. */
+#define err_us        err_system(0x01)	/* Userspace Library. */
+#define err_server    err_system(0x02)	/* Userspace Servers.  */
+#define err_ipc       err_system(0x04)	/* Machina IPC Errors. */
+#define err_bootstrap err_system(0x05)	/* Bootstrap Errors. */
+#define err_local     err_system(0x3e)	/* User-defined Errors. */
 #define	err_max_system 0x3f
 
 
@@ -63,4 +63,7 @@
 #define	KERN_INVALID_HOST	22	/* Not a Host. */
 #define KERN_MEMORY_PRESENT	23	/* Precious Memory Already Present. */
 
+
+#define KERN_RETRY		100	/* Thread has been queued. Retry operation. */
+#define KERN_THREAD_TIMEDOUT	101
 #endif
