@@ -1,0 +1,169 @@
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
+#ifndef	MACH_MACH_TYPES_DEFS
+#define MACH_MACH_TYPES_DEFS
+
+/*
+  Map the Machina kernel objects into Mach types.
+*/
+
+#include <machina/machina_types.defs>
+#include <mach/std_types.defs>
+
+type mach_port_status_t = struct[9] of int;
+
+type old_mach_port_status_t = struct[8] of int;
+
+type task_t = mcn_task_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: taskref_t taskport_to_taskref(mcn_portid_t)
+		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
+		destructor: taskref_consume(taskref_t)
+#endif
+		;
+
+
+type vm_task_t = mcn_task_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: taskref_t taskport_to_taskref(mcn_portid_t)
+		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
+		destructor: taskref_consume(taskref_t)
+#endif
+		;
+
+type ipc_space_t = mcn_task_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: taskref_t taskport_to_taskref(mcn_portid_t)
+		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
+		destructor: taskref_consume(taskref_t)
+#endif
+		;
+
+type task_array_t = ^array[] of task_t;
+
+type thread_t = mcn_thread_t
+		ctype: mcn_portid_t
+#if KERNEL_SERVER
+		intran: threadref_t threadport_to_threadref(mcn_portid_t)
+		outtran: mcn_portid_t threadref_to_threadport(threadref_t)
+		destructor: threadref_consume(threadref_t)
+#endif
+		;
+
+type thread_state_t		= array[*:1024] of int;
+type thread_array_t = ^array[] of thread_t;
+
+type vm_address_t = int;
+type vm_offset_t = int;
+type vm_size_t = int;
+type vm_prot_t = int;
+type vm_inherit_t = int;
+type vm_statistics_data_t = struct[13] of int;
+type vm_machine_attribute_t = int;
+type vm_machine_attribute_val_t = int;
+
+type thread_info_t		= array[*:1024] of int;
+type task_info_t		= array[*:1024] of int;
+
+type memory_object_t = mach_port_t;
+
+type memory_object_control_t = mcn_vmobjctrl_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vmobjref_t vmobjctrlport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjctrlport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
+#endif	KERNEL_SERVER
+		;
+
+type memory_object_name_t = mcn_vmobjname_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: vmobjref_t vmobjnameport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjnameport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
+#endif	KERNEL_SERVER
+		;
+
+type memory_object_copy_strategy_t = int;
+type memory_object_return_t = int;
+
+type machine_info_data_t = struct[5] of int;
+type machine_slot_data_t = struct[8] of int;
+
+type host_t = mcn_host_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: hostptr_t nameport_to_host(mcn_portid_t)
+		outtran: mcn_portid_t host_to_nameport(hostptr_t)
+#endif	KERNEL_SERVER
+		;
+
+type host_priv_t = mcn_hostpriv_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: hostptr_t ctrlport_to_host(mcn_portid_t)
+		outtran: mcn_portid_t host_to_ctrlport(hostptr_t)
+#endif	KERNEL_SERVER
+		;
+
+type host_info_t 			= array[*:1024] of int;
+
+type processor_t = mcn_processor_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_t convert_port_to_processor(mcn_portid_t)
+		outtran: mcn_portid_t convert_processor_to_port(processor_t)
+#endif	KERNEL_SERVER
+		;
+
+type processor_array_t 		= ^array[] of processor_t;
+type processor_info_t		= array[*:1024] of int;
+
+type processor_set_t = mcn_procset_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+type processor_set_array_t = ^array[] of processor_set_t;
+
+type processor_set_name_t = mcn_procset_name_t
+		ctype: mcn_portid_t
+#if	KERNEL_SERVER
+		intran: processor_set_t convert_port_to_pset_name(mcn_portid_t)
+		outtran: mcn_portid_t convert_pset_name_to_port(processor_set_t)
+		destructor: pset_deallocate(processor_set_t)
+#endif	KERNEL_SERVER
+		;
+
+type processor_set_name_array_t = ^array[] of processor_set_name_t;
+
+type processor_set_info_t	= array[*:1024] of int;	
+
+type kernel_version_t		= (MACH_MSG_TYPE_STRING, 512*8);
+
+type kernel_boot_info_t		= (MACH_MSG_TYPE_STRING, 4096*8);
+
+type time_value_t = struct[2] of int;
+
+type emulation_vector_t		= ^array[] of vm_offset_t;
+
+type xxx_emulation_vector_t	= array[*:1024] of vm_offset_t
+					ctype: emulation_vector_t;
+					/* XXX compatibility */
+
+import <mach/mach_types.h>;
+import <mach/message.h>;
+
+#endif

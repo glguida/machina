@@ -46,6 +46,9 @@
 #include <mach/message.h>
 #include <mach/machine/vm_types.h>
 
+#include <stdlib.h>
+#define quit(_r, ...) ({ printf(__VA_ARGS__); exit (_r); })
+
 extern mach_msg_type_name_t copyin_type();
 
 extern void fillin_msg_header();
@@ -67,6 +70,8 @@ extern void fillin_msg_type_dummy_pointer();
 extern void check_msg_type_dummy_pointer();
 extern void fillin_msg_type_dummy_ports();
 extern void check_msg_type_dummy_ports();
+extern void fillin_msg_type_port();
+extern void check_msg_type_port();
 extern void fillin_msg_type_port_name();
 extern void check_msg_type_port_name();
 extern void fillin_msg_type_page_dealloc();

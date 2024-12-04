@@ -107,7 +107,8 @@ do
 	-iheader ) iheader="$2"; migflags="$migflags $1 $2"; shift; shift;;
 	-32 ) migflags="$migflags $1"; cppflags="$cppflags -DMIG_32BIT"; shift;;
 
-	-isystem ) isystem="$2" ; cppflags="$cppflags $1 $2"; shift; shift;;
+	-I ) cppflags="$cppflags $1 $2"; shift; shift;;
+	-isystem ) isystem="$2" ; cppflags="$cppflags -nostdinc $1 $2"; shift; shift;;
 	-MD ) sawMD=1; cppflags="$cppflags $1"; shift;;
 	-* ) cppflags="$cppflags $1"; shift;;
 

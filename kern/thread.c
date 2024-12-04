@@ -50,6 +50,8 @@ thread_new (struct task *t, long ip, long sp, long gp)
       return NULL;
     }
   th->task = t;
+  port_alloc_kernel ((void *)th, KOT_THREAD, &th->self);
+
   LIST_INSERT_HEAD (&t->threads, th, list_entry);
   uctxt_init (th->uctxt, ip, sp, gp);
   printf("Thread: %p\n", th);
@@ -83,6 +85,17 @@ thread_bootstrap (struct task *t)
   uctxt_settls (th->uctxt, th->tls);
 
   return th;
+}
+
+struct portref
+thread_getport (struct thread *th)
+{
+  struct portref ret;
+
+  spinlock (&th->lock);
+  ret = portref_dup (&th->self);
+  spinunlock (&th->lock);
+  return ret;
 }
 
 void

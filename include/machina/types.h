@@ -79,43 +79,4 @@ typedef unsigned mcn_vminherit_t;
 
 #define MCN_VMINHERIT_DEFAULT MCN_VMINHERIT_COPY
 
-
-typedef mcn_portid_t mcn_task_t;
-typedef mcn_task_t *mcn_task_array_t;
-typedef mcn_task_t mcn_vmtask_t;
-typedef mcn_task_t mcn_ipcspace_t;
-
-typedef mcn_portid_t mcn_thread_t;
-typedef mcn_thread_t *mcn_thread_array_t;
-
-typedef mcn_portid_t mcn_host_t;
-typedef mcn_portid_t mcn_host_priv_t;
-
-typedef mcn_portid_t mcn_processor_t;
-typedef mcn_portid_t *mcn_processor_array_t;
-
-typedef mcn_portid_t mcn_processor_set_t;
-typedef mcn_portid_t mcn_processor_set_name_t;
-typedef mcn_portid_t *mcn_processor_array_t;
-
-typedef mcn_vmoff_t *mcn_emulvec_t;
-
-typedef mcn_portid_t mcn_memobj_t;
-#define MCN_MEMOBJ_NULL MCN_PORTID_NULL
-
-typedef mcn_portid_t mcn_memobj_ctrl_t;
-typedef mcn_portid_t mcn_memobj_name_t;
-
-typedef int mcn_memobj_copy_strategy_t;
-#define MCN_MEMOBJ_COPY_NONE  0
-#define MCN_MEMOBJ_COPY_CALL  1
-#define MCN_MEMOBJ_COPY_DELAY 2
-#define MCN_MEMOBJ_COPY_TEMP  3
-
-typedef int mcn_memobj_return_t;
-#define MCN_MEMOBJ_RETURN_NONE  0
-#define MCN_MEMOBJ_RETURN_DIRTY 1
-#define MCN_MEMOBJ_RETURN_ALL   2
-
-
 #endif

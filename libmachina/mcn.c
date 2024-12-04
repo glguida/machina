@@ -9,6 +9,13 @@
 #include <machina/message.h>
 #include <machina/syscalls.h>
 
+static mcn_portid_t task_self_ = MCN_PORTID_NULL;
+
+void __attribute__((constructor (0))) __machina_libinit (void)
+{
+  task_self_ = syscall_task_self();
+}
+
 mcn_msgioret_t
 mcn_msgrecv (mcn_portid_t recv, mcn_msgopt_t option, unsigned long timeout,
 	     mcn_portid_t notify)
@@ -42,4 +49,10 @@ mcn_portid_t
 mcn_reply_port (void)
 {
   return (mcn_portid_t) syscall_reply_port ();
+}
+
+mcn_portid_t
+mcn_task_self (void)
+{
+  return task_self_;
 }

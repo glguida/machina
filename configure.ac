@@ -10,8 +10,10 @@ AC_MK_DIR([${nux_dir}/mk])
 AC_NUXROOT_DIR([${nux_dir}])
 AC_LIBEC_DIR([${libec_dir}])
 
+AC_SUBST(COMPILE_IN_KERNEL,["include "'$(SRCROOT)'"/kern/compile-in-kernel.mk"])
 AC_LIB_DIR(libmachina,libmachina)
-AC_LIB_DIR(libcompat_mach3,libcompat_mach3)
+AC_LIB_DIR(libmach3,libmach3/user)
+AC_LIB_DIR(libkmach3,libmach3/kern)
 
 AC_ARG_VAR([ARCH], [The architecture to compile for: i386, amd64 or riscv64])
 
@@ -79,9 +81,10 @@ AC_SUBST(MIGCOM, '$(BUILDROOT)/tools/mig/migcom')
 
 AC_MK_CONFIG_FILES([
 	Makefile
-	libmach/Makefile
-	libcompat_mach3/Makefile
 	libmachina/Makefile
+	libmach3/Makefile
+	libmach3/user/Makefile
+	libmach3/kern/Makefile
 	kern/Makefile
 	tests/Makefile
 	tests/ipc_test/Makefile

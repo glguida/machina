@@ -9,6 +9,8 @@
 NOINST=y
 PROGRAM=machina
 
+CFLAGS+=-I$(SRCDIR)
+
 # Add libkstest
 CFLAGS+=-I$(BUILDROOT)/tests/libkstest/kern -I$(SRCROOT)/tests/libkstest/kern
 LDFLAGS+=-L$(BUILDROOT)/tests/libkstest/kern/$(OBJDIR)

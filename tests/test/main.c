@@ -137,7 +137,12 @@ main (void)
 	  syscall_msgsend (MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL));
   syscall_msgrecv (3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
 
-  create_thread (1, (long) th1, (long) stack + 64 * 1024);
+  //  printf("create thread: %d\n",
+  //	 create_thread (1, (long) th1, (long) stack + 64 * 1024));
+
+  printf("create thread2: %d\n",
+  	 create_thread2 (syscall_task_self(), (long) th1, (long) stack + 64 * 1024));
+  
 
   //  while(1)
   //    printf("s: %d\n", simple(3));
@@ -154,7 +159,6 @@ main (void)
   printf ("=======================================\n");
   printf ("=======================================\n");
   printf ("=======================================\n");
-
 
   printf ("INC: %d\n", user_inc (3, &a));
   printf ("A %ld\n", a);

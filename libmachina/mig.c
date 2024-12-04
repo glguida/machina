@@ -1,7 +1,14 @@
+#include <string.h>
 #include <machina/mig.h>
 #include <machina/machina.h>
 
 static __thread mcn_portid_t __mig_reply_port = MCN_PORTID_NULL;
+
+void
+mig_strncpy(char *dest, char *src, int len)
+{
+  strncpy(dest, src, len);
+}
 
 mcn_portid_t
 mig_get_reply_port (void)

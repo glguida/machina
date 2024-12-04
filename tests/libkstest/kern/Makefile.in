@@ -1,6 +1,13 @@
 LIBRARY=ks_kern
+
+.PHONY: always_mig
+always_mig: @MIG@ @MIGCOM@
+
+%.c %.h: $(SRCDIR)/../%.defs
+	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*.c -user /dev/null -sheader kern/$*.h $<
+
 SRCS+= ks.c
 
-@COMPILE_LIBEC@
+@COMPILE_IN_KERNEL@
 @COMPILE_LIBNUX@
-
+@COMPILE_LIBEC@

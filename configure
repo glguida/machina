@@ -639,14 +639,19 @@ CFLAGS
 CC
 TOOLCHAIN
 ARCH
-LINK_LIBCOMPAT_MACH3
-COMPILE_LIBCOMPAT_MACH3
-LIBCOMPAT_MACH3_BUILDDIR
-LIBCOMPAT_MACH3_SRCDIR
+LINK_LIBKMACH3
+COMPILE_LIBKMACH3
+LIBKMACH3_BUILDDIR
+LIBKMACH3_SRCDIR
+LINK_LIBMACH3
+COMPILE_LIBMACH3
+LIBMACH3_BUILDDIR
+LIBMACH3_SRCDIR
 LINK_LIBMACHINA
 COMPILE_LIBMACHINA
 LIBMACHINA_BUILDDIR
 LIBMACHINA_SRCDIR
+COMPILE_IN_KERNEL
 EMBED_LIBEC
 LINK_LIBEC
 COMPILE_LIBEC
@@ -2269,6 +2274,8 @@ libec_dir=nux/libec
 
 
 
+COMPILE_IN_KERNEL="include "'$(SRCROOT)'"/kern/compile-in-kernel.mk"
+
 
 	LIBMACHINA_SRCDIR='$(SRCROOT)'/libmachina
 
@@ -2284,17 +2291,31 @@ libec_dir=nux/libec
 
 
 
-	LIBCOMPAT_MACH3_SRCDIR='$(SRCROOT)'/libcompat_mach3
+	LIBMACH3_SRCDIR='$(SRCROOT)'/libmach3/user
 
-	LIBCOMPAT_MACH3_BUILDDIR='$(BUILDROOT)'/libcompat_mach3
+	LIBMACH3_BUILDDIR='$(BUILDROOT)'/libmach3/user
 
-	COMPILE_LIBCOMPAT_MACH3="include "'$(BUILDROOT)'"/mk/libcompat_mach3-compile.mk"
+	COMPILE_LIBMACH3="include "'$(BUILDROOT)'"/mk/libmach3-compile.mk"
 
-	LINK_LIBCOMPAT_MACH3="include "'$(BUILDROOT)'"/mk/libcompat_mach3-link.mk"
+	LINK_LIBMACH3="include "'$(BUILDROOT)'"/mk/libmach3-link.mk"
 
-	ac_config_files="$ac_config_files mk/libcompat_mach3-compile.mk:libcompat_mach3/libcompat_mach3-compile.mk.in"
+	ac_config_files="$ac_config_files mk/libmach3-compile.mk:libmach3/user/libmach3-compile.mk.in"
 
-	ac_config_files="$ac_config_files mk/libcompat_mach3-link.mk:libcompat_mach3/libcompat_mach3-link.mk.in"
+	ac_config_files="$ac_config_files mk/libmach3-link.mk:libmach3/user/libmach3-link.mk.in"
+
+
+
+	LIBKMACH3_SRCDIR='$(SRCROOT)'/libmach3/kern
+
+	LIBKMACH3_BUILDDIR='$(BUILDROOT)'/libmach3/kern
+
+	COMPILE_LIBKMACH3="include "'$(BUILDROOT)'"/mk/libkmach3-compile.mk"
+
+	LINK_LIBKMACH3="include "'$(BUILDROOT)'"/mk/libkmach3-link.mk"
+
+	ac_config_files="$ac_config_files mk/libkmach3-compile.mk:libmach3/kern/libkmach3-compile.mk.in"
+
+	ac_config_files="$ac_config_files mk/libkmach3-link.mk:libmach3/kern/libkmach3-link.mk.in"
 
 
 
@@ -4119,13 +4140,16 @@ MIGCOM='$(BUILDROOT)/tools/mig/migcom'
 	ac_config_files="$ac_config_files Makefile:${mk_dir}/top.mk:Makefile.in:${mk_dir}/bottom.mk"
 
 
-	ac_config_files="$ac_config_files libmach/Makefile:${mk_dir}/top.mk:libmach/Makefile.in:${mk_dir}/bottom.mk"
-
-
-	ac_config_files="$ac_config_files libcompat_mach3/Makefile:${mk_dir}/top.mk:libcompat_mach3/Makefile.in:${mk_dir}/bottom.mk"
-
-
 	ac_config_files="$ac_config_files libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files libmach3/Makefile:${mk_dir}/top.mk:libmach3/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files libmach3/user/Makefile:${mk_dir}/top.mk:libmach3/user/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files libmach3/kern/Makefile:${mk_dir}/top.mk:libmach3/kern/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk"
@@ -4878,13 +4902,16 @@ do
     "mk/libec-embed.mk") CONFIG_FILES="$CONFIG_FILES mk/libec-embed.mk:${libec_dir}/libec-embed.mk.in" ;;
     "mk/libmachina-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libmachina-compile.mk:libmachina/libmachina-compile.mk.in" ;;
     "mk/libmachina-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libmachina-link.mk:libmachina/libmachina-link.mk.in" ;;
-    "mk/libcompat_mach3-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libcompat_mach3-compile.mk:libcompat_mach3/libcompat_mach3-compile.mk.in" ;;
-    "mk/libcompat_mach3-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libcompat_mach3-link.mk:libcompat_mach3/libcompat_mach3-link.mk.in" ;;
+    "mk/libmach3-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libmach3-compile.mk:libmach3/user/libmach3-compile.mk.in" ;;
+    "mk/libmach3-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libmach3-link.mk:libmach3/user/libmach3-link.mk.in" ;;
+    "mk/libkmach3-compile.mk") CONFIG_FILES="$CONFIG_FILES mk/libkmach3-compile.mk:libmach3/kern/libkmach3-compile.mk.in" ;;
+    "mk/libkmach3-link.mk") CONFIG_FILES="$CONFIG_FILES mk/libkmach3-link.mk:libmach3/kern/libkmach3-link.mk.in" ;;
     "tools/mig/mig") CONFIG_FILES="$CONFIG_FILES tools/mig/mig:tools/mig/mig.in" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile:${mk_dir}/top.mk:Makefile.in:${mk_dir}/bottom.mk" ;;
-    "libmach/Makefile") CONFIG_FILES="$CONFIG_FILES libmach/Makefile:${mk_dir}/top.mk:libmach/Makefile.in:${mk_dir}/bottom.mk" ;;
-    "libcompat_mach3/Makefile") CONFIG_FILES="$CONFIG_FILES libcompat_mach3/Makefile:${mk_dir}/top.mk:libcompat_mach3/Makefile.in:${mk_dir}/bottom.mk" ;;
     "libmachina/Makefile") CONFIG_FILES="$CONFIG_FILES libmachina/Makefile:${mk_dir}/top.mk:libmachina/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/Makefile:${mk_dir}/top.mk:libmach3/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/user/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/user/Makefile:${mk_dir}/top.mk:libmach3/user/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "libmach3/kern/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/kern/Makefile:${mk_dir}/top.mk:libmach3/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "kern/Makefile") CONFIG_FILES="$CONFIG_FILES kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/ipc_test/Makefile") CONFIG_FILES="$CONFIG_FILES tests/ipc_test/Makefile:${mk_dir}/top.mk:tests/ipc_test/Makefile.in:${mk_dir}/bottom.mk" ;;

@@ -534,7 +534,7 @@ vmmap_region (struct vmmap *map, vaddr_t *addr, size_t *size, mcn_vmprot_t *curp
   *maxprot = reg->maxprot;
   *inherit = MCN_VMINHERIT_DEFAULT; /* XXX: FIXME */
   *shared = true; /* XXX: FIXME */
-  vmobj_nameport_clone (vmobjref_unsafe_get(&reg->objref), portref);
+  *portref = vmobj_getnameport (vmobjref_unsafe_get(&reg->objref));
   *off = reg->off;
 
   spinunlock(&map->lock);

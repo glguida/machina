@@ -50,6 +50,7 @@ create_thread (mcn_portid_t test, long pc, long sp)
   printf ("\n\tcreate thread called (%lx %lx)\n", pc, sp);
 
   th = thread_new (cur_task (), pc, sp, uctxt_getgp(cur_thread()->uctxt));
+  printf("thread is %p\n", th);
   if (th == NULL)
     return KERN_RESOURCE_SHORTAGE;
 
@@ -60,11 +61,40 @@ create_thread (mcn_portid_t test, long pc, long sp)
   return KERN_SUCCESS;
 }
 
-struct task *
-convert_port_to_taskptr (ipc_port_t port)
+mcn_return_t
+create_thread2 (struct taskref tr, long pc, long sp)
 {
-  return port_getkobj (ipcport_unsafe_get (port), KOT_TASK);
+  struct thread *th;
+
+  if (taskref_isnull(tr))
+    {
+      printf("CREATE_THREAD2: TASK REF IS NULL\n");
+      return KERN_INVALID_ARGUMENT;
+    }
+      
+  struct task *t = taskref_unsafe_get(&tr);
+  printf("task = %p (cur_task = %p)\n", t, cur_task());
+
+  th = thread_new (t, pc, sp, uctxt_getgp(cur_thread()->uctxt));
+  printf("thread is %p\n", th);
+  if (th == NULL)
+    return KERN_RESOURCE_SHORTAGE;
+
+  uctxt_print (cur_thread ()->uctxt);
+  sched_add (th);
+  uctxt_print (cur_thread ()->uctxt);
+
+  return KERN_SUCCESS;
 }
+
+#if 0
+struct taskref
+convert_port_to_task (ipc_port_t port)
+{
+  struct task *t = port_getkobj (ipcport_unsafe_get (port), KOT_TASK);
+  return taskref_from_raw (t);
+}
+#endif
 
 void
 ipc_kern_exec (void)

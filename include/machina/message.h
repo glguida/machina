@@ -34,6 +34,7 @@ typedef struct
 
 #define MCN_MSGTYPE_LONG_SIZE 8
 
+typedef unsigned mcn_msgtype_number_t;
 
 typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_UNSTRUCTURED	0x00
@@ -71,6 +72,10 @@ typedef uint8_t mcn_msgtype_name_t;
 #define MCN_MSGTYPE_IS_SEND(_x)			\
   (((_x) >= MCN_MSGTYPE_MOVESEND) &&		\
    ((_x) <= MCN_MSGTYPE_MAKEONCE))
+
+#define MCN_MSGTYPE_IS_RIGHT(_x)		\
+  (((_x) >= MCN_MSGTYPE_MOVERECV) &&		\
+   ((_x) <= MCN_MSGTYPE_MOVEONCE))
 
 
 typedef uint32_t mcn_msgbits_t;

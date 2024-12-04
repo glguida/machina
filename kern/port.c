@@ -137,7 +137,7 @@ port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout, bool force)
   printf("port = %p\n", port);
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
-
+  printf("port = %p\n", port);
   spinlock (&port->lock);
   switch (port->type)
     {
@@ -159,7 +159,7 @@ port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout, bool force)
       break;
     }
   spinunlock (&port->lock);
-
+  printf("port = %p (%d)\n", port, rc);
   return rc;
 }
 
@@ -222,26 +222,108 @@ port_double_unlock (struct port *porta, struct port *portb)
     }
 }
 
-void *
+static void *
 port_getkobj (struct port *port, enum kern_objtype kot)
 {
-  void *obj;
-  spinlock (&port->lock);
   if (port->type != PORT_KERNEL)
-    {
-      obj = NULL;
-      goto _getkobj_error;
-    }
-  if (port->kernel.kot != kot)
-    {
-      obj = NULL;
-      goto _getkobj_error;
-    }
-  obj = port->kernel.obj;
+    return NULL;
 
-_getkobj_error:
+  if (port->kernel.kot != kot)
+    return NULL;
+
+  return port->kernel.obj;
+}
+
+struct taskref
+port_get_taskref (struct port *port)
+{
+  struct task *t;
+  struct taskref ret;
+
+  spinlock (&port->lock);
+  t = port_getkobj (port, KOT_TASK);
+  if (t != NULL)
+    ret = taskref_from_raw(t);
+  else
+    ret = TASKREF_NULL;
   spinunlock (&port->lock);
-  return obj;
+  return ret;
+}
+
+struct threadref
+port_get_threadref (struct port *port)
+{
+  struct thread *th;
+  struct threadref ret;
+
+  spinlock (&port->lock);
+  th = port_getkobj (port, KOT_THREAD);
+  if (th != NULL)
+    ret = threadref_from_raw (th);
+  else
+    ret = THREADREF_NULL;
+  spinunlock (&port->lock);
+  return ret;
+}
+
+struct vmobjref
+port_get_vmobjref (struct port *port)
+{
+  struct vmobj *vmobj;
+  struct vmobjref ret;
+
+  spinlock (&port->lock);
+  vmobj = port_getkobj (port, KOT_VMOBJ);
+  if (vmobj != NULL)
+    {
+      ret = vmobjref_from_raw(vmobj);
+    }
+  else
+    ret = VMOBJREF_NULL;
+  spinunlock (&port->lock);
+  return ret;
+}
+
+struct vmobjref
+port_get_vmobjref_from_name (struct port *port)
+{
+  struct vmobj *vmobj;
+  struct vmobjref ret;
+
+  spinlock (&port->lock);
+  vmobj = port_getkobj (port, KOT_VMOBJ_NAME);
+  if (vmobj != NULL)
+    {
+      ret = vmobjref_from_raw(vmobj);
+    }
+  else
+    ret = VMOBJREF_NULL;
+  spinunlock (&port->lock);
+  return ret;
+}
+
+struct host *
+port_get_host_from_name (struct port *port)
+{
+  struct host *host;
+
+  spinlock (&port->lock);
+  host = port_getkobj (port, KOT_HOST_NAME);
+  spinunlock (&port->lock);
+
+  return host;
+}
+
+struct host *
+port_get_host_from_ctrl (struct port *port)
+{
+  struct host *host;
+
+  spinlock (&port->lock);
+  host = port_getkobj (port, KOT_HOST_CTRL);
+  spinunlock (&port->lock);
+
+  return host;
 }
 
 void

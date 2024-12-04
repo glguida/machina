@@ -5,6 +5,8 @@ CFLAGS+=-Wno-error=endif-labels
 NOINST=y
 PROGRAM=test
 
+CFLAGS+=-I$(SRCROOT)/libmach/include
+
 SRCS+= main.c mtest.c nstest.c ntest.c ptest.c stest.c utest.c utils.c
 
 @COMPILE_LIBCOMPAT_MACH3@

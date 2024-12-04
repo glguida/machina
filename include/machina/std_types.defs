@@ -8,9 +8,9 @@
 #define _MACHINA_STD_TYPES_H_
 
 #ifdef MIG_32BIT
-#include "std_types_64.defs"
-#else
 #include "std_types_32.defs"
+#else
+#include "std_types_64.defs"
 #endif
 
 type mcn_pointer_t = ^array[] of MACH_MSG_TYPE_BYTE

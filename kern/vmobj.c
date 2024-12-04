@@ -244,12 +244,26 @@ vmobj_delregion (struct vmobj *vmobj, struct vm_region *vmreg)
   spinunlock (vmobj->lock);
 }
 
-void
-vmobj_nameport_clone (struct vmobj *vmobj, struct portref *portref)
+struct portref
+vmobj_getctrlport (struct vmobj *vmobj)
 {
+  struct portref pr;
+
   spinlock (vmobj->lock);
-  *portref = portref_dup(&vmobj->name_port);
+  pr = portref_dup(&vmobj->control_port);
   spinunlock (vmobj->lock);
+  return pr;
+}
+
+struct portref
+vmobj_getnameport (struct vmobj *vmobj)
+{
+  struct portref pr;
+
+  spinlock (vmobj->lock);
+  pr = portref_dup(&vmobj->name_port);
+  spinunlock (vmobj->lock);
+  return pr;
 }
 
 void

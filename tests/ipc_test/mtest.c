@@ -52,6 +52,8 @@
 #include "utils.h"
 #include "mtest.h"
 
+#define vm_page_size 4096
+
 void
 complex_bit_test_1()
 {

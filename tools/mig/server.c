@@ -623,14 +623,14 @@ WriteTypeCheck(FILE *file, register const argument_t *arg)
 		arg->argLongForm ? ".msgtl_header" : "",
 		strbool(it->itInLine));	}
 
-	fprintf(file, "(((mcn_msg_ype_t*)&In%dP->%s%s)->msgt_longform != %s) ||\n",
+	fprintf(file, "(((mcn_msgtype_t*)&In%dP->%s%s)->msgt_longform != %s) ||\n",
 		arg->argRequestPos, arg->argTTName,
 		arg->argLongForm ? ".msgtl_header" : "",
 		strbool(arg->argLongForm));
 	if (it->itOutName == MCN_MSGTYPE_POLYMORPHIC)
 	{
 	    if (!rt->rtSimpleCheckRequest)
-		fprintf(file, "\t    (MCN_MSGTYPE_PORT_ANY(%sIn%dP->%s%smsgt%s_name) && msgh_simple) ||\n",
+		fprintf(file, "\t    (MCN_MSGTYPE_IS_PORT(%sIn%dP->%s%smsgt%s_name) && msgh_simple) ||\n",
 			arg->argLongForm ? "" : "((mcn_msgtype_t*)&",
 			arg->argRequestPos, arg->argTTName,
 			arg->argLongForm ? "." : ")->",
@@ -1197,11 +1197,12 @@ WriteAdjustMsgSimple(FILE *file, register const argument_t *arg)
     if (!arg->argRoutine->rtSimpleFixedReply)
     {
 	fprintf(file, "\n");
-	fprintf(file, "\tif (MCN_MSGTYPE_PORT_ANY(%s))\n", arg->argVarName);
+	fprintf(file, "\tif (MCN_MSGTYPE_IS_PORT(%s))\n", arg->argVarName);
 	fprintf(file, "\t\tmsgh_simple = false;\n");
     }
 }
 
+#if 0
 static void
 WriteAdjustMsgCircular(FILE *file, register const argument_t *arg)
 {
@@ -1227,6 +1228,7 @@ WriteAdjustMsgCircular(FILE *file, register const argument_t *arg)
     fprintf(file, "\t    ipc_port_check_circularity((ipc_port_t) OutP->%s, (ipc_port_t) InHeadP->msgh_reply_port))\n", arg->argMsgField);
     fprintf(file, "\t\tOutHeadP->msgh_bits |= MACH_MSGH_BITS_CIRCULAR;\n");
 }
+#endif
 
 /*
  * Calculate the size of a variable-length message field.
@@ -1455,6 +1457,7 @@ WritePackArg(FILE *file, register const argument_t *arg)
     if (akCheck(arg->argKind, akbReplyCopy))
 	WriteCopyArgValue(file, arg);
 
+#if 0
     /*
      *	If this is a KernelServer, and the reply message contains
      *	a receive right, we must check for the possibility of a
@@ -1468,6 +1471,7 @@ WritePackArg(FILE *file, register const argument_t *arg)
 	((arg->argType->itOutName == MCN_MSGTYPE_PORTRECV) ||
 	 (arg->argType->itOutName == MCN_MSGTYPE_POLYMORPHIC)))
 	WriteAdjustMsgCircular(file, arg);
+#endif
 }
 
 /*

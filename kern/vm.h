@@ -244,12 +244,17 @@ void vmobj_addregion (struct vmobj *vmobj, struct vm_region *vmreg,
 void vmobj_delregion (struct vmobj *vmobj, struct vm_region *vmreg);
 bool vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 		  pfn_t * outpfn);
-void vmobj_nameport_clone (struct vmobj *vmobj, struct portref *portref);
+struct portref vmobj_getctrlport (struct vmobj *vmobj);
+struct portref vmobj_getnameport (struct vmobj *vmobj);
 
 static inline struct vmobjref
-vmobjref_from_nameport (struct portref *portref)
+vmobjref_from_raw (struct vmobj *vmobj)
 {
-  return (struct vmobjref){ .obj = port_getkobj (portref_unsafe_get (portref), KOT_VMOBJ_NAME) };
+  if (vmobj == NULL)
+    return VMOBJREF_NULL;
+
+  struct vmobjref ref = ((struct vmobjref){.obj=vmobj});
+  return REF_DUP(ref);
 }
 
 static inline struct vmobjref

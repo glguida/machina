@@ -1,12 +1,17 @@
 subsystem kernelserver kstest 2000;
 
-#include <machina/std_types.defs>
+#include <machina/machina_types.defs>
 
 simpleroutine simple(
 		test: mcn_portid_t);
 
 simpleroutine create_thread(
 	      test: mcn_portid_t;
+	      pc: long;
+	      sp: long);
+
+simpleroutine create_thread2(
+	      test: mcn_task_t;
 	      pc: long;
 	      sp: long);
 

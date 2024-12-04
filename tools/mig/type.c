@@ -674,7 +674,7 @@ itPrevDecl(identifier_t name)
 	return itAlloc();
     }
     else
-	return itCopyType(old);
+        return itCopyType(old);
 }
 
 /*
@@ -800,7 +800,7 @@ itMakeCountType(void)
 {
     ipc_type_t *it = itAlloc();
 
-    it->itName = "mach_msg_type_number_t";
+    it->itName = "mcn_msgtype_number_t";
     it->itInName = word_size_name;
     it->itInNameStr = word_size_name_string;
     it->itOutName = word_size_name;
@@ -836,7 +836,7 @@ itMakePolyType(void)
 {
     ipc_type_t *it = itAlloc();
 
-    it->itName = "mach_msg_type_name_t";
+    it->itName = "mcn_msgtype_name_t";
     it->itInName = word_size_name;
     it->itInNameStr = word_size_name_string;
     it->itOutName = word_size_name;

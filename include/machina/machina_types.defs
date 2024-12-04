@@ -1,13 +1,17 @@
-#include <machina/std_types.defs>
+/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
 
-type mcn_portstatus_t = struct [9] of int;
+#include <machina/std_types.defs>
 
 type mcn_task_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if KERNEL_SERVER
-		intran: task_t convert_port_to_task(mcn_portid_t)
-		outtran: mcn_portid_t convert_task_to_port(task_t)
-		destructor: task_deallocate(task_t)
+		intran: taskref_t taskport_to_taskref(mcn_portid_t)
+		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
+		destructor: taskref_consume(taskref_t)
 #endif
 		;
 
@@ -15,70 +19,44 @@ type mcn_task_t = mcn_portid_t
 type mcn_thread_t = mcn_portid_t
 	      	ctype: mcn_portid_t
 #if KERNEL_SERVER
-		intran: thread_t convert_port_to_thread(mcn_portid_t)
-		outtran: mcn_portid_t convert_thread_to_port(thread_t)
-		destructor: thread_deallocate(thread_t)
+#warning KERNEL SERVER
+		intran: threadref_t threadport_to_threadref(mcn_portid_t)
+		outtran: mcn_portid_t threadref_to_threadport(threadref_t)
+		destructor: taskref_consume(threadref_t)
 #endif
 		;
 
-type mcn_task_array_t = ^array[] of mcn_task_t;
-type mcn_thread_array_t = ^array[] of mcn_thread_t;
-type mcn_threadstate_t = array[*:32] of long;
-
-
-type mcn_vmtask_t = mcn_portid_t
+type mcn_vmobjctrl_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
-		intran: vm_map_t convert_port_to_map(mcn_portid_t)
-		destructor: vm_map_deallocate(vm_map_t)
+		intran: vmobjref_t vmobjctrlport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjctrlport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
 #endif	KERNEL_SERVER
 		;
 
-type mcn_ipcspace_t = mcn_portid_t
+type mcn_vmobjname_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
-		intran: ipc_space_t convert_port_to_space(mcn_portid_t)
-		destructor: space_deallocate(ipc_space_t)
+		intran: vmobjref_t vmobjnameport_to_vmobjref(mcn_portid_t)
+		outtran: mcn_portid_t vmobjref_to_vmobjnameport(vmobjref_t)
+		destructor: vmobjref_consume(vmobjref_t)
 #endif	KERNEL_SERVER
 		;
-
-type mcn_vmaddr_t = long;
-type mcn_vmoff_t = long;
-type mcn_vmsize_t = long;
-type mcn_vmprot_t = int;
-type mcn_vminherit_t = int;
-
-
-type mcn_memobj_t = mcn_portid_t
-		ctype: mcn_portid_t
-#if	KERNEL_SERVER
-		intran: ipc_port_t null_conversion(mcn_portid_t)
-#endif	KERNEL_SERVER
-		;
-
-type mcn_memobj_ctrl_t = mcn_portid_t
-		ctype: mcn_portid_t
-#if	KERNEL_SERVER
-		intran: vm_object_t vm_object_lookup(mcn_portid_t)
-#endif	KERNEL_SERVER
-		;
-
-type mcn_memobj_name_t = mcn_portid_t
-		ctype: mcn_portid_t;
-
 
 type mcn_host_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
-		intran: host_t convert_port_to_host(mcn_portid_t)
-		outtran: mcn_portid_t convert_host_to_port(host_t)
+		intran: host_t port_to_host(mcn_portid_t)
+		outtran: mcn_portid_t host_to_port(host_t)
 #endif	KERNEL_SERVER
 		;
 
-type mcn_host_priv_t = mcn_portid_t
+type mcn_hostpriv_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
-		intran: host_t convert_port_to_host_priv(mcn_portid_t)
+		intran: hostpriv_t port_to_hostpriv(mcn_portid_t)
+		outtran: mcn_portid_t hostpriv_to_port(hostpriv_t)
 #endif	KERNEL_SERVER
 		;
 
@@ -90,7 +68,7 @@ type mcn_processor_t = mcn_portid_t
 #endif	KERNEL_SERVER
 		;
 
-type mcn_processor_set_t = mcn_portid_t
+type mcn_procset_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
 		intran: processor_set_t convert_port_to_pset(mcn_portid_t)
@@ -99,7 +77,7 @@ type mcn_processor_set_t = mcn_portid_t
 #endif	KERNEL_SERVER
 		;
 
-type mcn_processor_set_name_t = mcn_portid_t
+type mcn_procset_name_t = mcn_portid_t
 		ctype: mcn_portid_t
 #if	KERNEL_SERVER
 		intran: processor_set_t convert_port_to_pset_name(mcn_portid_t)
@@ -108,4 +86,6 @@ type mcn_processor_set_name_t = mcn_portid_t
 #endif	KERNEL_SERVER
 		;
 
-type mcn_emulvec_t = ^array[] of mcn_vmoff_t;
+#if	KERNEL_SERVER
+simport <kern.h>;
+#endif

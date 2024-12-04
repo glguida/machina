@@ -39,6 +39,17 @@ task_bootstrap (struct taskref *taskref)
   vmmap_printregions (&t->vmmap);
 }
 
+struct portref
+task_getport (struct task *t)
+{
+  struct portref ret;
+
+  spinlock (&t->lock);
+  ret =  portref_dup (&t->self);
+  spinunlock (&t->lock);
+  return ret;
+}
+
 mcn_portid_t
 task_self (void)
 {

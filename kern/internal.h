@@ -35,15 +35,6 @@
 */
 void physmem_init (void);
 
-/*
-  Allocate a page for kernel use, if `mayfail` is false then allocate
-  from the reserve memory.
-
-  Note: NUX libraries will always allocate with `mayfail` false.
-*/
-pfn_t pfn_alloc_kernel (bool mayfail);
-void pfn_free_kernel (pfn_t pfn);
-
 
 /*
   KVA Share: Shared area between kernel and userspace.
@@ -155,60 +146,6 @@ void sched_wakeone (struct waitq *wq);
 
 
 /*
-  Machina Thread.
-
-*/
-/**INDENT-OFF**/
-struct thread
-{
-  lock_t lock;			/* PRIO: task > thread. */
-  uctxt_t *uctxt;
-  LIST_ENTRY (thread) list_entry;
-  struct task *task;
-  struct msgbuf msgbuf;
-
-  int64_t vtt_almdiff;
-  uint64_t vtt_offset;
-  uint64_t vtt_rttbase;
-  struct timer vtt_alarm;
-  unsigned cpu;
-
-  uaddr_t tls;
-
-  struct
-  {
-    uint8_t op_yield:1;
-    uint8_t op_suspend:1;
-    uint8_t op_destroy:1;
-  } sched_op;
-  struct waitq *waitq;
-  struct timer timeout;
-  enum sched status;
-  TAILQ_ENTRY (thread) sched_list;
-};
-/**INDENT-ON**/
-
-struct thread *thread_new (struct task *t, long ip, long sp, long gp);
-struct thread *thread_idle (void);
-struct thread *thread_bootstrap (struct task *t);
-void thread_enter (struct thread *th);
-void thread_init (void);
-void thread_vtalrm (int64_t diff);
-
-static inline uctxt_t *
-thread_uctxt (struct thread *th)
-{
-  return th->uctxt;
-}
-
-static inline bool
-thread_isidle (struct thread *th)
-{
-  return thread_uctxt (th) == UCTXT_IDLE;
-}
-
-
-/*
   Port Space: a collection of port rights.
 
 */
@@ -284,6 +221,8 @@ enum kern_objtype
   KOT_THREAD,
   KOT_VMOBJ,
   KOT_VMOBJ_NAME,
+  KOT_HOST_CTRL,
+  KOT_HOST_NAME,
 };
 
 struct port
@@ -313,7 +252,12 @@ bool port_kernel (struct port *);
 enum port_type port_type (struct port *);
 void port_alloc_kernel (void *obj, enum kern_objtype kot,
 			struct portref *portref);
-void *port_getkobj (struct port *port, enum kern_objtype kot);
+struct taskref port_get_taskref (struct port *port);
+struct threadref port_get_threadref (struct port *port);
+struct vmobjref port_get_vmobjref (struct port *port);
+struct vmobjref port_get_vmobjref_from_name (struct port *port);
+struct host * port_get_host_from_name (struct port *port);
+struct host * port_get_host_from_ctrl (struct port *port);
 mcn_return_t port_alloc_queue (struct portref *portref);
 mcn_return_t port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout,
 			   bool force);
@@ -445,6 +389,98 @@ portright_unsafe_put (struct port **port)
 
 
 /*
+  Machina Thread.
+
+*/
+/**INDENT-OFF**/
+struct thread
+{
+  unsigned _ref_count;
+  lock_t lock;			/* PRIO: task > thread. */
+  uctxt_t *uctxt;
+  LIST_ENTRY (thread) list_entry;
+  struct task *task;
+  struct msgbuf msgbuf;
+  struct portref self;
+
+  int64_t vtt_almdiff;
+  uint64_t vtt_offset;
+  uint64_t vtt_rttbase;
+  struct timer vtt_alarm;
+  unsigned cpu;
+
+  uaddr_t tls;
+
+  struct
+  {
+    uint8_t op_yield:1;
+    uint8_t op_suspend:1;
+    uint8_t op_destroy:1;
+  } sched_op;
+  struct waitq *waitq;
+  struct timer timeout;
+  enum sched status;
+  TAILQ_ENTRY (thread) sched_list;
+};
+/**INDENT-ON**/
+
+struct thread *thread_new (struct task *t, long ip, long sp, long gp);
+struct thread *thread_idle (void);
+struct thread *thread_bootstrap (struct task *t);
+struct portref thread_getport (struct thread *th);
+void thread_enter (struct thread *th);
+void thread_init (void);
+void thread_vtalrm (int64_t diff);
+
+static inline uctxt_t *
+thread_uctxt (struct thread *th)
+{
+  return th->uctxt;
+}
+
+static inline bool
+thread_isidle (struct thread *th)
+{
+  return thread_uctxt (th) == UCTXT_IDLE;
+}
+
+struct threadref
+{
+  struct thread *obj;
+};
+
+#define THREADREF_NULL ((struct threadref){.obj = NULL})
+
+static inline bool
+threadref_isnull(struct threadref threadref)
+{
+  return threadref.obj == NULL;
+}
+
+static inline struct threadref
+threadref_from_raw (struct thread *th)
+{
+  if (th == NULL)
+    return THREADREF_NULL;
+
+  struct threadref ref = ((struct threadref){.obj=th});
+  return REF_DUP(ref);
+}
+
+static inline struct thread *
+threadref_unsafe_get (struct threadref *threadref)
+{
+  return REF_GET (*threadref);
+}
+
+static inline void
+threadref_consume (struct threadref threadref)
+{
+  /* XXX: DELETE IF */ REF_DESTROY (threadref);
+}
+
+
+/*
   Machina Task.
 
 */
@@ -473,12 +509,31 @@ mcn_return_t task_vm_map (struct task *t, vaddr_t *addr, size_t size, unsigned l
 mcn_return_t task_vm_allocate (struct task *t, vaddr_t * addr, size_t size,
 			       bool anywhere);
 mcn_return_t task_vm_region (struct task *t, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off);
+struct portref task_getport(struct task *task);
 mcn_portid_t task_self (void);
 
 struct taskref
 {
   struct task *obj;
 };
+
+#define TASKREF_NULL ((struct taskref){.obj=NULL})
+
+static inline bool
+taskref_isnull(struct taskref taskref)
+{
+  return taskref.obj == NULL;
+}
+
+static inline struct taskref
+taskref_from_raw (struct task *t)
+{
+  if (t == NULL)
+    return TASKREF_NULL;
+
+  struct taskref ref = ((struct taskref){.obj=t});
+  return REF_DUP(ref);
+}
 
 static inline struct taskref
 taskref_dup (struct taskref *taskref)
@@ -675,7 +730,7 @@ message_debug (mcn_msgheader_t * msgh)
 	  ptr += (size >> 3) == 8 ? 4 : 0; /* Align. */
 	  printf ("  - bytes: ");
 	  for (int i = 0; i < (size >> 3); i++)
-	    printf("%02x ", *(char *)ptr++);
+	    printf("%02x ", *(unsigned char *)ptr++);
 	  printf("\n");
 	}
     }
@@ -684,5 +739,11 @@ message_debug (mcn_msgheader_t * msgh)
 }
 
 void ipcspace_debug (struct ipcspace *ps);
+
+void host_init (void);
+struct portref host_getctrlport(struct host *host);
+struct portref host_getnameport(struct host *host);
+
+#include "kern.h"
 
 #endif

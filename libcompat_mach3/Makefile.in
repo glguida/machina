@@ -1,3 +1,0 @@
-SUBDIRS= user kern
-INCSUBDIRS= include/mach include/mach3
-
