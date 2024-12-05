@@ -4,7 +4,7 @@ LIBRARY=ks_kern
 always_mig: @MIG@ @MIGCOM@
 
 %.c %.h: $(SRCDIR)/../%.defs
-	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*.c -user /dev/null -sheader kern/$*.h $<
+	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*.c -user /dev/null -sheader $*.h $<
 
 SRCS+= ks.c
 

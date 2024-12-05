@@ -87,10 +87,10 @@ AC_MK_CONFIG_FILES([
 	libmach3/kern/Makefile
 	kern/Makefile
 	tests/Makefile
-	tests/ipc_test/Makefile
 	tests/libkutest/Makefile
 	tests/libkutest/user/Makefile
 	tests/libkutest/kern/Makefile
+	tests/libkstest/Makefile
 	tests/libkstest/user/Makefile
 	tests/libkstest/kern/Makefile
 	tests/libcstest/Makefile

@@ -4158,9 +4158,6 @@ MIGCOM='$(BUILDROOT)/tools/mig/migcom'
 	ac_config_files="$ac_config_files tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk"
 
 
-	ac_config_files="$ac_config_files tests/ipc_test/Makefile:${mk_dir}/top.mk:tests/ipc_test/Makefile.in:${mk_dir}/bottom.mk"
-
-
 	ac_config_files="$ac_config_files tests/libkutest/Makefile:${mk_dir}/top.mk:tests/libkutest/Makefile.in:${mk_dir}/bottom.mk"
 
 
@@ -4168,6 +4165,9 @@ MIGCOM='$(BUILDROOT)/tools/mig/migcom'
 
 
 	ac_config_files="$ac_config_files tests/libkutest/kern/Makefile:${mk_dir}/top.mk:tests/libkutest/kern/Makefile.in:${mk_dir}/bottom.mk"
+
+
+	ac_config_files="$ac_config_files tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk"
 
 
 	ac_config_files="$ac_config_files tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk"
@@ -4914,10 +4914,10 @@ do
     "libmach3/kern/Makefile") CONFIG_FILES="$CONFIG_FILES libmach3/kern/Makefile:${mk_dir}/top.mk:libmach3/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "kern/Makefile") CONFIG_FILES="$CONFIG_FILES kern/Makefile:${mk_dir}/top.mk:kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile:${mk_dir}/top.mk:tests/Makefile.in:${mk_dir}/bottom.mk" ;;
-    "tests/ipc_test/Makefile") CONFIG_FILES="$CONFIG_FILES tests/ipc_test/Makefile:${mk_dir}/top.mk:tests/ipc_test/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkutest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/Makefile:${mk_dir}/top.mk:tests/libkutest/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkutest/user/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/user/Makefile:${mk_dir}/top.mk:tests/libkutest/user/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkutest/kern/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkutest/kern/Makefile:${mk_dir}/top.mk:tests/libkutest/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
+    "tests/libkstest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/Makefile:${mk_dir}/top.mk:tests/libkstest/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkstest/user/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/user/Makefile:${mk_dir}/top.mk:tests/libkstest/user/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libkstest/kern/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libkstest/kern/Makefile:${mk_dir}/top.mk:tests/libkstest/kern/Makefile.in:${mk_dir}/bottom.mk" ;;
     "tests/libcstest/Makefile") CONFIG_FILES="$CONFIG_FILES tests/libcstest/Makefile:${mk_dir}/top.mk:tests/libcstest/Makefile.in:${mk_dir}/bottom.mk" ;;

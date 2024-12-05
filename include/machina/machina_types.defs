@@ -19,7 +19,6 @@ type mcn_task_t = mcn_portid_t
 type mcn_thread_t = mcn_portid_t
 	      	ctype: mcn_portid_t
 #if KERNEL_SERVER
-#warning KERNEL SERVER
 		intran: threadref_t threadport_to_threadref(mcn_portid_t)
 		outtran: mcn_portid_t threadref_to_threadport(threadref_t)
 		destructor: taskref_consume(threadref_t)
