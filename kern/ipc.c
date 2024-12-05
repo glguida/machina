@@ -218,13 +218,21 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
   /*
      We can read up to the item now.
    */
-  bool is_port = msgbits_is_port (name);
 
   /*
      Calculate full item size.
    */
   size_t item_size =
     (is_inline ? ((size >> 3) * number) : sizeof (mcn_vmaddr_t));
+
+  bool is_port = msgbits_is_port (name)
+    && ((size >> 3) == sizeof (mcn_portid_t));
+
+  /*
+     Note: If an IPC claims data contains a port but the item size is
+     not correct, we ignore it.
+   */
+
   if (((*from) + hdr_size + item_size) > end)
     return false;
 
@@ -233,10 +241,6 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
    */
   if (is_port)
     {
-      /*
-         XXX: I need to check that the port has the right size.
-       */
-
       if (op == MSGITEMOP_INTERNALIZE)
 	{
 	  uint8_t newname = msgbits_port_intern (name);
