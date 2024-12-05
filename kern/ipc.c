@@ -76,34 +76,20 @@ msgbits_is_port (mcn_msgtype_name_t type)
     }
 }
 
-void
-intmsg_consume (mcn_msgheader_t * intmsg)
-{
-  if (intmsg->msgh_remote != 0)
-    {
-      struct portref port = ipcport_to_portref (&intmsg->msgh_remote);
-      portref_consume (&port);
-    }
-  if (intmsg->msgh_local != 0)
-    {
-      struct portref port = ipcport_to_portref (&intmsg->msgh_local);
-      portref_consume (&port);
-    }
-}
-
 static void
-internalize_portarray (struct ipcspace *ps, uint8_t name, void *array, size_t itemsz, unsigned number)
+internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
+		       size_t itemsz, unsigned number)
 {
-  printf("port array: item size: %ld, number: %ld\n", itemsz, number);
-  if (itemsz != sizeof(mcn_portid_t))
+  printf ("port array: item size: %ld, number: %ld\n", itemsz, number);
+  if (itemsz != sizeof (mcn_portid_t))
     {
       /*
-	If the type is too small, just set it to zero. This is invalid.
-      */
+         If the type is too small, just set it to zero. This is invalid.
+       */
       memset (array, 0, itemsz * number);
       return;
     }
-  printf("here!\n");
+  printf ("here!\n");
 
   mcn_portid_t *idptr = array;
 
@@ -111,43 +97,44 @@ internalize_portarray (struct ipcspace *ps, uint8_t name, void *array, size_t it
     {
       mcn_return_t rc;
       struct portref portref;
-      ipcspace_debug(ps);
-      printf("RESOLVE OP: %s %"PRIx64"\n", typename_debug (name), *idptr);
+      ipcspace_debug (ps);
+      printf ("RESOLVE OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
       rc = ipcspace_resolve (ps, name, *idptr, &portref);
-      ipcspace_debug(ps);
+      ipcspace_debug (ps);
       if (rc)
 	{
 	  *idptr = MCN_PORTID_NULL;
 	  continue;
 	}
-      printf("writing to idptr %p\n", idptr);
+      printf ("writing to idptr %p\n", idptr);
       *idptr = portref_to_ipcport (&portref);
-      printf("new idptr: %lx\n", *idptr);
+      printf ("new idptr: %lx\n", *idptr);
     }
 }
 
 static void
-externalize_portarray (struct ipcspace *ps, uint8_t name, void *array, size_t itemsz, unsigned number)
+externalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
+		       size_t itemsz, unsigned number)
 {
-  printf("port array: item size: %ld, number: %ld\n", itemsz, number);
-  assert (itemsz == sizeof(mcn_portid_t));
+  printf ("port array: item size: %ld, number: %ld\n", itemsz, number);
+  assert (itemsz == sizeof (mcn_portid_t));
 
   mcn_portid_t *idptr = array;
 
   for (unsigned i = 0; i < number; i++, idptr++)
     {
       mcn_return_t rc;
-      ipcspace_debug(ps);
+      ipcspace_debug (ps);
 
       if (ipcport_isnull (*idptr))
 	continue;
 
       struct portref portref = ipcport_to_portref (idptr);
       struct portright pr = portright_from_portref (name, portref);
-      ipcspace_debug(ps);
-      printf("INSERT OP: %s %"PRIx64"\n", typename_debug (name), *idptr);
+      ipcspace_debug (ps);
+      printf ("INSERT OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
       rc = ipcspace_insertright (ps, &pr, idptr);
-      ipcspace_debug(ps);
+      ipcspace_debug (ps);
       if (rc)
 	{
 	  *idptr = MCN_PORTID_NULL;
@@ -156,9 +143,30 @@ externalize_portarray (struct ipcspace *ps, uint8_t name, void *array, size_t it
     }
 }
 
-enum msgitem_op {
+static void
+consume_portarray (void *array, size_t itemsz, unsigned number)
+{
+  printf ("consuming port array: item size: %ld, number: %ld\n", itemsz,
+	  number);
+  assert (itemsz == sizeof (mcn_portid_t));
+
+  mcn_portid_t *idptr = array;
+
+  for (unsigned i = 0; i < number; i++, idptr++)
+    {
+      if (ipcport_isnull (*idptr))
+	continue;
+
+      struct portref portref = ipcport_to_portref (idptr);
+      portref_consume (&portref);
+    }
+}
+
+enum msgitem_op
+{
   MSGITEMOP_INTERNALIZE,
   MSGITEMOP_EXTERNALIZE,
+  MSGITEMOP_CONSUME,
 };
 
 static bool
@@ -169,65 +177,70 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
   assert (*from < end);
 
   /*
-    Read the basic header.
-  */
+     Read the basic header.
+   */
   if (((*from) + sizeof (mcn_msgtype_t)) > end)
     return false;
 
   /*
-    Now we can read the msgtype header.
-  */
+     Now we can read the msgtype header.
+   */
   bool is_long = !!ty->msgt_longform;
   bool is_inline = !!ty->msgt_inline;
 
   /*
-    Read the full header.
-  */
-  size_t hdr_size = is_long ? sizeof(mcn_msgtype_long_t) : sizeof(mcn_msgtype_t);
+     Read the full header.
+   */
+  size_t hdr_size =
+    is_long ? sizeof (mcn_msgtype_long_t) : sizeof (mcn_msgtype_t);
 
   if (((*from) + hdr_size) > end)
     return false;
 
   /*
-    Now we can read the full header.
-  */
+     Now we can read the full header.
+   */
   unsigned name = ty->msgt_longform ? longty->msgtl_name : ty->msgt_name;
   unsigned size = ty->msgt_longform ? longty->msgtl_size : ty->msgt_size;
-  unsigned number = ty->msgt_longform ? longty->msgtl_number : ty->msgt_number;
+  unsigned number =
+    ty->msgt_longform ? longty->msgtl_number : ty->msgt_number;
 
   /*
-    Align the header to the item size.
+     Align the header to the item size.
 
-    MIG does this. It is architectural.
-  */
-  hdr_size += is_long ? 0 : ((size >> 3) == 8 ? 4 : 0); /* Align. */
+     MIG does this. It is architectural.
+   */
+  hdr_size += is_long ? 0 : ((size >> 3) == 8 ? 4 : 0);	/* Align. */
 
   if ((*from + hdr_size) > end)
     return false;
 
   /*
-    We can read up to the item now.
-  */
+     We can read up to the item now.
+   */
   bool is_port = msgbits_is_port (name);
 
   /*
-    Calculate full item size.
-  */
-  size_t item_size = (is_inline ? ((size >> 3) * number) : sizeof (mcn_vmaddr_t));
+     Calculate full item size.
+   */
+  size_t item_size =
+    (is_inline ? ((size >> 3) * number) : sizeof (mcn_vmaddr_t));
   if (((*from) + hdr_size + item_size) > end)
     return false;
 
   /*
-    Now we can read the item.
-  */
+     Now we can read the item.
+   */
   if (is_port)
     {
+      /*
+         XXX: I need to check that the port has the right size.
+       */
+
       if (op == MSGITEMOP_INTERNALIZE)
 	{
 	  uint8_t newname = msgbits_port_intern (name);
-	  /*
-	    XXX: I need to check that the port has the right size.
-	  */
+
 	  if (ty->msgt_longform)
 	    longty->msgtl_name = newname;
 	  else
@@ -241,12 +254,21 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
 	  switch (op)
 	    {
 	    case MSGITEMOP_INTERNALIZE:
-	      printf("internalizing portarray ps: %p name: %x ptr: %p size %d, number: %d\n",
-		     ps, name, (*from) + hdr_size, size >> 3, number);
-	      internalize_portarray (ps, name, (*from) + hdr_size, size >> 3, number);
+	      printf
+		("internalizing portarray ps: %p name: %x ptr: %p size %d, number: %d\n",
+		 ps, name, (*from) + hdr_size, size >> 3, number);
+	      assert (ps != NULL);
+	      internalize_portarray (ps, name, (*from) + hdr_size, size >> 3,
+				     number);
 	      break;
 	    case MSGITEMOP_EXTERNALIZE:
-	      externalize_portarray (ps, name, (*from) + hdr_size, size >> 3, number);
+	      assert (ps != NULL);
+	      externalize_portarray (ps, name, (*from) + hdr_size, size >> 3,
+				     number);
+	      break;
+	    case MSGITEMOP_CONSUME:
+	      assert (ps == NULL);
+	      consume_portarray ((*from) + hdr_size, size >> 3, number);
 	      break;
 	    }
 	}
@@ -256,13 +278,43 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
 }
 
 static void
-process_body (struct ipcspace *ps, void *body, size_t size, enum msgitem_op op)
+process_body (struct ipcspace *ps, void *body, size_t size,
+	      enum msgitem_op op)
 {
   void *ptr = body;
   void *end = body + size;
 
-  printf("ptr %p end %p\n", ptr, end);
-  while ((ptr < end) && process_item (ps, &ptr, end, op))   printf("ptr %p end %p\n", ptr, end);
+  printf ("ptr %p end %p\n", ptr, end);
+  while ((ptr < end) && process_item (ps, &ptr, end, op))
+    printf ("ptr %p end %p\n", ptr, end);
+}
+
+void
+ipc_intmsg_consume (mcn_msgheader_t * intmsg)
+{
+  assert (intmsg->msgh_size >= sizeof (mcn_msgheader_t));
+  printf ("CONSUMING MESSAGE %p\n", intmsg);
+
+  if (intmsg->msgh_remote != 0)
+    {
+      printf ("CONSUMING REMOTE PORT %lx\n", intmsg->msgh_remote);
+      struct portref port = ipcport_to_portref (&intmsg->msgh_remote);
+      portref_consume (&port);
+    }
+  if (intmsg->msgh_local != 0)
+    {
+      printf ("CONSUMING LOCAL PORT %lx\n", intmsg->msgh_local);
+      struct portref port = ipcport_to_portref (&intmsg->msgh_local);
+      portref_consume (&port);
+    }
+
+  if (intmsg->msgh_bits & MCN_MSGBITS_COMPLEX)
+    {
+      process_body (NULL, (void *) (intmsg + 1),
+		    intmsg->msgh_size - sizeof (mcn_msgheader_t),
+		    MSGITEMOP_CONSUME);
+    }
+
 }
 
 static mcn_msgioret_t
@@ -296,7 +348,8 @@ externalize (struct ipcspace *ps, mcn_msgheader_t * intmsg,
 
   if (intmsg->msgh_bits & MCN_MSGBITS_COMPLEX)
     {
-      process_body(ps, (void *)(intmsg + 1), size - sizeof (mcn_msgheader_t), MSGITEMOP_EXTERNALIZE);
+      process_body (ps, (void *) (intmsg + 1),
+		    size - sizeof (mcn_msgheader_t), MSGITEMOP_EXTERNALIZE);
     }
 
 
@@ -339,9 +392,11 @@ internalize (struct ipcspace *ps, volatile mcn_msgheader_t * extmsg,
     return rc;
 
   /* Swap remote and local. */
-  intmsg->msgh_bits = ext_bits & MCN_MSGBITS_COMPLEX ? MCN_MSGBITS_COMPLEX : 0;
-  intmsg->msgh_bits |= MCN_MSGBITS (msgbits_sendrecv_intern (ext_locbits),
-				   msgbits_sendrecv_intern (ext_rembits));
+  intmsg->msgh_bits =
+    ext_bits & MCN_MSGBITS_COMPLEX ? MCN_MSGBITS_COMPLEX : 0;
+  intmsg->msgh_bits |=
+    MCN_MSGBITS (msgbits_sendrecv_intern (ext_locbits),
+		 msgbits_sendrecv_intern (ext_rembits));
   intmsg->msgh_remote = portref_to_ipcport (&local_pref);
   intmsg->msgh_local = portref_to_ipcport (&remote_pref);
   intmsg->msgh_size = size;
@@ -353,7 +408,8 @@ internalize (struct ipcspace *ps, volatile mcn_msgheader_t * extmsg,
 
   if (intmsg->msgh_bits & MCN_MSGBITS_COMPLEX)
     {
-      process_body(ps, (void *)(intmsg + 1), size - sizeof (mcn_msgheader_t), MSGITEMOP_INTERNALIZE);
+      process_body (ps, (void *) (intmsg + 1),
+		    size - sizeof (mcn_msgheader_t), MSGITEMOP_INTERNALIZE);
     }
 
   return MSGIO_SUCCESS;
@@ -365,13 +421,13 @@ mcn_msg_send_from_kernel (mcn_msgheader_t * hdr, mcn_msgsize_t size)
   mcn_return_t rc;
   mcn_msgheader_t *int_msg;
 
-  message_debug(hdr);
+  message_debug (hdr);
   int_msg = (mcn_msgheader_t *) kmem_alloc (0, size);
   memcpy (int_msg, hdr, size);
   rc = port_enqueue (int_msg, 0, true);
   if (rc)
     {
-      intmsg_consume (int_msg);
+      ipc_intmsg_consume (int_msg);
       kmem_free (0, (vaddr_t) int_msg, size);
     }
   return rc;
@@ -390,7 +446,7 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   if ((ext_size < sizeof (mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
     return MSGIO_SEND_INVALID_DATA;
 
-  message_debug((mcn_msgheader_t *)ext_msg);
+  message_debug ((mcn_msgheader_t *) ext_msg);
 
   mcn_msgheader_t *int_msg = (mcn_msgheader_t *) kmem_alloc (0, ext_size);
   ps = task_getipcspace (cur_task ());
@@ -402,12 +458,12 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
       return rc;
     }
 
-  message_debug(int_msg);
+  message_debug (int_msg);
 
   rc = port_enqueue (int_msg, timeout, false);
   if (rc)
     {
-      intmsg_consume (int_msg);
+      ipc_intmsg_consume (int_msg);
       kmem_free (0, (vaddr_t) int_msg, ext_size);
       return rc;
     }
@@ -442,27 +498,30 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
 
   const mcn_msgsize_t size = intmsg->msgh_size;
   printf ("Internal received %d bytes\n", size);
-  message_debug(intmsg);
+  message_debug (intmsg);
   externalize (ps, intmsg, (volatile mcn_msgheader_t *) cur_kmsgbuf (), size);
-  message_debug((mcn_msgheader_t *)cur_kmsgbuf());
+  message_debug ((mcn_msgheader_t *) cur_kmsgbuf ());
   task_putipcspace (cur_task (), ps);
 
   /*
-    XXX: SHOULD I CONSUME RIGHTS HERE? We moved it to the userspace? Check.
-  */
-  intmsg_consume (intmsg);
+     References to local and remote should have been cleared.
+   */
+  assert (intmsg->msgh_remote == 0);
+  assert (intmsg->msgh_local == 0);
+
   kmem_free (0, (vaddr_t) intmsg, size);
   return MSGIO_SUCCESS;
 }
 
 
-void __ipc_build_assert(void)
+void
+__ipc_build_assert (void)
 {
-  BUILD_ASSERT(sizeof(mcn_msgtype_t) == MCN_MSGTYPE_SIZE);
-  BUILD_ASSERT(sizeof(mcn_msgtype_long_t) == MCN_MSGTYPE_LONG_SIZE);
+  BUILD_ASSERT (sizeof (mcn_msgtype_t) == MCN_MSGTYPE_SIZE);
+  BUILD_ASSERT (sizeof (mcn_msgtype_long_t) == MCN_MSGTYPE_LONG_SIZE);
 #ifdef __LP64__
-  BUILD_ASSERT(sizeof(mcn_msgheader_t) == MCN_MSGHEADER_SIZE_64);
+  BUILD_ASSERT (sizeof (mcn_msgheader_t) == MCN_MSGHEADER_SIZE_64);
 #else
-  BUILD_ASSERT(sizeof(mcn_msgheader_t) == MCN_MSGHEADER_SIZE_32);
+  BUILD_ASSERT (sizeof (mcn_msgheader_t) == MCN_MSGHEADER_SIZE_32);
 #endif
 }

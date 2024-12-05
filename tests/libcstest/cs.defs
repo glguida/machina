@@ -26,8 +26,8 @@ routine user_mul(
 
 routine user_sendport(
 		test:  mcn_portid_t;
-		port: mcn_portid_t;
-		port2: mcn_portid_t);
+		port: mcn_port_makesend_t;
+		port2: mcn_port_makesend_t);
 
 /*
 type long_array_t = array[] of long;

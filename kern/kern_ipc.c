@@ -14,7 +14,7 @@
 mcn_return_t
 simple (mcn_portid_t test)
 {
-  info ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", (long)test);
+  info ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", (long) test);
   return KERN_SUCCESS;
 }
 
@@ -49,8 +49,8 @@ create_thread (mcn_portid_t test, long pc, long sp)
 
   printf ("\n\tcreate thread called (%lx %lx)\n", pc, sp);
 
-  th = thread_new (cur_task (), pc, sp, uctxt_getgp(cur_thread()->uctxt));
-  printf("thread is %p\n", th);
+  th = thread_new (cur_task (), pc, sp, uctxt_getgp (cur_thread ()->uctxt));
+  printf ("thread is %p\n", th);
   if (th == NULL)
     return KERN_RESOURCE_SHORTAGE;
 
@@ -66,17 +66,17 @@ create_thread2 (struct taskref tr, long pc, long sp)
 {
   struct thread *th;
 
-  if (taskref_isnull(tr))
+  if (taskref_isnull (tr))
     {
-      printf("CREATE_THREAD2: TASK REF IS NULL\n");
+      printf ("CREATE_THREAD2: TASK REF IS NULL\n");
       return KERN_INVALID_ARGUMENT;
     }
-      
-  struct task *t = taskref_unsafe_get(&tr);
-  printf("task = %p (cur_task = %p)\n", t, cur_task());
 
-  th = thread_new (t, pc, sp, uctxt_getgp(cur_thread()->uctxt));
-  printf("thread is %p\n", th);
+  struct task *t = taskref_unsafe_get (&tr);
+  printf ("task = %p (cur_task = %p)\n", t, cur_task ());
+
+  th = thread_new (t, pc, sp, uctxt_getgp (cur_thread ()->uctxt));
+  printf ("thread is %p\n", th);
   if (th == NULL)
     return KERN_RESOURCE_SHORTAGE;
 
@@ -99,6 +99,7 @@ convert_port_to_task (ipc_port_t port)
 void
 ipc_kern_exec (void)
 {
+  mcn_return_t rc;
   mcn_msgheader_t *msgh;
 
   while (msgq_deq (&cur_cpu ()->kernel_msgq, &msgh))
@@ -106,7 +107,7 @@ ipc_kern_exec (void)
       kstest_replies_t kr;
 
       info ("KERNEL SERVER INPUT:");
-      message_debug(msgh);
+      message_debug (msgh);
       kstest_server (msgh, (mcn_msgheader_t *) & kr);
 
       mcn_msgsize_t size = ((mcn_msgheader_t *) & kr)->msgh_size;
@@ -116,7 +117,13 @@ ipc_kern_exec (void)
       memcpy (reply, &kr, size);
 
       info ("KERNEL SERVER OUTPUT");
-      message_debug(reply);
-      port_enqueue (reply, 0, true);
+      message_debug (reply);
+      rc = port_enqueue (reply, 0, true);
+      printf ("KERNEL SERVER ENQUEUE: %d\n", rc);
+      if (rc)
+	{
+	  ipc_intmsg_consume (reply);
+	  kmem_free (0, (vaddr_t) reply, size);
+	}
     }
 }

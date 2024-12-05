@@ -256,8 +256,8 @@ struct taskref port_get_taskref (struct port *port);
 struct threadref port_get_threadref (struct port *port);
 struct vmobjref port_get_vmobjref (struct port *port);
 struct vmobjref port_get_vmobjref_from_name (struct port *port);
-struct host * port_get_host_from_name (struct port *port);
-struct host * port_get_host_from_ctrl (struct port *port);
+struct host *port_get_host_from_name (struct port *port);
+struct host *port_get_host_from_ctrl (struct port *port);
 mcn_return_t port_alloc_queue (struct portref *portref);
 mcn_return_t port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout,
 			   bool force);
@@ -452,7 +452,7 @@ struct threadref
 #define THREADREF_NULL ((struct threadref){.obj = NULL})
 
 static inline bool
-threadref_isnull(struct threadref threadref)
+threadref_isnull (struct threadref threadref)
 {
   return threadref.obj == NULL;
 }
@@ -556,6 +556,8 @@ taskref_consume (struct taskref taskref)
 /*
   Machina IPC.
 */
+void ipc_intmsg_consume (mcn_msgheader_t * intmsg);
+
 mcn_msgioret_t ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout,
 			    mcn_portid_t notify);
 mcn_msgioret_t ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt,
