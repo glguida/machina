@@ -110,10 +110,8 @@ ipte_status (ipte_t * i)
     ipte_private (i) ? STIPTE_PRIVATE : (
 						{
 						fatal
-						("Invalid ipte entry %"PRIx64"\n",
-						 i->raw);
-						STIPTE_EMPTY;
-						}
+						("Invalid ipte entry %" PRIx64
+						 "\n", i->raw); STIPTE_EMPTY;}
   );
 }
 
@@ -138,7 +136,8 @@ void imap_init (struct imap *im);
 ipte_t imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
 		 mcn_vmprot_t mask);
 ipte_t imap_lookup (struct imap *im, unsigned long off);
-void imap_foreach (struct imap *im, void (*fn)(unsigned long off, ipte_t *ipte));
+void imap_foreach (struct imap *im,
+		   void (*fn) (unsigned long off, ipte_t * ipte));
 
 /**INDENT-OFF**/
 struct cacheobj_mapping
@@ -184,7 +183,8 @@ void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
 void memcache_init (void);
 pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
 			     bool roshared, mcn_vmprot_t protmask);
-void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask);
+void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+		     mcn_vmprot_t protmask);
 pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 			mcn_vmprot_t protmask);
 
@@ -229,9 +229,9 @@ struct vmobj
   bool private;
   struct cacheobj cobj;
   /*
-    Shadow is a reference. Copy is not.
-    This is to avoid a loop in references.
-  */
+     Shadow is a reference. Copy is not.
+     This is to avoid a loop in references.
+   */
   struct vmobjref shadow;
   struct vmobj *copy;
 };
@@ -253,8 +253,9 @@ vmobjref_from_raw (struct vmobj *vmobj)
   if (vmobj == NULL)
     return VMOBJREF_NULL;
 
-  struct vmobjref ref = ((struct vmobjref){.obj=vmobj});
-  return REF_DUP(ref);
+  struct vmobjref ref = ((struct vmobjref)
+			 {.obj = vmobj });
+  return REF_DUP (ref);
 }
 
 static inline struct vmobjref
@@ -379,7 +380,10 @@ void vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref,
 		unsigned long off, size_t size, mcn_vmprot_t curprot,
 		mcn_vmprot_t maxprot);
 void vmmap_free (struct vmmap *map, vaddr_t start, size_t size);
-mcn_return_t vmmap_region (struct vmmap *map, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off);
+mcn_return_t vmmap_region (struct vmmap *map, vaddr_t * addr, size_t *size,
+			   mcn_vmprot_t * curprot, mcn_vmprot_t * maxprot,
+			   mcn_vminherit_t * inherit, bool *shared,
+			   struct portref *portref, mcn_vmoff_t * off);
 bool vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqfault);
 void vmmap_setupregions (struct vmmap *map);
 void vmmap_printregions (struct vmmap *map);

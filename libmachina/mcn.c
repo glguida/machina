@@ -13,7 +13,7 @@ static mcn_portid_t task_self_ = MCN_PORTID_NULL;
 
 void __attribute__((constructor (0))) __machina_libinit (void)
 {
-  task_self_ = syscall_task_self();
+  task_self_ = syscall_task_self ();
 }
 
 mcn_msgioret_t

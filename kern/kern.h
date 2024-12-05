@@ -18,76 +18,76 @@
 typedef struct taskref taskref_t;
 
 static inline struct taskref
-taskport_to_taskref(ipc_port_t port)
+taskport_to_taskref (ipc_port_t port)
 {
   return port_get_taskref (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-taskref_to_taskport(struct taskref task)
+taskref_to_taskport (struct taskref task)
 {
   struct portref pr;
-  pr = task_getport (taskref_unsafe_get(&task));
-  return portref_to_ipcport(&pr);
+  pr = task_getport (taskref_unsafe_get (&task));
+  return portref_to_ipcport (&pr);
 }
 
 
 typedef struct threadref threadref_t;
 
 static inline struct threadref
-threadport_to_threadref(ipc_port_t port)
+threadport_to_threadref (ipc_port_t port)
 {
   return port_get_threadref (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-threadref_to_threadport(struct threadref thread)
+threadref_to_threadport (struct threadref thread)
 {
   struct portref pr;
-  pr = thread_getport (threadref_unsafe_get(&thread));
-  return portref_to_ipcport(&pr);
+  pr = thread_getport (threadref_unsafe_get (&thread));
+  return portref_to_ipcport (&pr);
 }
 
 typedef struct vmobjref vmobjref_t;
 
 static inline struct vmobjref
-vmobjctrlport_to_vmobjref(ipc_port_t port)
+vmobjctrlport_to_vmobjref (ipc_port_t port)
 {
   return port_get_vmobjref (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-vmobjref_to_vmobjctrlport(struct vmobjref vmobj)
+vmobjref_to_vmobjctrlport (struct vmobjref vmobj)
 {
   struct portref pr;
-  pr = vmobj_getctrlport (vmobjref_unsafe_get(&vmobj));
+  pr = vmobj_getctrlport (vmobjref_unsafe_get (&vmobj));
   return portref_to_ipcport (&pr);
 }
 
 static inline struct vmobjref
-vmobjnameport_to_vmobjref(ipc_port_t port)
+vmobjnameport_to_vmobjref (ipc_port_t port)
 {
   return port_get_vmobjref_from_name (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-vmobjref_to_vmobjnameport(struct vmobjref vmobj)
+vmobjref_to_vmobjnameport (struct vmobjref vmobj)
 {
   struct portref pr;
-  pr = vmobj_getnameport (vmobjref_unsafe_get(&vmobj));
+  pr = vmobj_getnameport (vmobjref_unsafe_get (&vmobj));
   return portref_to_ipcport (&pr);
 }
 
 typedef struct host *hostptr_t;
 
 static inline struct host *
-ctrlport_to_host(ipc_port_t port)
+ctrlport_to_host (ipc_port_t port)
 {
   return port_get_host_from_ctrl (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-host_to_ctrlport(struct host *host)
+host_to_ctrlport (struct host *host)
 {
   struct portref pr;
   pr = host_getctrlport (host);
@@ -95,13 +95,13 @@ host_to_ctrlport(struct host *host)
 }
 
 static inline struct host *
-nameport_to_host(ipc_port_t port)
+nameport_to_host (ipc_port_t port)
 {
   return port_get_host_from_name (ipcport_unsafe_get (port));
 }
 
 static inline ipc_port_t
-host_to_nameport(struct host *host)
+host_to_nameport (struct host *host)
 {
   struct portref pr;
   pr = host_getnameport (host);

@@ -463,8 +463,9 @@ threadref_from_raw (struct thread *th)
   if (th == NULL)
     return THREADREF_NULL;
 
-  struct threadref ref = ((struct threadref){.obj=th});
-  return REF_DUP(ref);
+  struct threadref ref = ((struct threadref)
+			  {.obj = th });
+  return REF_DUP (ref);
 }
 
 static inline struct thread *
@@ -505,11 +506,18 @@ void task_putipcspace (struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright (struct task *t, struct portright *pr,
 				mcn_portid_t * id);
 mcn_return_t task_allocate_port (struct task *t, mcn_portid_t * newid);
-mcn_return_t task_vm_map (struct task *t, vaddr_t *addr, size_t size, unsigned long mask, bool anywhere, struct vmobjref objref, mcn_vmoff_t off, bool copy, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, mcn_vminherit_t inherit);
+mcn_return_t task_vm_map (struct task *t, vaddr_t * addr, size_t size,
+			  unsigned long mask, bool anywhere,
+			  struct vmobjref objref, mcn_vmoff_t off, bool copy,
+			  mcn_vmprot_t curprot, mcn_vmprot_t maxprot,
+			  mcn_vminherit_t inherit);
 mcn_return_t task_vm_allocate (struct task *t, vaddr_t * addr, size_t size,
 			       bool anywhere);
-mcn_return_t task_vm_region (struct task *t, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off);
-struct portref task_getport(struct task *task);
+mcn_return_t task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
+			     mcn_vmprot_t * curprot, mcn_vmprot_t * maxprot,
+			     mcn_vminherit_t * inherit, bool *shared,
+			     struct portref *portref, mcn_vmoff_t * off);
+struct portref task_getport (struct task *task);
 mcn_portid_t task_self (void);
 
 struct taskref
@@ -520,7 +528,7 @@ struct taskref
 #define TASKREF_NULL ((struct taskref){.obj=NULL})
 
 static inline bool
-taskref_isnull(struct taskref taskref)
+taskref_isnull (struct taskref taskref)
 {
   return taskref.obj == NULL;
 }
@@ -531,8 +539,9 @@ taskref_from_raw (struct task *t)
   if (t == NULL)
     return TASKREF_NULL;
 
-  struct taskref ref = ((struct taskref){.obj=t});
-  return REF_DUP(ref);
+  struct taskref ref = ((struct taskref)
+			{.obj = t });
+  return REF_DUP (ref);
 }
 
 static inline struct taskref
@@ -696,8 +705,8 @@ typename_debug (mcn_msgtype_name_t name)
 static inline void
 message_debug (mcn_msgheader_t * msgh)
 {
-  void *ptr = (void *)(msgh + 1);
-  void *end = (void *)msgh + msgh->msgh_size;
+  void *ptr = (void *) (msgh + 1);
+  void *end = (void *) msgh + msgh->msgh_size;
 
   printf ("===== Message %p =====\n", msgh);
   printf ("  bits:   [ R: %s - L: %s ]\n",
@@ -718,22 +727,21 @@ message_debug (mcn_msgheader_t * msgh)
       size = ty->msgt_longform ? longty->msgtl_size : ty->msgt_size;
       number = ty->msgt_longform ? longty->msgtl_number : ty->msgt_number;
 
-      printf("  - %s (size: %d, number: %d, inline: %d, longform: %d, deallocate: %d)\n",
-	     typename_debug(name),
-	     size,
-	     number,
-	     ty->msgt_inline,
-	     ty->msgt_longform,
-	     ty->msgt_deallocate);
+      printf
+	("  - %s (size: %d, number: %d, inline: %d, longform: %d, deallocate: %d)\n",
+	 typename_debug (name), size, number, ty->msgt_inline,
+	 ty->msgt_longform, ty->msgt_deallocate);
 
-      ptr += ty->msgt_longform ? sizeof(mcn_msgtype_long_t) : sizeof(mcn_msgtype_t);
+      ptr +=
+	ty->
+	msgt_longform ? sizeof (mcn_msgtype_long_t) : sizeof (mcn_msgtype_t);
       if (ty->msgt_inline)
 	{
-	  ptr += (size >> 3) == 8 ? 4 : 0; /* Align. */
+	  ptr += (size >> 3) == 8 ? 4 : 0;	/* Align. */
 	  printf ("  - bytes: ");
 	  for (int i = 0; i < (size >> 3); i++)
-	    printf("%02x ", *(unsigned char *)ptr++);
-	  printf("\n");
+	    printf ("%02x ", *(unsigned char *) ptr++);
+	  printf ("\n");
 	}
     }
 
@@ -743,8 +751,8 @@ message_debug (mcn_msgheader_t * msgh)
 void ipcspace_debug (struct ipcspace *ps);
 
 void host_init (void);
-struct portref host_getctrlport(struct host *host);
-struct portref host_getnameport(struct host *host);
+struct portref host_getctrlport (struct host *host);
+struct portref host_getnameport (struct host *host);
 
 #include "kern.h"
 

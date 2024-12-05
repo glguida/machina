@@ -17,9 +17,10 @@ vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
 bool
 vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
 {
-  enum tlsvariant {
-  TLS_VARIANT_I = 1,
-  TLS_VARIANT_II = 2,
+  enum tlsvariant
+  {
+    TLS_VARIANT_I = 1,
+    TLS_VARIANT_II = 2,
   } tlsv;
 
 #if MCN_MACHINE_RISCV64
@@ -54,7 +55,9 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
       *tls = (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
       break;
     }
-  printf ("tls [%s] is %lx\n", tlsv == TLS_VARIANT_I ? "variant I" : "variant II", (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long));
+  printf ("tls [%s] is %lx\n",
+	  tlsv == TLS_VARIANT_I ? "variant I" : "variant II",
+	  (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long));
 
   return true;
 }

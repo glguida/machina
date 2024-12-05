@@ -241,7 +241,7 @@ port_get_taskref (struct port *port)
   spinlock (&port->lock);
   t = port_getkobj (port, KOT_TASK);
   if (t != NULL)
-    ret = taskref_from_raw(t);
+    ret = taskref_from_raw (t);
   else
     ret = TASKREF_NULL;
   spinunlock (&port->lock);
@@ -274,7 +274,7 @@ port_get_vmobjref (struct port *port)
   vmobj = port_getkobj (port, KOT_VMOBJ);
   if (vmobj != NULL)
     {
-      ret = vmobjref_from_raw(vmobj);
+      ret = vmobjref_from_raw (vmobj);
     }
   else
     ret = VMOBJREF_NULL;
@@ -292,7 +292,7 @@ port_get_vmobjref_from_name (struct port *port)
   vmobj = port_getkobj (port, KOT_VMOBJ_NAME);
   if (vmobj != NULL)
     {
-      ret = vmobjref_from_raw(vmobj);
+      ret = vmobjref_from_raw (vmobj);
     }
   else
     ret = VMOBJREF_NULL;

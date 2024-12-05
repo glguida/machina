@@ -15,10 +15,7 @@ typedef struct
   uint32_t msgt_name:8,
     msgt_size:8,
     msgt_number:12,
-    msgt_inline:1,
-    msgt_longform:1,
-    msgt_deallocate:1,
-    msgt_unused:1;
+    msgt_inline:1, msgt_longform:1, msgt_deallocate:1, msgt_unused:1;
 } mcn_msgtype_t;
 
 #define MCN_MSGTYPE_SIZE 4

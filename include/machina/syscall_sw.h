@@ -16,7 +16,8 @@
 
 
 #define __syscall_vm_region -63L
-struct __syscall_vm_region_out {
+struct __syscall_vm_region_out
+{
   mcn_vmaddr_t addr;
   unsigned long size;
   mcn_vmprot_t curprot;
@@ -28,7 +29,8 @@ struct __syscall_vm_region_out {
 };
 
 #define __syscall_vm_map -64L
-struct __syscall_vm_map_in {
+struct __syscall_vm_map_in
+{
   mcn_vmaddr_t addr;
   unsigned long size;
   mcn_vmaddr_t mask;

@@ -35,24 +35,25 @@ struct vmobjref
 vmobj_shadowcopy (struct vmobjref *ref)
 {
   struct vmobj *new = slab_alloc (&vmobjs);
-  struct vmobj *obj = vmobjref_unsafe_get(ref);
+  struct vmobj *obj = vmobjref_unsafe_get (ref);
 
   spinlock (obj->lock);
-  new->lock = obj->lock; /* Shadow chains share the same lock. */
+  new->lock = obj->lock;	/* Shadow chains share the same lock. */
   cacheobj_shadow (&obj->cobj, &new->cobj);
   obj->private = true;
 
-  struct vmobjref newref = (struct vmobjref){ .obj = new, };
+  struct vmobjref newref = (struct vmobjref)
+  {.obj = new, };
   new->_ref_count = 1;
 
   /* Insert new object between current object and its copy. */
-  new->shadow = REF_DUP(*ref);
+  new->shadow = REF_DUP (*ref);
   new->copy = obj->copy;
   obj->copy = new;
   if (new->copy)
-    new->copy->shadow = REF_DUP(newref);
+    new->copy->shadow = REF_DUP (newref);
 
-  spinunlock(obj->lock);
+  spinunlock (obj->lock);
 
   return newref;
 }
@@ -64,7 +65,8 @@ vmobj_shadowcopy (struct vmobjref *ref)
   If we're requesting a writable map, push the shared zero page to the copy.
 */
 static pfn_t
-_vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off, mcn_vmprot_t reqprot)
+_vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
+		       mcn_vmprot_t reqprot)
 {
   if (reqprot & MCN_VMPROT_WRITE)
     {
@@ -72,9 +74,11 @@ _vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off, mcn_vmprot_t reqprot)
 	{
 	  struct vmobj *copy_obj = obj->copy;
 	  ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	  printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %"PRIx64"\n", &copy_obj->cobj, off, copy_ipte.raw);
-	  if (ipte_empty(&copy_ipte))
-	    memcache_zeropage_new (&copy_obj->cobj, off, true, MCN_VMPROT_NONE);
+	  printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %" PRIx64
+		  "\n", &copy_obj->cobj, off, copy_ipte.raw);
+	  if (ipte_empty (&copy_ipte))
+	    memcache_zeropage_new (&copy_obj->cobj, off, true,
+				   MCN_VMPROT_NONE);
 	}
       return memcache_zeropage_new (&obj->cobj, off, false, MCN_VMPROT_NONE);
     }
@@ -95,32 +99,33 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   struct vmobj *vmobj;
 
   spinlock (tgtobj->lock);
-  printf("VMOBJ: FAULT FOR OBJECT %p START =============================\n", tgtobj);
+  printf ("VMOBJ: FAULT FOR OBJECT %p START =============================\n",
+	  tgtobj);
   vmobj = tgtobj;
- _fault_redo:
-  
+_fault_redo:
+
   info ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
   ipte = cacheobj_lookup (&vmobj->cobj, off);
 
-  info ("IPTE IS %"PRIx64"\n", ipte.raw);
+  info ("IPTE IS %" PRIx64 "\n", ipte.raw);
   switch (ipte_status (&ipte))
     {
     case STIPTE_EMPTY:
       info ("IPTE EMPTY");
 
       /*
-	If we have a shadow, search for a page there.
-      */
-      if (vmobjref_unsafe_get(&vmobj->shadow) != NULL)
+         If we have a shadow, search for a page there.
+       */
+      if (vmobjref_unsafe_get (&vmobj->shadow) != NULL)
 	{
-	  vmobj = vmobjref_unsafe_get(&vmobj->shadow);
+	  vmobj = vmobjref_unsafe_get (&vmobj->shadow);
 	  goto _fault_redo;
 	}
       else if (vmobj->private)
 	{
 	  /*
-	    Private objects can request zero pages directly.
-	  */
+	     Private objects can request zero pages directly.
+	   */
 	  *outpfn = _vmobj_insertzeropage (tgtobj, off, reqprot);
 	  ret = true;
 	}
@@ -170,14 +175,15 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	  ret = false;
 	  break;
 	}
-      printf("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
+      printf ("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
       if (tgtobj != vmobj)
 	{
 	  /*
-	    If we are in shadow fault, we have to share it with the
-	    target imap fisrt.
+	     If we are in shadow fault, we have to share it with the
+	     target imap fisrt.
 	   */
-	  memcache_share (ipte_pfn (&ipte), &tgtobj->cobj, off, ipte_protmask (&ipte));
+	  memcache_share (ipte_pfn (&ipte), &tgtobj->cobj, off,
+			  ipte_protmask (&ipte));
 	}
       if (reqprot & MCN_VMPROT_WRITE)
 	{
@@ -185,9 +191,12 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	    {
 	      struct vmobj *copy_obj = tgtobj->copy;
 	      ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	      printf ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"PRIx64"\n", ipte_pfn(&ipte), &copy_obj->cobj, off, ipte.raw);
-	      if (ipte_empty(&copy_ipte))
-		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off, ipte_protmask (&ipte));
+	      printf ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"
+		      PRIx64 "\n", ipte_pfn (&ipte), &copy_obj->cobj, off,
+		      ipte.raw);
+	      if (ipte_empty (&copy_ipte))
+		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off,
+				ipte_protmask (&ipte));
 	    }
 	  *outpfn =
 	    memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
@@ -200,7 +209,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
     case STIPTE_PRIVATE:
       info ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
 	    ipte_protmask (&ipte));
-      assert (tgtobj == vmobj); /* A shadowed page cannot point to a private page. */
+      assert (tgtobj == vmobj);	/* A shadowed page cannot point to a private page. */
       if (reqprot & ipte_protmask (&ipte))
 	{
 	  ret = false;
@@ -210,7 +219,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       ret = true;
       break;
     }
-  printf("VMOBJ FAULT END =============================\n");
+  printf ("VMOBJ FAULT END =============================\n");
   spinunlock (tgtobj->lock);
   return ret;
 }
@@ -250,7 +259,7 @@ vmobj_getctrlport (struct vmobj *vmobj)
   struct portref pr;
 
   spinlock (vmobj->lock);
-  pr = portref_dup(&vmobj->control_port);
+  pr = portref_dup (&vmobj->control_port);
   spinunlock (vmobj->lock);
   return pr;
 }
@@ -261,7 +270,7 @@ vmobj_getnameport (struct vmobj *vmobj)
   struct portref pr;
 
   spinlock (vmobj->lock);
-  pr = portref_dup(&vmobj->name_port);
+  pr = portref_dup (&vmobj->name_port);
   spinunlock (vmobj->lock);
   return pr;
 }

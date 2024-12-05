@@ -138,11 +138,12 @@ main (void)
   syscall_msgrecv (3, MCN_MSGOPT_NONE, 0, MCN_PORTID_NULL);
 
   //  printf("create thread: %d\n",
-  //	 create_thread (1, (long) th1, (long) stack + 64 * 1024));
+  //     create_thread (1, (long) th1, (long) stack + 64 * 1024));
 
-  printf("create thread2: %d\n",
-  	 create_thread2 (syscall_task_self(), (long) th1, (long) stack + 64 * 1024));
-  
+  printf ("create thread2: %d\n",
+	  create_thread2 (syscall_task_self (), (long) th1,
+			  (long) stack + 64 * 1024));
+
 
   //  while(1)
   //    printf("s: %d\n", simple(3));
@@ -196,21 +197,24 @@ main (void)
     mcn_vmoff_t off;
 
     addr = addr + 0x800;
-    printf ("vm_region %lx\n", syscall_vm_region (syscall_task_self (), &addr, &size, &curprot, &maxprot, &inherit, &shared, &nameid, &off));
-    printf(
-	   "\t%Addr: %lx\n\tSize: %lx\n\tCurprot: %lx\n\tMaxprot: %lx\n\tnameid: %lx\n\tOff: %lx\n",
-	   addr, size, curprot, maxprot, nameid, off);
+    printf ("vm_region %lx\n",
+	    syscall_vm_region (syscall_task_self (), &addr, &size, &curprot,
+			       &maxprot, &inherit, &shared, &nameid, &off));
+    printf
+      ("\t%Addr: %lx\n\tSize: %lx\n\tCurprot: %lx\n\tMaxprot: %lx\n\tnameid: %lx\n\tOff: %lx\n",
+       addr, size, curprot, maxprot, nameid, off);
 
     printf ("vm map %lx\n",
-   	    syscall_vm_map (syscall_task_self (), &newaddr, size, 0, 1, nameid, off, 1, curprot, maxprot, inherit));
+	    syscall_vm_map (syscall_task_self (), &newaddr, size, 0, 1,
+			    nameid, off, 1, curprot, maxprot, inherit));
 
-    printf("New Addr is %lx\n", newaddr);
+    printf ("New Addr is %lx\n", newaddr);
     //    printf("[%lx] = %x\n",   newaddr, *(volatile int *) newaddr);
-    printf("Writing ff to new addr\n");
+    printf ("Writing ff to new addr\n");
     *(volatile int *) newaddr = 0xff;
-    printf("Reading from new addr\n");
-    printf("[%lx] = %x\n",   newaddr, *(volatile int *) newaddr);
-    printf("Reading from old addr\n");
+    printf ("Reading from new addr\n");
+    printf ("[%lx] = %x\n", newaddr, *(volatile int *) newaddr);
+    printf ("Reading from old addr\n");
     printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
 
     addr += 4096;
@@ -219,10 +223,10 @@ main (void)
     printf ("[%lx] is %d\n", addr, *(volatile int *) addr);
     printf ("[%lx] is %d\n", newaddr, *(volatile int *) newaddr);
 
-    
+
   }
 
-  user_sendport(3, 8, 7);
+  user_sendport (3, 8, 7);
 
   ptr = (int *) 0x3000;
   printf ("ptr is %lx\n", *ptr);
@@ -271,6 +275,6 @@ __srv_user_mul (mcn_portid_t port, int b, long *new)
 mcn_return_t
 __srv_user_sendport (mcn_portid_t resp, mcn_portid_t port, mcn_portid_t port2)
 {
-  printf("Port is %ld %ld\n", port, port2);
+  printf ("Port is %ld %ld\n", port, port2);
   return KERN_SUCCESS;
 }

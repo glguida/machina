@@ -441,7 +441,8 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
 
 mcn_return_t
 vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
-	     size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot, vaddr_t * addrout)
+	     size_t size, mcn_vmprot_t curprot, mcn_vmprot_t maxprot,
+	     vaddr_t * addrout)
 {
   vaddr_t addr;
 
@@ -507,11 +508,14 @@ vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref,
 }
 
 mcn_return_t
-vmmap_region (struct vmmap *map, vaddr_t *addr, size_t *size, mcn_vmprot_t *curprot, mcn_vmprot_t *maxprot, mcn_vminherit_t *inherit, bool *shared, struct portref *portref, mcn_vmoff_t *off)
+vmmap_region (struct vmmap *map, vaddr_t * addr, size_t *size,
+	      mcn_vmprot_t * curprot, mcn_vmprot_t * maxprot,
+	      mcn_vminherit_t * inherit, bool *shared,
+	      struct portref *portref, mcn_vmoff_t * off)
 {
   struct vm_region *reg;
 
-  spinlock(&map->lock);
+  spinlock (&map->lock);
   reg = region_find (map, *addr);
   if (reg == NULL)
     {
@@ -525,16 +529,16 @@ vmmap_region (struct vmmap *map, vaddr_t *addr, size_t *size, mcn_vmprot_t *curp
     }
 
   *addr = reg->start;
-  printf("VMMAP: SIZE is %lx\n", reg->size);
+  printf ("VMMAP: SIZE is %lx\n", reg->size);
   *size = reg->size;
   *curprot = reg->curprot;
   *maxprot = reg->maxprot;
-  *inherit = MCN_VMINHERIT_DEFAULT; /* XXX: FIXME */
-  *shared = true; /* XXX: FIXME */
-  *portref = vmobj_getnameport (vmobjref_unsafe_get(&reg->objref));
+  *inherit = MCN_VMINHERIT_DEFAULT;	/* XXX: FIXME */
+  *shared = true;		/* XXX: FIXME */
+  *portref = vmobj_getnameport (vmobjref_unsafe_get (&reg->objref));
   *off = reg->off;
 
-  spinunlock(&map->lock);
+  spinunlock (&map->lock);
   return KERN_SUCCESS;
 }
 

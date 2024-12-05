@@ -166,12 +166,14 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
   Share Page.
 */
 void
-memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t protmask)
+memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+		mcn_vmprot_t protmask)
 {
   struct physmem_page *page = _get_entry (pfn);
 
-  printf ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj, off, protmask);
-  spinlock(&page->lock);
+  printf ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj,
+	  off, protmask);
+  spinlock (&page->lock);
 
   if (pfn != zeropfn)
     {
@@ -187,7 +189,7 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off, mcn_vmprot_t p
   ipte_t old = cacheobj_map (obj, off, pfn, true, protmask);
   printf ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
 
-  spinunlock(&page->lock);
+  spinunlock (&page->lock);
 }
 
 
@@ -219,14 +221,14 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
     }
   else if (page->links_no == 1)
     {
-      printf("MEMCACHE: ONLY ONE LINK!\n");
+      printf ("MEMCACHE: ONLY ONE LINK!\n");
       /* Only one link. No need to alloc a new page. */
       outpfn = pfn;
     }
   else
     {
       struct cobj_link *v, *t, *found;
-      printf("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
+      printf ("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
 
       /*
          First, find and remove the link.

@@ -34,7 +34,7 @@ thread_new (struct task *t, long ip, long sp, long gp)
   th->uctxt = (uctxt_t *) (th + 1);
   spinlock_init (&th->lock);
 
-  printf("Allocated thread %p (%lx %lx)\n", th, ip, sp);
+  printf ("Allocated thread %p (%lx %lx)\n", th, ip, sp);
 
   spinlock (&t->lock);
   if (!vmmap_allocmsgbuf (&t->vmmap, &th->msgbuf))
@@ -50,18 +50,18 @@ thread_new (struct task *t, long ip, long sp, long gp)
       return NULL;
     }
   th->task = t;
-  port_alloc_kernel ((void *)th, KOT_THREAD, &th->self);
+  port_alloc_kernel ((void *) th, KOT_THREAD, &th->self);
 
   LIST_INSERT_HEAD (&t->threads, th, list_entry);
   uctxt_init (th->uctxt, ip, sp, gp);
-  printf("Thread: %p\n", th);
+  printf ("Thread: %p\n", th);
   uctxt_print (th->uctxt);
-  printf("---------------\n");
+  printf ("---------------\n");
   uctxt_settls (th->uctxt, th->tls);
   timer_init (&th->timeout);
   uctxt_print (th->uctxt);
-  printf("---------------\n");
-  printf("---------------\n");
+  printf ("---------------\n");
+  printf ("---------------\n");
   spinunlock (&t->lock);
 
 

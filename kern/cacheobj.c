@@ -8,22 +8,22 @@
 #include "vm.h"
 
 void
-_ipte_print(unsigned long off, ipte_t *ipte)
+_ipte_print (unsigned long off, ipte_t * ipte)
 {
-  printf("CACHEOBJ: DUMP: %lx %lx\n", off, *ipte);
+  printf ("CACHEOBJ: DUMP: %lx %lx\n", off, *ipte);
 }
 
 void
 cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 {
 
-  printf ("CACHEOBJECT: %p: adding region to object: %lx %lx\n", cobj, cobjm->start,
-	  cobjm->size);
+  printf ("CACHEOBJECT: %p: adding region to object: %lx %lx\n", cobj,
+	  cobjm->start, cobjm->size);
   writelock (&cobj->lock);
-  printf("CACHEOBJ: %p: dumping before add\n", cobj);
+  printf ("CACHEOBJ: %p: dumping before add\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   LIST_INSERT_HEAD (&cobj->mappings, cobjm, list);
-  printf("CACHEOBJ: %p: dumping after add\n", cobj);
+  printf ("CACHEOBJ: %p: dumping after add\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   writeunlock (&cobj->lock);
 }
@@ -31,23 +31,23 @@ cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 void
 cacheobj_delmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 {
-  printf ("CACHEOBJECT: %p: delete region to object: %lx %lx\n", cobj, cobjm->start,
-	  cobjm->size);
+  printf ("CACHEOBJECT: %p: delete region to object: %lx %lx\n", cobj,
+	  cobjm->start, cobjm->size);
   writelock (&cobj->lock);
-  printf("CACHEOBJ: %p: dumping before del\n", cobj);
+  printf ("CACHEOBJ: %p: dumping before del\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   LIST_REMOVE (cobjm, list);
   for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
        i += PAGE_SIZE)
     umap_unmap (cobjm->umap, i);
   umap_commit (cobjm->umap);
-  printf("CACHEOBJ: %p: dumping before add\n", cobj);
+  printf ("CACHEOBJ: %p: dumping before add\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   writeunlock (&cobj->lock);
 }
 
 static void
-_ipte_roshare(unsigned long off, ipte_t *ipte)
+_ipte_roshare (unsigned long off, ipte_t * ipte)
 {
   assert (ipte->p);
   ipte->roshared = 1;
@@ -58,12 +58,12 @@ cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow)
 {
   printf ("CACHEOBJ: shadow %p to %p\n", orig, shadow);
   writelock (&orig->lock);
-  printf("CACHEOBJ: %p: dumping before shadow\n", orig);
+  printf ("CACHEOBJ: %p: dumping before shadow\n", orig);
   imap_foreach (&orig->map, _ipte_print);
   /* shadow is unitialised. Shouldn't get the lock. */
   cacheobj_init (shadow, orig->size);
   imap_foreach (&orig->map, _ipte_roshare);
-  printf("CACHEOBJ: %p: dumping after shadow\n", orig);
+  printf ("CACHEOBJ: %p: dumping after shadow\n", orig);
   imap_foreach (&orig->map, _ipte_print);
   writeunlock (&orig->lock);
 }
@@ -79,7 +79,7 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
     ("CACHEOBJ: %p: mapping offset %lx with pfn %lx (roshared: %d prot: %x)\n",
      cobj, off, pfn, roshared, protmask);
   writelock (&cobj->lock);
-  printf("CACHEOBJ: %p: dumping before map\n", cobj);
+  printf ("CACHEOBJ: %p: dumping before map\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   ret = imap_map (&cobj->map, off, pfn, roshared, protmask);
 #if 0
@@ -99,7 +99,7 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
     umap_commit (cobjm->umap);
   }
 #endif
-  printf("CACHEOBJ: %p: dumping after map\n", cobj);
+  printf ("CACHEOBJ: %p: dumping after map\n", cobj);
   imap_foreach (&cobj->map, _ipte_print);
   writeunlock (&cobj->lock);
 

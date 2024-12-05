@@ -168,12 +168,12 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
       struct portref pr;
       struct ipcspace *ps;
       ps = task_getipcspace (cur_task ());
-      ipcspace_debug(ps);
+      ipcspace_debug (ps);
       rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
       task_putipcspace (cur_task (), ps);
       if (!rc)
 	{
-	  printf("user simple\n");
+	  printf ("user simple\n");
 	  user_simple (portref_to_ipcport (&pr));
 	  printf ("destroying cur thread\n");
 	}
