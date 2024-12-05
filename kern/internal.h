@@ -323,6 +323,18 @@ ipcport_isnull (ipc_port_t ipcport)
   return ipcport_unsafe_get (ipcport) == NULL;
 }
 
+static inline void
+ipcport_forceref (ipc_port_t ipcport)
+{
+  /*
+     PLEASE NOTE: This is very special and should not be used unless
+     we know that some ipcport is copied without duplicating the
+     reference.
+   */
+  struct portref pr = ipcport_to_portref (&ipcport);
+  portref_dup (&pr);
+}
+
 
 /*
   Port Rights.

@@ -108,7 +108,19 @@ ipc_kern_exec (void)
 
       info ("KERNEL SERVER INPUT:");
       message_debug (msgh);
+      /*
+         MIG-generated code will make a copy of the remote port when
+         generating a reply. Create here a reference that will be
+         contained in the reply message here, manually.
+       */
+      if (!ipcport_isnull (msgh->msgh_remote))
+	ipcport_forceref (msgh->msgh_remote);
+
       kstest_server (msgh, (mcn_msgheader_t *) & kr);
+      /* Done with the request. Consume and free it. */
+      ipc_intmsg_consume (msgh);
+      message_debug (msgh);
+      kmem_free (0, (vaddr_t) msgh, msgh->msgh_size);
 
       mcn_msgsize_t size = ((mcn_msgheader_t *) & kr)->msgh_size;
       assert (size <= sizeof (kr));
