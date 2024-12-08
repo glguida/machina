@@ -66,7 +66,7 @@ create_thread2 (struct taskref tr, long pc, long sp)
 {
   struct thread *th;
 
-  if (taskref_isnull (tr))
+  if (taskref_isnull (&tr))
     {
       printf ("CREATE_THREAD2: TASK REF IS NULL\n");
       return KERN_INVALID_ARGUMENT;
@@ -92,7 +92,7 @@ struct taskref
 convert_port_to_task (ipc_port_t port)
 {
   struct task *t = port_getkobj (ipcport_unsafe_get (port), KOT_TASK);
-  return taskref_from_raw (t);
+  return taskref_fromraw (t);
 }
 #endif
 

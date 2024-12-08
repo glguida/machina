@@ -11,6 +11,12 @@ struct slab vmobjlocks;
 struct slab vmobjs;
 struct slab cobjmappings;
 
+unsigned long *
+vmobj_refcnt (struct vmobj *vmobj)
+{
+  return &vmobj->_ref_count;
+}
+
 struct vmobjref
 vmobj_new (bool private, size_t size)
 {

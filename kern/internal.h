@@ -227,7 +227,7 @@ enum kern_objtype
 
 struct port
 {
-  unsigned long _ref_count;	/* Handled by portref. */
+  unsigned long _ref_count;
 
   lock_t lock;
   enum port_type type;
@@ -264,10 +264,15 @@ mcn_return_t port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout,
 mcn_return_t port_dequeue (struct port *port, unsigned long timeout,
 			   mcn_msgheader_t ** msghp);
 
-struct portref
-{
-  struct port *obj;
-};
+#include "portref.h"
+
+/*
+  IPC_PORT_T type.
+  
+  'ipc_port_t' is a type equivalent to a port reference, but typedef'd
+  to mcn_portid_t, so that port references can be used in internalised
+  version of messages.
+*/
 
 typedef mcn_portid_t ipc_port_t;
 
@@ -293,24 +298,6 @@ ipcport_to_portref (ipc_port_t * ipcport)
   return portref;
 }
 
-static inline struct portref
-portref_dup (struct portref *portref)
-{
-  return REF_DUP (*portref);
-}
-
-static inline struct port *
-portref_unsafe_get (struct portref *portref)
-{
-  return REF_GET (*portref);
-}
-
-static inline void
-portref_consume (struct portref *portref)
-{
-  /* XXX: DELETE IF */ REF_DESTROY (*portref);
-}
-
 static inline struct port *
 ipcport_unsafe_get (ipc_port_t ipcport)
 {
@@ -327,12 +314,12 @@ static inline void
 ipcport_forceref (ipc_port_t ipcport)
 {
   /*
-     PLEASE NOTE: This is very special and should not be used unless
-     we know that some ipcport is copied without duplicating the
-     reference.
-   */
-  struct portref pr = ipcport_to_portref (&ipcport);
-  portref_dup (&pr);
+    PLEASE NOTE: This is very special and should not be used unless
+    we know that some ipcport is copied without duplicating the
+    reference.
+  */
+  struct portref pr = ipcport_to_portref(&ipcport);
+  (void)portref_dup (&pr);
 }
 
 
@@ -407,7 +394,8 @@ portright_unsafe_put (struct port **port)
 /**INDENT-OFF**/
 struct thread
 {
-  unsigned _ref_count;
+  unsigned long _ref_count;
+  
   lock_t lock;			/* PRIO: task > thread. */
   uctxt_t *uctxt;
   LIST_ENTRY (thread) list_entry;
@@ -456,54 +444,19 @@ thread_isidle (struct thread *th)
   return thread_uctxt (th) == UCTXT_IDLE;
 }
 
-struct threadref
-{
-  struct thread *obj;
-};
-
-#define THREADREF_NULL ((struct threadref){.obj = NULL})
-
-static inline bool
-threadref_isnull (struct threadref threadref)
-{
-  return threadref.obj == NULL;
-}
-
-static inline struct threadref
-threadref_from_raw (struct thread *th)
-{
-  if (th == NULL)
-    return THREADREF_NULL;
-
-  struct threadref ref = ((struct threadref)
-			  {.obj = th });
-  return REF_DUP (ref);
-}
-
-static inline struct thread *
-threadref_unsafe_get (struct threadref *threadref)
-{
-  return REF_GET (*threadref);
-}
-
-static inline void
-threadref_consume (struct threadref threadref)
-{
-  /* XXX: DELETE IF */ REF_DESTROY (threadref);
-}
-
+#include "threadref.h"
 
 /*
   Machina Task.
 
 */
-struct taskref;
 /**INDENT-OFF**/
 struct task
 {
+  unsigned long _ref_count;
+
   lock_t lock;			/* PRIO: task > thread. */
   struct vmmap vmmap;
-  unsigned _ref_count;
   LIST_HEAD (, thread) threads;
   struct ipcspace ipcspace;
   struct portref self;
@@ -532,47 +485,8 @@ mcn_return_t task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
 struct portref task_getport (struct task *task);
 mcn_portid_t task_self (void);
 
-struct taskref
-{
-  struct task *obj;
-};
+#include "taskref.h"
 
-#define TASKREF_NULL ((struct taskref){.obj=NULL})
-
-static inline bool
-taskref_isnull (struct taskref taskref)
-{
-  return taskref.obj == NULL;
-}
-
-static inline struct taskref
-taskref_from_raw (struct task *t)
-{
-  if (t == NULL)
-    return TASKREF_NULL;
-
-  struct taskref ref = ((struct taskref)
-			{.obj = t });
-  return REF_DUP (ref);
-}
-
-static inline struct taskref
-taskref_dup (struct taskref *taskref)
-{
-  return REF_DUP (*taskref);
-}
-
-static inline struct task *
-taskref_unsafe_get (struct taskref *taskref)
-{
-  return REF_GET (*taskref);
-}
-
-static inline void
-taskref_consume (struct taskref taskref)
-{
-  /* XXX: DELETE IF */ REF_DESTROY (taskref);
-}
 
 /*
   Machina IPC.

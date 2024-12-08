@@ -1,0 +1,84 @@
+`/*
+  MACHINA: a NUX-based Mach clone.
+  Copyright (C) 2024 Gianluca Guida, glguida@tlbflush.org
+  SPDX-License-Identifier:	BSD-2-Clause
+*/
+
+struct 'TYPE`;
+typedef struct 'TYPE`ref {
+       struct 'TYPE` *obj;
+} 'TYPE`ref_t;
+
+#define 'UPPERCASE`REF_NULL ((struct 'TYPE`ref){.obj = NULL})
+
+unsigned long *'TYPE`_refcnt(struct 'TYPE` *obj);
+
+static inline void _'TYPE`_inc(struct 'TYPE` *obj)
+{
+  if (obj != NULL)
+    {
+      unsigned long cnt, *ptr;
+
+      ptr = 'TYPE`_refcnt(obj);
+      cnt = __atomic_add_fetch (ptr, 1, __ATOMIC_ACQUIRE);
+      assert (cnt != 0);
+    }
+}
+
+static inline unsigned long _'TYPE`_dec(struct 'TYPE` *obj)
+{
+  unsigned long cnt = 0;
+
+  if (obj != NULL)
+    {
+      unsigned long *ptr = 'TYPE`_refcnt(obj);
+      cnt = __atomic_fetch_sub (ptr, 1, __ATOMIC_RELEASE);
+      assert (cnt != 0);
+      obj = NULL;
+    }
+  return cnt - 1;
+}
+
+static inline bool
+'TYPE`ref_isnull (struct 'TYPE`ref *ref)
+{
+  return ref->obj == NULL;
+}
+
+static inline struct 'TYPE`ref
+'TYPE`ref_dup (struct 'TYPE`ref *ref)
+{
+  _'TYPE`_inc(ref->obj);
+  return *ref;
+}
+
+static inline struct 'TYPE`ref
+'TYPE`ref_fromraw (struct 'TYPE` *ptr)
+{
+  if (ptr == NULL)
+    return 'UPPERCASE`REF_NULL;
+
+  _'TYPE`_inc(ptr);
+  return (struct 'TYPE`ref){.obj = ptr};
+}
+
+static inline struct 'TYPE` *
+'TYPE`ref_unsafe_get (struct 'TYPE`ref *ref)
+{
+  return ref->obj;
+}
+
+static inline void
+'TYPE`ref_consume (struct 'TYPE`ref *ref)
+{
+  /* XXX: DELETE IF */ _'TYPE`_dec(ref->obj);
+}
+
+static inline void
+'TYPE`ref_move (struct 'TYPE`ref *to, struct 'TYPE`ref *from)
+{
+  *to = *from;
+  from->obj = NULL;
+}
+
+'

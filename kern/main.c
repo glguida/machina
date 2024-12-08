@@ -78,7 +78,7 @@ main (int argc, char *argv[])
   printf ("Test id is %ld\n", id);
   assert (rc == KERN_SUCCESS);
 
-
+  taskref_consume(&bootstrap_taskref);
   bootstrap = th;
 
   smp_sync = 1;

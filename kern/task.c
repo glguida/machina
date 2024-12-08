@@ -13,6 +13,12 @@
 struct slab tasks;
 struct slab portcaps;
 
+unsigned long *
+task_refcnt(struct task *t)
+{
+  return &t->_ref_count;
+}
+
 void
 task_bootstrap (struct taskref *taskref)
 {
