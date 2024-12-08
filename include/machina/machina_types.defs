@@ -11,7 +11,7 @@ type mcn_task_t = mcn_portid_t
 #if KERNEL_SERVER
 		intran: taskref_t taskport_to_taskref(mcn_portid_t)
 		outtran: mcn_portid_t taskref_to_taskport(taskref_t)
-		destructor: taskref_consume(taskref_t)
+		destructor: taskref_deallocate(taskref_t)
 #endif
 		;
 
@@ -21,7 +21,7 @@ type mcn_thread_t = mcn_portid_t
 #if KERNEL_SERVER
 		intran: threadref_t threadport_to_threadref(mcn_portid_t)
 		outtran: mcn_portid_t threadref_to_threadport(threadref_t)
-		destructor: taskref_consume(threadref_t)
+		destructor: threadref_deallocate(threadref_t)
 #endif
 		;
 
@@ -30,7 +30,7 @@ type mcn_vmobjctrl_t = mcn_portid_t
 #if	KERNEL_SERVER
 		intran: vmobjref_t vmobjctrlport_to_vmobjref(mcn_portid_t)
 		outtran: mcn_portid_t vmobjref_to_vmobjctrlport(vmobjref_t)
-		destructor: vmobjref_consume(vmobjref_t)
+		destructor: vmobjref_deallocate(vmobjref_t)
 #endif	KERNEL_SERVER
 		;
 
@@ -39,7 +39,7 @@ type mcn_vmobjname_t = mcn_portid_t
 #if	KERNEL_SERVER
 		intran: vmobjref_t vmobjnameport_to_vmobjref(mcn_portid_t)
 		outtran: mcn_portid_t vmobjref_to_vmobjnameport(vmobjref_t)
-		destructor: vmobjref_consume(vmobjref_t)
+		destructor: vmobjref_deallocate(vmobjref_t)
 #endif	KERNEL_SERVER
 		;
 

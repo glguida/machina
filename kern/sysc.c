@@ -91,30 +91,38 @@ entry_sysc (uctxt_t * u,
 	if (ret)
 	  break;
 
+	/* Valid references: TASK PORTREF */
+
 	tref = port_get_taskref (portref_unsafe_get (&task_pr));
-	if (taskref_isnull (tref))
+	portref_consume (&task_pr);
+	if (taskref_isnull (&tref))
 	  {
-	    portref_consume (&task_pr);
 	    ret = KERN_INVALID_NAME;
 	    break;
 	  }
+
+	/* Valid references: TASK REF */
 
 	ret = syscall_getport (in.objname, &vmobj_pr);
 	if (ret)
 	  {
-	    portref_consume (&task_pr);
+	    taskref_consume (&tref);
 	    break;
 	  }
 
+	/* Valid references: TASK REF, VMOBJ PORTREF */
+
 	vmobjref =
 	  port_get_vmobjref_from_name (portref_unsafe_get (&vmobj_pr));
+	portref_consume (&vmobj_pr);
 	if (vmobjref_isnull (&vmobjref))
 	  {
-	    portref_consume (&vmobj_pr);
-	    portref_consume (&task_pr);
+	    taskref_consume (&tref);
 	    ret = KERN_INVALID_NAME;
 	    break;
 	  }
+
+	/* Valid references: TASK REF, VMOBJ REF */
 
 	printf
 	  ("SYSC: map task %p addr %lx size %lx mask %lx anywhere ? %d\n",
@@ -126,8 +134,8 @@ entry_sysc (uctxt_t * u,
 		       in.anywhere, vmobjref, in.off, in.copy, in.curprot,
 		       in.maxprot, in.inherit);
 
-	portref_consume (&vmobj_pr);
-	portref_consume (&task_pr);
+	taskref_consume (&tref);
+	vmobjref_consume (&vmobjref);
 	*(mcn_vmaddr_t *) cur_kmsgbuf () = vaddr;
       }
       break;
@@ -141,19 +149,23 @@ entry_sysc (uctxt_t * u,
 	if (ret)
 	  break;
 
+	/* Valid references: TASK PORTREF */
+
 	tref = port_get_taskref (portref_unsafe_get (&task_pr));
-	if (taskref_isnull (tref))
+	portref_consume (&task_pr);
+	if (taskref_isnull (&tref))
 	  {
-	    portref_consume (&task_pr);
 	    ret = KERN_INVALID_NAME;
 	    break;
 	  }
+
+	/* Valid references: TASK REF */
 
 	printf
 	  ("SYSC: vmallocate task %p, addr %lx, size %lx, anywhere? %ld\n",
 	   taskref_unsafe_get (&tref), addr, a3, a4);
 	ret = task_vm_allocate (taskref_unsafe_get (&tref), &addr, a3, a4);
-	portref_consume (&task_pr);
+	taskref_consume (&tref);
 	*(mcn_vmaddr_t *) cur_kmsgbuf () = addr;
 	break;
       }
@@ -168,13 +180,17 @@ entry_sysc (uctxt_t * u,
 	if (ret)
 	  break;
 
+	/* Valid references: TASK PORTREF */
+
 	tref = port_get_taskref (portref_unsafe_get (&task_pr));
-	if (taskref_isnull (tref))
+	portref_consume (&task_pr);
+	if (taskref_isnull (&tref))
 	  {
-	    portref_consume (&task_pr);
 	    ret = KERN_INVALID_NAME;
 	    break;
 	  }
+
+	/* Valid references: TASK REF */
 
 	mcn_vmaddr_t addr = *(volatile mcn_vmaddr_t *) cur_kmsgbuf ();
 	volatile struct __syscall_vm_region_out *out = cur_kmsgbuf ();
@@ -191,15 +207,18 @@ entry_sysc (uctxt_t * u,
 	ret =
 	  task_vm_region (taskref_unsafe_get (&tref), &addr, &size, &curprot,
 			  &maxprot, &inherit, &shared, &portref, &off);
+	taskref_consume (&tref);
 	if (ret)
 	  break;
 
+	/* Valid references: PORTREF */
+
 	ret = syscall_setport (portref, &objname);
+
+	/* Valid references: none */
+
 	if (ret)
-	  {
-	    portref_consume (&portref);
 	    break;
-	  }
 
 	out->addr = addr;
 	out->size = size;

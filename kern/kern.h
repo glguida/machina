@@ -31,6 +31,12 @@ taskref_to_taskport (struct taskref task)
   return portref_to_ipcport (&pr);
 }
 
+static inline void
+taskref_deallocate (struct taskref task)
+{
+  taskref_consume (&task);
+}
+
 
 typedef struct threadref threadref_t;
 

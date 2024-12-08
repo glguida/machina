@@ -9,6 +9,12 @@
 
 struct slab threads;
 
+unsigned long *
+thread_refcnt(struct thread *th)
+{
+  return &th->_ref_count;
+}
+
 struct thread *
 thread_idle (void)
 {

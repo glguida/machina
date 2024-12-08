@@ -207,13 +207,7 @@ struct physmem_page
 
 void memctrl_newpage (struct physmem_page *page);
 
-struct vmobj;
-struct vmobjref
-{
-  struct vmobj *obj;
-};
-
-#define VMOBJREF_NULL ((struct vmobjref){.obj = NULL})
+#include "vmobjref.h"
 
 struct vmobj
 {
@@ -246,47 +240,6 @@ bool vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 		  pfn_t * outpfn);
 struct portref vmobj_getctrlport (struct vmobj *vmobj);
 struct portref vmobj_getnameport (struct vmobj *vmobj);
-
-static inline struct vmobjref
-vmobjref_from_raw (struct vmobj *vmobj)
-{
-  if (vmobj == NULL)
-    return VMOBJREF_NULL;
-
-  struct vmobjref ref = ((struct vmobjref)
-			 {.obj = vmobj });
-  return REF_DUP (ref);
-}
-
-static inline struct vmobjref
-vmobjref_move (struct vmobjref *objref)
-{
-  return REF_MOVE (*objref);
-}
-
-static inline struct vmobjref
-vmobjref_clone (struct vmobjref *objref)
-{
-  return REF_DUP (*objref);
-}
-
-static inline struct vmobj *
-vmobjref_unsafe_get (struct vmobjref *objref)
-{
-  return REF_GET (*objref);
-}
-
-static inline bool
-vmobjref_isnull (struct vmobjref *objref)
-{
-  return vmobjref_unsafe_get (objref) == NULL;
-}
-
-static inline void
-vmobjref_consume (struct vmobjref objref)
-{
-  /* XXX: DELETE IF */ REF_DESTROY (objref);
-}
 
 struct vm_region;
 LIST_HEAD (zlist, vm_region);

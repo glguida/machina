@@ -61,7 +61,7 @@ region_remove (struct vmmap *map, struct vm_region *reg)
   else
     {
       vmobj_delregion (vmobjref_unsafe_get (&reg->objref), reg);
-      vmobjref_consume (reg->objref);
+      vmobjref_consume (&reg->objref);
     }
   slab_free (reg);
 }
@@ -320,7 +320,7 @@ vmreg_copy (struct vm_region *to, struct vm_region *from)
   to->curprot = from->curprot;
   to->maxprot = from->maxprot;
   if (from->type == VMR_TYPE_USED)
-    to->objref = vmobjref_clone (&from->objref);
+    to->objref = vmobjref_dup (&from->objref);
   else
     to->objref = (struct vmobjref)
     {.obj = NULL, };
@@ -336,10 +336,9 @@ vmreg_move (struct vm_region *to, struct vm_region *from)
   to->curprot = from->curprot;
   to->maxprot = from->maxprot;
   if (from->type == VMR_TYPE_USED)
-    to->objref = vmobjref_move (&from->objref);
+    vmobjref_move (&to->objref, &from->objref);
   else
-    to->objref = (struct vmobjref)
-    {.obj = NULL, };
+    to->objref = VMOBJREF_NULL;
   to->off = from->off;
 }
 
@@ -347,7 +346,7 @@ static void
 vmreg_consume (struct vm_region *reg)
 {
   if (reg->type == VMR_TYPE_USED)
-    vmobjref_consume (reg->objref);
+    vmobjref_consume (&reg->objref);
 }
 
 static void
@@ -458,7 +457,7 @@ vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
   reg->curprot = curprot;
   reg->maxprot = maxprot;
   reg->type = VMR_TYPE_USED;
-  reg->objref = vmobjref_move (&objref);
+  vmobjref_move (&reg->objref, &objref);
   reg->off = off;
   vmobj_addregion (vmobjref_unsafe_get (&reg->objref), reg, &map->umap);
   rb_tree_insert_node (&map->regions, (void *) reg);
@@ -499,7 +498,7 @@ vmmap_map (struct vmmap *map, vaddr_t start, struct vmobjref objref,
   reg->curprot = curprot;
   reg->maxprot = maxprot;
   reg->type = VMR_TYPE_USED;
-  reg->objref = vmobjref_move (&objref);
+  vmobjref_move (&reg->objref, &objref);
   reg->off = off;
   vmobj_addregion (vmobjref_unsafe_get (&reg->objref), reg, &map->umap);
   rb_tree_insert_node (&map->regions, (void *) reg);
