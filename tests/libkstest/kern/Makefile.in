@@ -3,7 +3,7 @@ LIBRARY=ks_kern
 .PHONY: always_mig
 always_mig: @MIG@ @MIGCOM@
 
-%.c %.h: $(SRCDIR)/../%.defs
+%.c %.h: $(SRCDIR)/../%.defs always_mig
 	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*.c -user /dev/null -sheader $*.h $<
 
 SRCS+= ks.c
