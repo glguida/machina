@@ -139,11 +139,10 @@ enum sched
 };
 
 void sched_add (struct thread *th);
+void sched_suspend (struct thread *th);
+void sched_resume (struct thread *th);
 uctxt_t *sched_next (void);
 void sched_destroy (struct thread *th);
-void sched_wait (struct waitq *waitq, unsigned long timeout);
-void sched_wakeone (struct waitq *wq);
-
 
 /*
   Port Space: a collection of port rights.
@@ -411,6 +410,8 @@ struct thread
 
   uaddr_t tls;
 
+  enum sched status;
+  unsigned long suspend;
   struct
   {
     uint8_t op_yield:1;
@@ -419,18 +420,18 @@ struct thread
   } sched_op;
   struct waitq *waitq;
   struct timer timeout;
-  enum sched status;
+
   TAILQ_ENTRY (thread) sched_list;
 };
 /**INDENT-ON**/
 
-struct thread *thread_new (struct task *t, long ip, long sp, long gp);
 struct thread *thread_idle (void);
-struct thread *thread_bootstrap (struct task *t);
+struct thread *thread_new (struct task *t);
+void thread_bootstrap (struct thread *t);
 struct portref thread_getport (struct thread *th);
-void thread_enter (struct thread *th);
+void thread_wait (struct waitq *wq, unsigned long timeout);
+void thread_wakeone (struct waitq *wq);
 void thread_init (void);
-void thread_vtalrm (int64_t diff);
 
 static inline uctxt_t *
 thread_uctxt (struct thread *th)
@@ -465,7 +466,6 @@ struct task
 
 void task_init (void);
 void task_bootstrap (struct taskref *taskref);
-void task_enter (struct task *t);
 struct ipcspace *task_getipcspace (struct task *t);
 void task_putipcspace (struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright (struct task *t, struct portright *pr,
@@ -482,6 +482,7 @@ mcn_return_t task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
 			     mcn_vmprot_t * curprot, mcn_vmprot_t * maxprot,
 			     mcn_vminherit_t * inherit, bool *shared,
 			     struct portref *portref, mcn_vmoff_t * off);
+mcn_return_t task_create_thread(struct task *t, struct threadref *ref);
 struct portref task_getport (struct task *task);
 mcn_portid_t task_self (void);
 

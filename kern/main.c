@@ -25,7 +25,6 @@ cpu_kick (void)
 __thread char test_2[40];
 
 struct taskref bootstrap_taskref;
-struct thread *bootstrap;
 static int smp_sync = 0;
 
 mcn_return_t
@@ -64,10 +63,7 @@ main (int argc, char *argv[])
   atomic_cpumask_set (&idlemap, cpu_id ());
 
   task_bootstrap (&bootstrap_taskref);
-  struct thread *th =
-    thread_bootstrap (taskref_unsafe_get (&bootstrap_taskref));
   hal_umap_load (NULL);
-  sched_add (th);
   printf ("here");
 
   port_alloc_kernel (NULL, KOT_THREAD, &portref);
@@ -79,7 +75,6 @@ main (int argc, char *argv[])
   assert (rc == KERN_SUCCESS);
 
   taskref_consume(&bootstrap_taskref);
-  bootstrap = th;
 
   smp_sync = 1;
   __sync_synchronize ();

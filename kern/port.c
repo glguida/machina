@@ -110,12 +110,12 @@ portqueue_enq (struct port_queue *pq, unsigned long timeout, bool force,
   if (!force
       && (!waitq_empty (&pq->send_waitq) || (pq->capacity == pq->entries)))
     {
-      sched_wait (&pq->send_waitq, timeout);
+      thread_wait (&pq->send_waitq, timeout);
       return KERN_RETRY;
     }
   msgq_enq (&pq->msgq, msgh);
   pq->entries++;
-  sched_wakeone (&pq->recv_waitq);
+  thread_wakeone (&pq->recv_waitq);
   return MSGIO_SUCCESS;
 }
 
@@ -125,11 +125,11 @@ portqueue_deq (struct port_queue *pq, unsigned long timeout,
 {
   if (!msgq_deq (&pq->msgq, msghp))
     {
-      sched_wait (&pq->recv_waitq, timeout);
+      thread_wait (&pq->recv_waitq, timeout);
       return KERN_RETRY;
     }
   pq->entries--;
-  sched_wakeone (&pq->send_waitq);
+  thread_wakeone (&pq->send_waitq);
   return KERN_SUCCESS;
 }
 

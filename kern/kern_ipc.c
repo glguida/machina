@@ -45,26 +45,25 @@ mul (mcn_portid_t test, int b, long *c)
 mcn_return_t
 create_thread (mcn_portid_t test, long pc, long sp)
 {
-  struct thread *th;
+  mcn_return_t rc;
+  struct threadref ref;
 
   printf ("\n\tcreate thread called (%lx %lx)\n", pc, sp);
 
-  th = thread_new (cur_task (), pc, sp, uctxt_getgp (cur_thread ()->uctxt));
-  printf ("thread is %p\n", th);
-  if (th == NULL)
-    return KERN_RESOURCE_SHORTAGE;
+  rc = task_create_thread (cur_task (), &ref);
+  printf ("thread is %p\n", threadref_unsafe_get(&ref));
+  if (rc)
+    return rc;
 
-  uctxt_print (cur_thread ()->uctxt);
-  sched_add (th);
-  uctxt_print (cur_thread ()->uctxt);
-
+  threadref_consume(&ref);
   return KERN_SUCCESS;
 }
 
 mcn_return_t
 create_thread2 (struct taskref tr, long pc, long sp)
 {
-  struct thread *th;
+  mcn_return_t rc;
+  struct threadref threadref;
 
   if (taskref_isnull (&tr))
     {
@@ -75,15 +74,18 @@ create_thread2 (struct taskref tr, long pc, long sp)
   struct task *t = taskref_unsafe_get (&tr);
   printf ("task = %p (cur_task = %p)\n", t, cur_task ());
 
-  th = thread_new (t, pc, sp, uctxt_getgp (cur_thread ()->uctxt));
-  printf ("thread is %p\n", th);
-  if (th == NULL)
-    return KERN_RESOURCE_SHORTAGE;
+  rc = task_create_thread (t, &threadref);
+  printf ("thread is %p\n", threadref_unsafe_get(&threadref));
+  if (rc)
+    return rc;
 
-  uctxt_print (cur_thread ()->uctxt);
-  sched_add (th);
-  uctxt_print (cur_thread ()->uctxt);
+  /* HACK. */
+  uctxt_setip (threadref_unsafe_get(&threadref)->uctxt, pc);
+  uctxt_setsp (threadref_unsafe_get(&threadref)->uctxt, sp);
 
+  sched_resume(threadref_unsafe_get(&threadref));
+
+  threadref_consume(&threadref);
   return KERN_SUCCESS;
 }
 

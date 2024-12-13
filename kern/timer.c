@@ -88,6 +88,7 @@ timer_remove (struct timer *timer)
 
   if (!timer->valid)
     return;
+
   spinlock (&timers_lock);
   LIST_REMOVE (timer, list);
   /* Update hw timer. */
@@ -97,5 +98,6 @@ timer_remove (struct timer *timer)
   else
     timer_alarm (c->time);
   spinunlock (&timers_lock);
+
   timer->valid = 0;
 }

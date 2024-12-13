@@ -10,8 +10,12 @@
 bool
 vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
 {
+  bool ret;
 
-  return msgbuf_alloc (&map->umap, &map->msgbuf_zone, msgbuf);
+  spinlock(&map->lock);
+  ret = msgbuf_alloc (&map->umap, &map->msgbuf_zone, msgbuf);
+  spinunlock(&map->lock);
+  return ret;
 }
 
 bool
@@ -33,6 +37,7 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
   tlsv = TLS_VARIANT_II;
 #endif
 
+  spinlock(&map->lock);
   /*
      XXX: TLS SUPPORT.
 
@@ -55,6 +60,7 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
       *tls = (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long);
       break;
     }
+  spinunlock(&map->lock);
   printf ("tls [%s] is %lx\n",
 	  tlsv == TLS_VARIANT_I ? "variant I" : "variant II",
 	  (long) tlsmb.uaddr + MSGBUF_SIZE - sizeof (long));
@@ -65,8 +71,9 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
 void
 vmmap_enter (struct vmmap *map)
 {
-
+  spinlock(&map->lock);
   cpu_umap_enter (&map->umap);
+  spinunlock(&map->lock);
 }
 
 void

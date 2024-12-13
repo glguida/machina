@@ -19,32 +19,6 @@ task_refcnt(struct task *t)
   return &t->_ref_count;
 }
 
-void
-task_bootstrap (struct taskref *taskref)
-{
-  struct task *t;
-
-  t = slab_alloc (&tasks);
-  vmmap_bootstrap (&t->vmmap);
-  spinlock_init (&t->lock);
-  ipcspace_setup (&t->ipcspace);
-  port_alloc_kernel ((void *) t, KOT_TASK, &t->self);
-  taskref->obj = t;
-  t->_ref_count = 1;
-
-
-  vmmap_printregions (&t->vmmap);
-  struct vmobjref ref = vmobj_new (true, 3 * 4096);
-  //  struct vmobjref ref2 = vmobjref_clone(&ref);
-  vmmap_map (&t->vmmap, 0x1000, ref, 0, 4 * 4096, MCN_VMPROT_ALL,
-	     MCN_VMPROT_ALL);
-  vmmap_printregions (&t->vmmap);
-  vmmap_free (&t->vmmap, 0x3000, 3 * 4096);
-  vmmap_printregions (&t->vmmap);
-  vmmap_free (&t->vmmap, 0x1000, 1 * 4096);
-  vmmap_printregions (&t->vmmap);
-}
-
 struct portref
 task_getport (struct task *t)
 {
@@ -72,13 +46,6 @@ task_self (void)
   task_putipcspace (t, ps);
 
   return ret;
-}
-
-void
-task_enter (struct task *t)
-{
-  cur_cpu ()->task = t;
-  vmmap_enter (&t->vmmap);
 }
 
 struct ipcspace *
@@ -177,7 +144,6 @@ task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
 mcn_return_t
 task_vm_allocate (struct task *t, vaddr_t * addr, size_t size, bool anywhere)
 {
-  //  mcn_return_t rc;
   struct vmobjref ref;
 
   printf ("TASK: allocating task %p size %lx anywhere %d\n", t, size,
@@ -187,24 +153,72 @@ task_vm_allocate (struct task *t, vaddr_t * addr, size_t size, bool anywhere)
   return task_vm_map (t, addr, size, 0, anywhere, ref, 0, 0,
 		      MCN_VMPROT_DEFAULT, MCN_VMPROT_ALL,
 		      MCN_VMINHERIT_DEFAULT);
-  /*
-     spinlock (&t->lock);
-     if (anywhere)
-     {
-     rc =
-     vmmap_alloc (&t->vmmap, ref, size, 
-     addr);
-     }
-     else
-     {
-     vmmap_map (&t->vmmap, *addr, ref, 0, size, MCN_VMPROT_DEFAULT,
-     MCN_VMPROT_ALL);
-     rc = KERN_SUCCESS;
-     }
+}
 
-     spinunlock (&t->lock);
-     return rc;
-   */
+mcn_return_t
+task_create_thread(struct task *t, struct threadref *ref)
+{
+
+  struct thread *th = thread_new (t);
+  if (th == NULL)
+    {
+      *ref = THREADREF_NULL;
+      return KERN_RESOURCE_SHORTAGE;
+    }
+
+  spinlock (&t->lock);
+  LIST_INSERT_HEAD (&t->threads, th, list_entry);
+  spinunlock (&t->lock);
+
+  sched_add (th);
+
+  /*
+    The thread saved both in the task's thread list and the scheduler
+    list is an _implicit_ reference. We don't keep the threadref
+    around but we know that one of the refcount is ours.  When the
+    thread is destroyed, we remove it from both the scheduler list and
+    the task's list, and we consume this reference.
+  */
+  struct threadref implicit = threadref_fromraw(th);
+
+  *ref = threadref_dup (&implicit);
+  return KERN_SUCCESS;
+}
+
+void
+task_bootstrap (struct taskref *taskref)
+{
+  mcn_return_t rc;
+  struct task *t;
+  struct threadref threadref;
+
+  t = slab_alloc (&tasks);
+  vmmap_bootstrap (&t->vmmap);
+  spinlock_init (&t->lock);
+  ipcspace_setup (&t->ipcspace);
+  port_alloc_kernel ((void *) t, KOT_TASK, &t->self);
+
+  rc = task_create_thread(t, &threadref);
+  assert (rc == KERN_SUCCESS);
+
+  thread_bootstrap(threadref_unsafe_get(&threadref));
+  sched_resume(threadref_unsafe_get(&threadref));
+  threadref_consume(&threadref);
+
+  taskref->obj = t;
+  t->_ref_count = 1;
+
+
+  vmmap_printregions (&t->vmmap);
+  struct vmobjref ref = vmobj_new (true, 3 * 4096);
+  //  struct vmobjref ref2 = vmobjref_clone(&ref);
+  vmmap_map (&t->vmmap, 0x1000, ref, 0, 4 * 4096, MCN_VMPROT_ALL,
+	     MCN_VMPROT_ALL);
+  vmmap_printregions (&t->vmmap);
+  vmmap_free (&t->vmmap, 0x3000, 3 * 4096);
+  vmmap_printregions (&t->vmmap);
+  vmmap_free (&t->vmmap, 0x1000, 1 * 4096);
+  vmmap_printregions (&t->vmmap);
 }
 
 void
