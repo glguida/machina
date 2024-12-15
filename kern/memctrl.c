@@ -23,6 +23,18 @@ void
 memctrl_newpage (struct physmem_page *page)
 {
   spinlock (&clock_lock);
+  spinlock (&page->lock);
   TAILQ_INSERT_HEAD (&clock_queue, page, pageq);
+  spinunlock (&page->lock);
+  spinunlock (&clock_lock);
+}
+
+void
+memctrl_delpage (struct physmem_page *page)
+{
+  spinlock (&clock_lock);
+  spinlock (&page->lock);
+  TAILQ_REMOVE (&clock_queue, page, pageq);
+  spinunlock (&page->lock);
   spinunlock (&clock_lock);
 }

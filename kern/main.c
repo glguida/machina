@@ -27,16 +27,6 @@ __thread char test_2[40];
 struct taskref bootstrap_taskref;
 static int smp_sync = 0;
 
-mcn_return_t
-testport_send (void *ctx, mcn_msgid_t id, void *data, size_t size,
-	       struct portref reply)
-{
-  printf ("Received message: context %p id %d, data is at %p with size %ld\n",
-	  ctx, id, data, size);
-
-  return 0;
-}
-
 int
 main (int argc, char *argv[])
 {
@@ -60,6 +50,7 @@ main (int argc, char *argv[])
   cur_cpu ()->idle = thread_idle ();
   cur_cpu ()->thread = cur_cpu ()->idle;
   TAILQ_INIT (&cur_cpu ()->dead_threads);
+  TAILQ_INIT (&cur_cpu ()->dead_tasks);
   atomic_cpumask_set (&idlemap, cpu_id ());
 
   task_bootstrap (&bootstrap_taskref);
@@ -67,7 +58,8 @@ main (int argc, char *argv[])
   printf ("here");
 
   port_alloc_kernel (NULL, KOT_THREAD, &portref);
-  struct portright testpr = portright_from_portref (RIGHT_SEND, portref);
+  struct portref send = portref_dup(&portref);
+  struct portright testpr = portright_from_portref (RIGHT_SEND, send);
   mcn_portid_t id;
   rc =
     task_addportright (taskref_unsafe_get (&bootstrap_taskref), &testpr, &id);
@@ -94,6 +86,7 @@ main_ap (void)
   cur_cpu ()->idle = thread_idle ();
   cur_cpu ()->thread = cur_cpu ()->idle;
   TAILQ_INIT (&cur_cpu ()->dead_threads);
+  TAILQ_INIT (&cur_cpu ()->dead_tasks);
   atomic_cpumask_set (&idlemap, cpu_id ());
 
   return EXIT_IDLE;
@@ -102,9 +95,31 @@ main_ap (void)
 uctxt_t *
 kern_return (void)
 {
+  uctxt_t *uctxt;
+
   ipc_kern_exec ();
 
-  return sched_next ();
+  uctxt = sched_next ();
+
+  {
+    struct thread *th, *tmp;
+    TAILQ_FOREACH_SAFE(th, &cur_cpu ()->dead_threads, sched_list, tmp)
+      {
+	TAILQ_REMOVE(&cur_cpu ()->dead_threads, th, sched_list);
+	_task_destroy_thread(th);
+      }
+  }
+
+  {
+    struct task *t, *tmp;
+    TAILQ_FOREACH_SAFE(t, &cur_cpu ()->dead_tasks, task_list, tmp)
+      {
+	TAILQ_REMOVE(&cur_cpu ()->dead_tasks, t, task_list);
+	_task_cleanup(t);
+      }
+  }
+
+  return uctxt;
 }
 
 uctxt_t *
@@ -136,7 +151,7 @@ entry_ex (uctxt_t * uctxt, unsigned ex)
 
   info ("Exception %d", ex);
   uctxt_print (uctxt);
-  sched_destroy (cur_thread ());
+  thread_destroy (cur_thread ());
   return kern_return ();
 }
 
@@ -172,7 +187,7 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
 	  user_simple (portref_to_ipcport (&pr));
 	  printf ("destroying cur thread\n");
 	}
-      sched_destroy (cur_thread ());
+      thread_destroy (cur_thread ());
     }
   return kern_return ();
 }

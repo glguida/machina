@@ -547,6 +547,35 @@ ipcspace_insertright (struct ipcspace *ps, struct portright *pr,
 }
 
 void
+ipcspace_destroy (struct ipcspace *ps)
+{
+  struct portentry *next;
+
+  while ((next = RB_TREE_MIN(&ps->idsearch_rb_tree)) != NULL)
+    {
+      rb_tree_remove_node (&ps->idsearch_rb_tree, (void *) next);
+
+      switch (next->type)
+	{
+	case PORTENTRY_NORMAL:
+	  rb_tree_remove_node (&ps->portsearch_rb_tree, (void *) next);
+	  if (next->normal.recv)
+	    {
+	      port_unlink_queue(&next->portref);
+	    }
+	  break;
+	case PORTENTRY_ONCE:
+	  break;
+	default:
+	  fatal ("Invalid Port Entry type %d\n", next->type);
+	  break;
+	}
+      portref_consume (&next->portref);
+      slab_free(next);
+    }
+}
+
+void
 ipcspace_setup (struct ipcspace *ps)
 {
   rb_tree_init (&ps->idsearch_rb_tree, &idsearch_ops);

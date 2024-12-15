@@ -12,23 +12,22 @@ static TAILQ_HEAD (thread_list, thread) runnable_threads = TAILQ_HEAD_INITIALIZE
 /**INDENT-ON**/
 
 void
-sched_add (struct thread *th)
+_sched_add (struct thread *th)
 {
-  spinlock (&th->lock);
   th->suspend = 1;
   th->status = SCHED_STOPPED;
-  spinunlock (&th->lock);
 }
 
 void
-sched_suspend (struct thread *th)
+_sched_suspend (struct thread *th)
 {
-  spinlock (&th->lock);
   switch (th->status)
     {
+
     case SCHED_RUNNING:
       th->sched_op.op_suspend = true;
       break;
+
     case SCHED_RUNNABLE:
       assert (th->suspend == 0);
       spinlock (&sched_lock);
@@ -37,26 +36,30 @@ sched_suspend (struct thread *th)
       th->status = SCHED_STOPPED;
       th->suspend = 1;
       break;
+
     case SCHED_STOPPED:
       assert (th->suspend != 0);
       th->suspend++;
       break;
+
     case SCHED_REMOVED:
       break;
+
+    default:
+      fatal ("Invalid thread status: %d (thread: %p)",
+	     th->status, th);
+      break;
     }
-  
-  spinunlock (&th->lock);
 }
 
 void
-sched_resume (struct thread *th)
+_sched_resume (struct thread *th)
 {
   bool resumed = false;
 
-  spinlock (&th->lock);
-
   switch (th->status)
     {
+
     case SCHED_RUNNING:
       assert (th->sched_op.op_suspend == true);
       /*
@@ -64,12 +67,14 @@ sched_resume (struct thread *th)
       */
       th->sched_op.op_suspend = false;
       break;
+
     case SCHED_RUNNABLE:
       /*
 	Something has gone wrong with the suspend count.
       */
       fatal ("Resuming runnable thread %p\n", th);
       break;
+
     case SCHED_STOPPED:
       assert(th->suspend != 0);
       if (--th->suspend == 0)
@@ -81,16 +86,81 @@ sched_resume (struct thread *th)
 	  resumed = true;
 	}
       break;
+
     case SCHED_REMOVED:
       /*
 	NOT resuming a thread about to be destroyed.
       */
       break;
+
+    default:
+      fatal ("Invalid thread status: %d (thread: %p)",
+	     th->status, th);
+      break;
     }
-  spinunlock (&th->lock);
 
   if (resumed)
     cpu_kick ();
+}
+
+void
+_sched_abort (struct thread *th)
+{
+  assert (th->waitq == NULL);
+
+  switch (th->status)
+    {
+
+    case SCHED_STOPPED:
+      _sched_resume (th);
+      break;
+
+    case SCHED_RUNNING:
+    case SCHED_RUNNABLE:
+    case SCHED_REMOVED:
+      break;
+
+    default:
+      fatal ("Invalid thread status: %d (thread: %p)",
+	     th->status, th);
+      break;
+    }
+}
+
+void
+_sched_destroy (struct thread *th)
+{
+  switch (th->status)
+    {
+    case SCHED_RUNNING:
+      th->sched_op.op_destroy = true;
+      cpu_ipi(th->cpu);
+      break;
+
+    case SCHED_RUNNABLE:
+      spinlock(&sched_lock);
+      TAILQ_REMOVE (&runnable_threads, th, sched_list);
+      spinunlock(&sched_lock);
+      th->status = SCHED_REMOVED;
+      TAILQ_INSERT_TAIL (&cur_cpu ()->dead_threads, th, sched_list);
+      break;
+
+    case SCHED_STOPPED:
+
+      th->status = SCHED_REMOVED;
+      TAILQ_INSERT_TAIL (&cur_cpu ()->dead_threads, th, sched_list);
+      break;
+
+    case SCHED_REMOVED:
+      /* Is this a NOP? */
+      fatal ("Thread %p already removed", th);
+      break;
+
+    default:
+      fatal ("Invalid thread status: %d (thread: %p)",
+	     th->status, th);
+      break;
+    }
 }
 
 uctxt_t *
@@ -107,6 +177,15 @@ sched_next (void)
   assert (curth->status == SCHED_RUNNING);
   if (curth->sched_op.op_destroy)
     {
+      if (curth->waitq != NULL)
+	{
+	  spinlock (&curth->waitq->lock);
+	  TAILQ_REMOVE (&curth->waitq->queue, curth, sched_list);
+	  spinunlock (&curth->waitq->lock);
+
+	  timer_remove (&curth->timeout);
+	  curth->waitq = NULL;
+	}
       curth->status = SCHED_REMOVED;
       TAILQ_INSERT_TAIL (&cur_cpu ()->dead_threads, curth, sched_list);
       curth->sched_op.op_destroy = false;
@@ -162,11 +241,16 @@ _skip_sched_ops:
   spinlock (&newth->lock);
 
   if (thread_isidle (newth))
-    cpu_umap_exit ();
+    {
+      cpu_umap_exit ();
+      cur_cpu ()->task = NULL;
+    }
   else
-    vmmap_enter (&newth->task->vmmap);
+    {
+      vmmap_enter (&newth->task->vmmap);
+      cur_cpu ()->task = newth->task;
+    }
   cur_cpu ()->thread = newth;
-  cur_cpu ()->task = newth->task;
 
   if (thread_isidle (newth))
     atomic_cpumask_set (&idlemap, cpu_id ());
@@ -187,28 +271,3 @@ _skip_resched:
   return cur_thread ()->uctxt;
 }
 
-void
-sched_destroy (struct thread *th)
-{
-  spinlock (&th->lock);
-  switch (th->status)
-    {
-    case SCHED_RUNNING:
-      th->sched_op.op_destroy = true;
-      cpu_ipi(th->cpu);
-      break;
-    case SCHED_RUNNABLE:
-      TAILQ_REMOVE (&runnable_threads, th, sched_list);
-      /* Pass-Through */
-    case SCHED_STOPPED:
-      th->status = SCHED_REMOVED;
-      TAILQ_INSERT_TAIL (&cur_cpu ()->dead_threads, th, sched_list);
-      th->sched_op.op_destroy = false;
-      break;
-    case SCHED_REMOVED:
-      /* Is this a NOP? */
-      fatal ("Thread %p already removed", th);
-      break;
-    }
-  spinunlock (&th->lock);
-}

@@ -138,11 +138,12 @@ enum sched
   SCHED_REMOVED = 4,
 };
 
-void sched_add (struct thread *th);
-void sched_suspend (struct thread *th);
-void sched_resume (struct thread *th);
+void _sched_add (struct thread *th);
+void _sched_suspend (struct thread *th);
+void _sched_abort (struct thread *th);
+void _sched_resume (struct thread *th);
+void _sched_destroy (struct thread *th);
 uctxt_t *sched_next (void);
-void sched_destroy (struct thread *th);
 
 /*
   Port Space: a collection of port rights.
@@ -160,6 +161,7 @@ struct portright;
 
 void ipcspace_init (void);
 void ipcspace_setup (struct ipcspace *ps);
+void ipcspace_destroy (struct ipcspace *ps);
 mcn_portid_t ipcspace_lookup (struct ipcspace *ps, struct port *port);
 mcn_return_t ipcspace_insertright (struct ipcspace *ps, struct portright *pr,
 				   mcn_portid_t * idout);
@@ -251,6 +253,8 @@ bool port_kernel (struct port *);
 enum port_type port_type (struct port *);
 void port_alloc_kernel (void *obj, enum kern_objtype kot,
 			struct portref *portref);
+void port_unlink_kernel (struct portref *portref);
+void port_unlink_queue (struct portref *portref);
 struct taskref port_get_taskref (struct port *port);
 struct threadref port_get_threadref (struct port *port);
 struct vmobjref port_get_vmobjref (struct port *port);
@@ -385,7 +389,6 @@ portright_unsafe_put (struct port **port)
 
 #include "vm.h"
 
-
 /*
   Machina Thread.
 
@@ -395,7 +398,7 @@ struct thread
 {
   unsigned long _ref_count;
   
-  lock_t lock;			/* PRIO: task > thread. */
+  lock_t lock;
   uctxt_t *uctxt;
   LIST_ENTRY (thread) list_entry;
   struct task *task;
@@ -427,10 +430,13 @@ struct thread
 
 struct thread *thread_idle (void);
 struct thread *thread_new (struct task *t);
-void thread_bootstrap (struct thread *t);
+void thread_bootstrap (struct thread *th);
 struct portref thread_getport (struct thread *th);
+void thread_resume (struct thread *th);
+void thread_suspend (struct thread *th);
+void thread_destroy (struct thread *th);
 void thread_wait (struct waitq *wq, unsigned long timeout);
-void thread_wakeone (struct waitq *wq);
+bool thread_wakeone (struct waitq *wq);
 void thread_init (void);
 
 static inline uctxt_t *
@@ -449,23 +455,32 @@ thread_isidle (struct thread *th)
 
 /*
   Machina Task.
-
 */
+
+enum task_status
+{
+  TASK_ACTIVE,
+  TASK_DESTROYING,
+};
+
 /**INDENT-OFF**/
 struct task
 {
   unsigned long _ref_count;
 
-  lock_t lock;			/* PRIO: task > thread. */
+  lock_t lock;
+  enum task_status status;
   struct vmmap vmmap;
   LIST_HEAD (, thread) threads;
   struct ipcspace ipcspace;
   struct portref self;
+  TAILQ_ENTRY (task) task_list;
 };
 /**INDENT-ON**/
 
 void task_init (void);
 void task_bootstrap (struct taskref *taskref);
+void task_destroy (struct task *task);
 struct ipcspace *task_getipcspace (struct task *t);
 void task_putipcspace (struct task *t, struct ipcspace *ps);
 mcn_return_t task_addportright (struct task *t, struct portright *pr,
@@ -485,6 +500,9 @@ mcn_return_t task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
 mcn_return_t task_create_thread(struct task *t, struct threadref *ref);
 struct portref task_getport (struct task *task);
 mcn_portid_t task_self (void);
+
+void _task_cleanup(struct task *t);
+void _task_destroy_thread(struct thread *th);
 
 #include "taskref.h"
 
@@ -510,6 +528,7 @@ struct mcncpu
   struct task *task;
   struct msgqueue kernel_msgq;
   TAILQ_HEAD (, thread) dead_threads;
+  TAILQ_HEAD(, task) dead_tasks;
 };
 /**INDENT-ON**/
 

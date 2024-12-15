@@ -10,6 +10,12 @@
 #include "internal.h"
 #include "vm.h"
 
+#ifdef TASK_DEBUG
+#define TASK_PRINT printf
+#else
+#define TASK_PRINT(...)
+#endif
+
 struct slab tasks;
 struct slab portcaps;
 
@@ -72,7 +78,7 @@ task_addportright (struct task *t, struct portright *pr, mcn_portid_t * idout)
   ps = task_getipcspace (t);
   rc = ipcspace_insertright (ps, pr, &id);
   task_putipcspace (t, ps);
-  printf ("TASK: Allocated id %d\n", id);
+  TASK_PRINT ("TASK: Allocated id %d\n", id);
   if (rc == KERN_SUCCESS)
     *idout = id;
   return rc;
@@ -104,9 +110,9 @@ task_vm_map (struct task *t, vaddr_t * addr, size_t size, unsigned long mask,
 
   if (copy)
     {
-      printf ("TASK: Making copy of vmobj %p\n", vmobjref_unsafe_get (&ref));
+      TASK_PRINT ("TASK: Making copy of vmobj %p\n", vmobjref_unsafe_get (&ref));
       ref = vmobj_shadowcopy (&ref);
-      printf ("TASK: New shadow copy is %p\n", vmobjref_unsafe_get (&ref));
+      TASK_PRINT ("TASK: New shadow copy is %p\n", vmobjref_unsafe_get (&ref));
     }
 
   spinlock (&t->lock);
@@ -136,7 +142,7 @@ task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
   rc =
     vmmap_region (&t->vmmap, addr, size, curprot, maxprot, inherit, shared,
 		  portref, off);
-  printf ("TASK: size is %lx\n", *size);
+  TASK_PRINT ("TASK: size is %lx\n", *size);
   spinunlock (&t->lock);
   return rc;
 }
@@ -146,7 +152,7 @@ task_vm_allocate (struct task *t, vaddr_t * addr, size_t size, bool anywhere)
 {
   struct vmobjref ref;
 
-  printf ("TASK: allocating task %p size %lx anywhere %d\n", t, size,
+  TASK_PRINT ("TASK: allocating task %p size %lx anywhere %d\n", t, size,
 	  anywhere);
   ref = vmobj_new (true, size);
 
@@ -170,8 +176,6 @@ task_create_thread(struct task *t, struct threadref *ref)
   LIST_INSERT_HEAD (&t->threads, th, list_entry);
   spinunlock (&t->lock);
 
-  sched_add (th);
-
   /*
     The thread saved both in the task's thread list and the scheduler
     list is an _implicit_ reference. We don't keep the threadref
@@ -179,10 +183,69 @@ task_create_thread(struct task *t, struct threadref *ref)
     thread is destroyed, we remove it from both the scheduler list and
     the task's list, and we consume this reference.
   */
-  struct threadref implicit = threadref_fromraw(th);
+  struct threadref implicit_threadref = threadref_fromraw(th);
 
-  *ref = threadref_dup (&implicit);
+  *ref = threadref_dup (&implicit_threadref);
   return KERN_SUCCESS;
+}
+
+static void
+threadref_consume_implicit(struct thread *th)
+{
+  struct threadref ref = { .obj = th };
+
+  threadref_consume(&ref);
+}
+
+void
+_task_destroy_thread(struct thread *th)
+{
+  struct task *t = th->task;
+
+  spinlock(&th->lock);
+  assert(th->status == SCHED_REMOVED);
+  spinunlock(&th->lock);
+
+  spinlock(&t->lock);
+  LIST_REMOVE (th, list_entry);
+  TASK_PRINT("TASK STATUS IS %s\n", t->status == TASK_DESTROYING ? "DESTROYING" : "ACTIVE");
+  if ((t->status == TASK_DESTROYING) && LIST_EMPTY(&t->threads))
+    TAILQ_INSERT_TAIL (&cur_cpu ()->dead_tasks, t, task_list);
+  spinunlock(&t->lock);
+
+  /*
+    Thread is removed, so there's no pointers in the scheduler. It has
+    also been removed from the task's thread list, so we can remove
+    the thread reference.
+
+    If the thread reference reaches zero, the thread will be
+    freed. Otherwhise will be freed when all the messages queued in
+    the system (and other references if exist) will be consumed.
+   */
+  threadref_consume_implicit(th);
+}
+
+void
+task_destroy (struct task *t)
+{
+  struct thread *th;
+
+  spinlock (&t->lock);
+  TASK_PRINT("TASK %p: DESTROYING TASK (STATUS: %s)\n",
+	     t, t->status == TASK_ACTIVE ? "ACTIVE" : "DESTROYING");
+
+
+  if (t->status == TASK_DESTROYING)
+    {
+      spinunlock (&t->lock);
+      return;
+    }
+  t->status = TASK_DESTROYING;
+  LIST_FOREACH(th, &t->threads, list_entry)
+    {
+      thread_destroy(th);
+    }
+  spinunlock (&t->lock);
 }
 
 void
@@ -197,17 +260,24 @@ task_bootstrap (struct taskref *taskref)
   spinlock_init (&t->lock);
   ipcspace_setup (&t->ipcspace);
   port_alloc_kernel ((void *) t, KOT_TASK, &t->self);
+  t->_ref_count = 0;
+  t->status = TASK_ACTIVE;
 
+  /*
+    Allocate Implicit reference to task.
+  */
+  struct taskref implicit_taskref = taskref_fromraw(t);
+  (void)implicit_taskref;
+
+  /*
+    Create the bootstrap thread and execute.
+  */
   rc = task_create_thread(t, &threadref);
   assert (rc == KERN_SUCCESS);
 
   thread_bootstrap(threadref_unsafe_get(&threadref));
-  sched_resume(threadref_unsafe_get(&threadref));
+  thread_resume(threadref_unsafe_get(&threadref));
   threadref_consume(&threadref);
-
-  taskref->obj = t;
-  t->_ref_count = 1;
-
 
   vmmap_printregions (&t->vmmap);
   struct vmobjref ref = vmobj_new (true, 3 * 4096);
@@ -219,6 +289,37 @@ task_bootstrap (struct taskref *taskref)
   vmmap_printregions (&t->vmmap);
   vmmap_free (&t->vmmap, 0x1000, 1 * 4096);
   vmmap_printregions (&t->vmmap);
+
+  *taskref = taskref_fromraw(t);
+}
+
+void
+_task_cleanup (struct task *t)
+{
+  TASK_PRINT("TASK %p cleanup!\n", t);
+
+  /*
+    Make self port dead. This will disallow new references.
+  */
+  TASK_PRINT("TASK %p: Unlinking task port\n", t);
+  port_unlink_kernel(&t->self);
+
+  /*
+    Consume implicit task.
+  */
+  TASK_PRINT("TASK %p: Consuming self implicit reference.\n", t);
+  struct taskref ref = { .obj = t };
+  taskref_consume(&ref);
+}
+
+void
+task_zeroref (struct task *task)
+{
+  TASK_PRINT ("TASK ZERO REF");
+  vmmap_destroy (&task->vmmap);
+  ipcspace_destroy(&task->ipcspace);
+  slab_free (task);
+  slab_printstats();
 }
 
 void

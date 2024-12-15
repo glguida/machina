@@ -15,10 +15,19 @@
 
 #include "internal.h"
 
+#ifdef VMMAP_DEBUG
+#define VMMAP_PRINT printf
+#else
+#define VMMAP_PRINT(...)
+#endif
 
 struct slab regions_cache;
 
+#ifdef DEBUG_ALLOC
 #define dbgprintf(...) printf(__VA_ARGS__)
+#else
+#define dbgprintf(...)
+#endif
 
 static void
 _print_regions (struct vmmap *map)
@@ -322,8 +331,7 @@ vmreg_copy (struct vm_region *to, struct vm_region *from)
   if (from->type == VMR_TYPE_USED)
     to->objref = vmobjref_dup (&from->objref);
   else
-    to->objref = (struct vmobjref)
-    {.obj = NULL, };
+    to->objref = VMOBJREF_NULL;
   to->off = from->off;
 }
 
@@ -445,7 +453,7 @@ vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
 {
   vaddr_t addr;
 
-  printf ("VMMAP: alloc size %lx\n", size);
+  VMMAP_PRINT ("VMMAP: alloc size %lx\n", size);
   spinlock (&map->lock);
   addr = reg_alloc_alloc (map, size);
 
@@ -463,7 +471,7 @@ vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
   rb_tree_insert_node (&map->regions, (void *) reg);
 
   spinunlock (&map->lock);
-  printf ("VMMAP: allocated address; %lx\n", addr);
+  VMMAP_PRINT ("VMMAP: allocated address; %lx\n", addr);
 
   if (addr == -1)
     return KERN_RESOURCE_SHORTAGE;
@@ -528,7 +536,7 @@ vmmap_region (struct vmmap *map, vaddr_t * addr, size_t *size,
     }
 
   *addr = reg->start;
-  printf ("VMMAP: SIZE is %lx\n", reg->size);
+  VMMAP_PRINT ("VMMAP: SIZE is %lx\n", reg->size);
   *size = reg->size;
   *curprot = reg->curprot;
   *maxprot = reg->maxprot;
@@ -548,7 +556,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
   bool ret = false;
   struct vm_region *reg;
 
-  printf ("VMMAP: Fault at page %p %lx %x\n", map, va, reqprot);
+  VMMAP_PRINT ("VMMAP: Fault at page %p %lx %x\n", map, va, reqprot);
 
   spinlock (&map->lock);
 
@@ -561,7 +569,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
       ret = false;
       goto _fault_return;
     }
-  printf ("VMMAP: Found reg %lx %lx\n", reg->start, reg->start + reg->size);
+  VMMAP_PRINT ("VMMAP: Found reg %lx %lx\n", reg->start, reg->start + reg->size);
   assert (va >= reg->start);
   assert (va < reg->start + reg->size);
 
@@ -573,7 +581,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
       break;
 
     case VMR_TYPE_FREE:
-      printf ("VMMAP: FREE region!\n");
+      VMMAP_PRINT ("VMMAP: FREE region!\n");
       ret = false;
       break;
 
@@ -591,7 +599,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
 		     reg->off + va - reg->start, reqprot, &pfn);
       if (ret)
 	{
-	  printf ("VMMAP: fault resolved to pfn %lx\n", pfn);
+	  VMMAP_PRINT ("VMMAP: fault resolved to pfn %lx\n", pfn);
 	  unsigned flags = HAL_PTE_P | HAL_PTE_U;
 	  if (reqprot & MCN_VMPROT_WRITE)
 	    flags |= HAL_PTE_W;
@@ -630,6 +638,21 @@ vmmap_setupregions (struct vmmap *map)
   map->free = 0;
 
   reg_alloc_free (map, VM_MAP_USER_START, VM_MAP_USER_END);
+}
+
+void
+vmmap_destroyregions (struct vmmap *map)
+{
+  struct vm_region *next;
+
+  spinlock (&map->lock);
+  while ((next = RB_TREE_MIN(&map->regions)) != NULL)
+    {
+      VMMAP_PRINT ("VMMAP: FREEING %016lx:%016lx\t%s\n", next->start, next->start + next->size,
+	      next->type == VMR_TYPE_FREE ? "FREE" : "BUSY");
+      region_remove (map, next);
+    }
+  spinunlock (&map->lock);
 }
 
 

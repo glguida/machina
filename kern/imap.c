@@ -218,3 +218,81 @@ imap_foreach (struct imap *im, void (*fn) (unsigned long off, ipte_t * ipte))
       _puttable (im->l3, table);
     }
 }
+
+/*
+  Scan one last time the IMAP and free the occupying pages.
+*/
+
+void
+_free_l1 (ipte_t * l1ptr, unsigned long base,
+	      void (*fn) (void *, unsigned long, ipte_t *), void *opq)
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    if (l1ptr[i].p)
+      fn (opq, base + (unsigned long) i * PAGE_SIZE, l1ptr + i);
+}
+
+void
+_free_l2 (ipte_t * l2ptr, unsigned long base,
+	      void (*fn) (void *, unsigned long, ipte_t *), void *opq)
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    {
+      ipte_t *l1ptr = _gettable (l2ptr + i, false);
+      if (!l1ptr)
+	continue;
+      _free_l1 (l1ptr, base + (i << (PAGE_SHIFT + ISHIFT)), fn, opq);
+      _puttable (l2ptr[i], l1ptr);
+      pfn_free (ipte_pfn(l2ptr + i));
+      l2ptr[i] = IPTE_EMPTY;
+    }
+}
+
+void
+_free_l3 (ipte_t * l3ptr, unsigned long base,
+	      void (*fn) (void *, unsigned long, ipte_t *), void *opq)
+{
+  for (unsigned i = 0; i < IENTRIES; i++)
+    {
+      ipte_t *l2ptr = _gettable (l3ptr + i, false);
+      if (!l2ptr)
+	continue;
+      _free_l2 (l2ptr, base + (i << (PAGE_SHIFT + ISHIFT + ISHIFT)), fn, opq);
+      _puttable (l3ptr[i], l2ptr);
+      pfn_free (ipte_pfn(l3ptr + i));
+      l3ptr[i] = IPTE_EMPTY;
+    }
+}
+
+void
+imap_free (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq)
+{
+  ipte_t *table;
+
+  table = _gettable (&im->l1, false);
+  if (table)
+    {
+      _free_l1 (table, 0, fn, opq);
+      _puttable (im->l1, table);
+      pfn_free (ipte_pfn(&im->l1));
+      im->l1 = IPTE_EMPTY;
+    }
+
+  table = _gettable (&im->l2, false);
+  if (table)
+    {
+      _free_l2 (table, 0, fn, opq);
+      _puttable (im->l2, table);
+      pfn_free (ipte_pfn(&im->l2));
+      im->l2 = IPTE_EMPTY;
+    }
+
+  table = _gettable (&im->l3, false);
+  if (table)
+    {
+      _free_l3 (table, 0, fn, opq);
+      _puttable (im->l3, table);
+      pfn_free (ipte_pfn(&im->l3));
+      im->l3 = IPTE_EMPTY;
+    }
+}
