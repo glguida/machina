@@ -4,6 +4,12 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
+#ifndef IPC_DEBUG
+#define IPC_PRINT(...)
+#else
+#define IPC_PRINT printf
+#endif
+
 #include "internal.h"
 #include <machina/error.h>
 #include <machina/message.h>
@@ -80,7 +86,7 @@ static void
 internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
 		       size_t itemsz, unsigned number)
 {
-  printf ("port array: item size: %ld, number: %ld\n", itemsz, number);
+  IPC_PRINT ("port array: item size: %ld, number: %ld\n", itemsz, number);
   if (itemsz != sizeof (mcn_portid_t))
     {
       /*
@@ -89,7 +95,7 @@ internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
       memset (array, 0, itemsz * number);
       return;
     }
-  printf ("here!\n");
+  IPC_PRINT ("here!\n");
 
   mcn_portid_t *idptr = array;
 
@@ -98,7 +104,7 @@ internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
       mcn_return_t rc;
       struct portref portref;
       ipcspace_debug (ps);
-      printf ("RESOLVE OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
+      IPC_PRINT ("RESOLVE OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
       rc = ipcspace_resolve (ps, name, *idptr, &portref);
       ipcspace_debug (ps);
       if (rc)
@@ -106,9 +112,9 @@ internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
 	  *idptr = MCN_PORTID_NULL;
 	  continue;
 	}
-      printf ("writing to idptr %p\n", idptr);
+      IPC_PRINT ("writing to idptr %p\n", idptr);
       *idptr = portref_to_ipcport (&portref);
-      printf ("new idptr: %lx\n", *idptr);
+      IPC_PRINT ("new idptr: %lx\n", *idptr);
     }
 }
 
@@ -116,7 +122,7 @@ static void
 externalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
 		       size_t itemsz, unsigned number)
 {
-  printf ("port array: item size: %ld, number: %ld\n", itemsz, number);
+  IPC_PRINT ("port array: item size: %ld, number: %ld\n", itemsz, number);
   assert (itemsz == sizeof (mcn_portid_t));
 
   mcn_portid_t *idptr = array;
@@ -132,7 +138,7 @@ externalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
       struct portref portref = ipcport_to_portref (idptr);
       struct portright pr = portright_from_portref (name, portref);
       ipcspace_debug (ps);
-      printf ("INSERT OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
+      IPC_PRINT ("INSERT OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
       rc = ipcspace_insertright (ps, &pr, idptr);
       ipcspace_debug (ps);
       if (rc)
@@ -146,7 +152,7 @@ externalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
 static void
 consume_portarray (void *array, size_t itemsz, unsigned number)
 {
-  printf ("consuming port array: item size: %ld, number: %ld\n", itemsz,
+  IPC_PRINT ("consuming port array: item size: %ld, number: %ld\n", itemsz,
 	  number);
   assert (itemsz == sizeof (mcn_portid_t));
 
@@ -258,7 +264,7 @@ process_item (struct ipcspace *ps, void **from, void *end, enum msgitem_op op)
 	  switch (op)
 	    {
 	    case MSGITEMOP_INTERNALIZE:
-	      printf
+	      IPC_PRINT
 		("internalizing portarray ps: %p name: %x ptr: %p size %d, number: %d\n",
 		 ps, name, (*from) + hdr_size, size >> 3, number);
 	      assert (ps != NULL);
@@ -288,26 +294,26 @@ process_body (struct ipcspace *ps, void *body, size_t size,
   void *ptr = body;
   void *end = body + size;
 
-  printf ("ptr %p end %p\n", ptr, end);
+  IPC_PRINT ("ptr %p end %p\n", ptr, end);
   while ((ptr < end) && process_item (ps, &ptr, end, op))
-    printf ("ptr %p end %p\n", ptr, end);
+    IPC_PRINT ("ptr %p end %p\n", ptr, end);
 }
 
 void
 ipc_intmsg_consume (mcn_msgheader_t * intmsg)
 {
   assert (intmsg->msgh_size >= sizeof (mcn_msgheader_t));
-  printf ("CONSUMING MESSAGE %p\n", intmsg);
+  IPC_PRINT ("CONSUMING MESSAGE %p\n", intmsg);
 
   if (intmsg->msgh_remote != 0)
     {
-      printf ("CONSUMING REMOTE PORT %lx\n", intmsg->msgh_remote);
+      IPC_PRINT ("CONSUMING REMOTE PORT %lx\n", intmsg->msgh_remote);
       struct portref port = ipcport_to_portref (&intmsg->msgh_remote);
       portref_consume (&port);
     }
   if (intmsg->msgh_local != 0)
     {
-      printf ("CONSUMING LOCAL PORT %lx\n", intmsg->msgh_local);
+      IPC_PRINT ("CONSUMING LOCAL PORT %lx\n", intmsg->msgh_local);
       struct portref port = ipcport_to_portref (&intmsg->msgh_local);
       portref_consume (&port);
     }
@@ -501,7 +507,7 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
     }
 
   const mcn_msgsize_t size = intmsg->msgh_size;
-  printf ("Internal received %d bytes\n", size);
+  IPC_PRINT ("Internal received %d bytes\n", size);
   message_debug (intmsg);
   externalize (ps, intmsg, (volatile mcn_msgheader_t *) cur_kmsgbuf (), size);
   message_debug ((mcn_msgheader_t *) cur_kmsgbuf ());

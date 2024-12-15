@@ -9,6 +9,12 @@
 #include <machina/error.h>
 #include <machina/message.h>
 
+#ifdef PORT_DEBUG
+#define PORT_PRINT printf
+#else
+#define PORT_PRINT(...)
+#endif
+
 struct slab ports;
 struct slab msgqs;
 
@@ -91,6 +97,19 @@ msgq_deq (msgqueue_t * msgq, mcn_msgheader_t ** msghp)
   *msghp = msgq_entry->msgh;
   slab_free (msgq_entry);
   return true;
+}
+
+void
+msgq_discard (msgqueue_t *msgq)
+{
+  struct msgq_entry *n, *t;
+
+  TAILQ_FOREACH_SAFE(n, msgq, queue, t)
+    {
+      TAILQ_REMOVE (msgq, n, queue);
+      ipc_intmsg_consume (n->msgh);
+      slab_free(n);
+    }
 }
 
 void
@@ -345,6 +364,21 @@ port_alloc_kernel (void *obj, enum kern_objtype kot, struct portref *portref)
   p->_ref_count = 1;
 }
 
+void
+port_unlink_kernel (struct portref *portref)
+{
+  struct port *p = portref_unsafe_get(portref);
+
+  spinlock (&p->lock);
+  assert (p->type == PORT_KERNEL);
+  p->kernel.obj = NULL;
+  p->kernel.kot = 0;
+  p->type = PORT_DEAD;
+  spinunlock (&p->lock);
+
+  portref_consume (portref);
+}
+
 mcn_return_t
 port_alloc_queue (struct portref *portref)
 {
@@ -357,6 +391,33 @@ port_alloc_queue (struct portref *portref)
   portref->obj = p;
   p->_ref_count = 1;
   return KERN_SUCCESS;
+}
+
+void
+port_unlink_queue (struct portref *portref)
+{
+  struct port *p = portref_unsafe_get(portref);
+
+  spinlock (&p->lock);
+  assert (p->type == PORT_QUEUE);
+
+  while (thread_wakeone (&p->queue.send_waitq));
+  while (thread_wakeone (&p->queue.recv_waitq));
+
+  msgq_discard(&p->queue.msgq);
+
+  p->type = PORT_DEAD;
+  spinunlock (&p->lock);
+
+  portref_consume (portref);
+}
+
+void
+port_zeroref (struct port *port)
+{
+  PORT_PRINT ("PORT ZERO REF %p\n", port);
+  assert (port->type == PORT_DEAD);
+  slab_free (port);
 }
 
 void

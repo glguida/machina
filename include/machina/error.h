@@ -65,5 +65,5 @@
 
 
 #define KERN_RETRY		100	/* Thread has been queued. Retry operation. */
-#define KERN_THREAD_TIMEDOUT	101
+#define KERN_THREAD_TIMEDOUT	101	/* Thread has timeout. Possibly retry operation. */
 #endif

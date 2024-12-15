@@ -6,6 +6,12 @@
 
 #include "internal.h"
 
+#ifdef PHYSMEM_DEBUG
+#define PHYSMEM_PRINT printf
+#else
+#define PHYSMEM_PRINT(...)
+#endif
+
 /*
   Machina Physical Memory.
 
@@ -35,7 +41,6 @@ static unsigned long reserved_pages;
 static inline void
 physmem_check (void)
 {
-  printf ("pfn alloc!\n");
 }
 
 static inline pfn_t
@@ -45,12 +50,14 @@ physmem_pfnalloc (int low)
 
   physmem_check ();
   pfn = stree_pfnalloc (low);
+  PHYSMEM_PRINT("PHYSMEM: PFN %lx ALLOCATED.\n", pfn);
   return pfn;
 }
 
 static inline void
 physmem_pfnfree (pfn_t pfn)
 {
+  PHYSMEM_PRINT("PHYSMEM: PFN %lx FREED.\n", pfn);
   stree_pfnfree (pfn);
 }
 

@@ -4,6 +4,9 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
+#ifndef __PORTREF_H__
+#define __PORTREF_H__
+
 struct port;
 typedef struct portref {
        struct port *obj;
@@ -12,6 +15,7 @@ typedef struct portref {
 #define PORTREF_NULL ((struct portref){.obj = NULL})
 
 unsigned long *port_refcnt(struct port *obj);
+void port_zeroref(struct port *obj);
 
 static inline void _port_inc(struct port *obj)
 {
@@ -34,7 +38,6 @@ static inline unsigned long _port_dec(struct port *obj)
       unsigned long *ptr = port_refcnt(obj);
       cnt = __atomic_fetch_sub (ptr, 1, __ATOMIC_RELEASE);
       assert (cnt != 0);
-      obj = NULL;
     }
   return cnt - 1;
 }
@@ -71,7 +74,9 @@ portref_unsafe_get (struct portref *ref)
 static inline void
 portref_consume (struct portref *ref)
 {
-  /* XXX: DELETE IF */ _port_dec(ref->obj);
+  if (_port_dec(ref->obj) == 0)
+    port_zeroref(ref->obj);
+  ref->obj = NULL;
 }
 
 static inline void
@@ -81,4 +86,6 @@ portref_move (struct portref *to, struct portref *from)
   from->obj = NULL;
 }
 
+
+#endif
 

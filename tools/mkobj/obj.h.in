@@ -4,6 +4,9 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
+#ifndef __'UPPERCASE`REF_H__
+#define __'UPPERCASE`REF_H__
+
 struct 'TYPE`;
 typedef struct 'TYPE`ref {
        struct 'TYPE` *obj;
@@ -12,6 +15,7 @@ typedef struct 'TYPE`ref {
 #define 'UPPERCASE`REF_NULL ((struct 'TYPE`ref){.obj = NULL})
 
 unsigned long *'TYPE`_refcnt(struct 'TYPE` *obj);
+void 'TYPE`_zeroref(struct 'TYPE` *obj);
 
 static inline void _'TYPE`_inc(struct 'TYPE` *obj)
 {
@@ -34,7 +38,6 @@ static inline unsigned long _'TYPE`_dec(struct 'TYPE` *obj)
       unsigned long *ptr = 'TYPE`_refcnt(obj);
       cnt = __atomic_fetch_sub (ptr, 1, __ATOMIC_RELEASE);
       assert (cnt != 0);
-      obj = NULL;
     }
   return cnt - 1;
 }
@@ -71,7 +74,9 @@ static inline struct 'TYPE` *
 static inline void
 'TYPE`ref_consume (struct 'TYPE`ref *ref)
 {
-  /* XXX: DELETE IF */ _'TYPE`_dec(ref->obj);
+  if (_'TYPE`_dec(ref->obj) == 0)
+    'TYPE`_zeroref(ref->obj);
+  ref->obj = NULL;
 }
 
 static inline void
@@ -81,4 +86,6 @@ static inline void
   from->obj = NULL;
 }
 
+
+#endif
 '

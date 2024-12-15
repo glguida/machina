@@ -8,6 +8,12 @@
 #include <machina/error.h>
 #include "internal.h"
 
+#ifndef THREAD_DEBUG
+#define THREAD_PRINT(...)
+#else
+#define THREAD_PRINT printf
+#endif
+
 struct slab threads;
 
 unsigned long *
@@ -60,15 +66,33 @@ thread_new (struct task *task)
   th->task = task;
   th->_ref_count = 0;
 
-  printf ("Allocated thread %p (%lx %lx)\n", th);
+  _sched_add (th);
+
+  THREAD_PRINT ("Allocated thread %p (%lx %lx)\n", th);
 
   return th;
 }
 
 void
+thread_zeroref (struct thread *th)
+{
+  struct task *task = th->task;
+  struct vmmap *vmmap = &task->vmmap;
+
+  /*
+    Zero reference remaining. We can free the structure.
+  */
+  vmmap_freemsgbuf (vmmap, &th->msgbuf);
+  vmmap_freetls (vmmap, th->tls);
+
+  slab_free(th);
+  slab_printstats();
+}
+
+void
 thread_bootstrap (struct thread *th)
 {
-  printf("BOOTSTRAPPING THREAD %p\n", th);
+  THREAD_PRINT ("BOOTSTRAPPING THREAD %p\n", th);
   if (!uctxt_bootstrap (th->uctxt))
     {
       fatal ("No bootstrap process.");
@@ -82,36 +106,45 @@ thread_getport (struct thread *th)
   struct portref ret;
 
   spinlock (&th->lock);
-  ret = portref_dup (&th->self);
+  switch (th->status)
+    {
+    case SCHED_RUNNING:
+    case SCHED_RUNNABLE:
+    case SCHED_STOPPED:
+      ret = portref_dup (&th->self);
+      break;
+    case SCHED_REMOVED:
+      ret = PORTREF_NULL;
+      break;
+    default:
+      fatal ("Invalid thread status: %d (thread: %p)",
+	     th->status, th);
+      break;
+    }
   spinunlock (&th->lock);
+
   return ret;
 }
 
-bool
+static void
 thread_abort (struct thread *th, bool intimer, bool setret)
 {
   spinlock (&th->lock);
-  if (th->waitq == NULL)
+  if (th->waitq != NULL)
     {
-      spinunlock (&th->lock);
-      return false;
+      spinlock (&th->waitq->lock);
+      TAILQ_REMOVE (&th->waitq->queue, th, sched_list);
+      spinunlock (&th->waitq->lock);
+
+      if (!intimer)
+	timer_remove (&th->timeout);
+      th->waitq = NULL;
+
+      if (setret)
+	uctxt_setret (th->uctxt, KERN_THREAD_TIMEDOUT);
     }
-
-  spinlock (&th->waitq->lock);
-  TAILQ_REMOVE (&th->waitq->queue, th, sched_list);
-  spinunlock (&th->waitq->lock);
-
-  if (!intimer)
-    timer_remove (&th->timeout);
-  th->waitq = NULL;
-
-  if (setret)
-    uctxt_setret (th->uctxt, KERN_THREAD_TIMEDOUT);
+  _sched_abort (th);
   spinunlock (&th->lock);
-
-  printf("Resuming thread!\n");
-  sched_resume (th);
-  return true;
 }
 
 static void
@@ -132,6 +165,7 @@ thread_wait (struct waitq *wq, unsigned long timeout)
   struct thread *curth = cur_thread ();
 
   spinlock (&curth->lock);
+  assert (curth->status == SCHED_RUNNING);
   if (timeout != 0)
     {
       struct timer *t = &curth->timeout;
@@ -144,12 +178,12 @@ thread_wait (struct waitq *wq, unsigned long timeout)
   spinlock (&wq->lock);
   TAILQ_INSERT_TAIL (&wq->queue, curth, sched_list);
   spinunlock (&wq->lock);
-  spinunlock (&curth->lock);
 
-  sched_suspend(curth);
+  _sched_suspend(curth);
+  spinunlock (&curth->lock);
 }
 
-void
+bool
 thread_wakeone (struct waitq *wq)
 {
   struct thread *th = NULL;
@@ -163,15 +197,59 @@ thread_wakeone (struct waitq *wq)
   spinunlock (&wq->lock);
 
   if (th == NULL)
-    return;
+    return false;
 
   spinlock(&th->lock);
+  assert (th->status == SCHED_STOPPED);
+  assert (th->suspend != 0);
   assert (th->waitq == wq);
   timer_remove (&th->timeout);
   th->waitq = NULL;
-  spinunlock(&th->lock);
 
-  sched_resume(th);
+  _sched_resume(th);
+  spinunlock(&th->lock);
+  return true;
+}
+
+void
+thread_destroy (struct thread *th)
+{
+  spinlock (&th->lock);
+  if (th->waitq != NULL)
+    {
+      spinlock (&th->waitq->lock);
+      TAILQ_REMOVE (&th->waitq->queue, th, sched_list);
+      spinunlock (&th->waitq->lock);
+
+      timer_remove (&th->timeout);
+      th->waitq = NULL;
+    }
+
+  _sched_destroy (th);
+
+  /*
+    Unlink the kernel port now, so that we have no more new
+    references.
+  */
+  port_unlink_kernel(&th->self);
+
+  spinunlock (&th->lock);
+}
+
+void
+thread_suspend (struct thread *th)
+{
+  spinlock (&th->lock);
+  _sched_suspend (th);
+  spinunlock (&th->lock);
+}
+
+void
+thread_resume (struct thread *th)
+{
+  spinlock (&th->lock);
+  _sched_resume (th);
+  spinunlock (&th->lock);
 }
 
 #if 0

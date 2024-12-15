@@ -6,6 +6,13 @@
 
 #include "internal.h"
 
+//#define MEMCACHE_DEBUG
+#ifndef MEMCACHE_DEBUG
+#define MEMCACHE_PRINT(...)
+#else
+#define MEMCACHE_PRINT(...) MEMCACHE_PRINT(__VA_ARGS__)
+#endif
+
 /*
   The physical memory cache is a dynamic cache of memory objects created
   by pagers, which are the entirety of user tasks memory.
@@ -129,7 +136,7 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   pfn_put (pfn, src);
   pfn_put (newpfn, dst);
 
-  page = _get_entry (pfn);
+  page = _get_entry (newpfn);
   spinlock_init (&page->lock);
 
   LIST_INSERT_HEAD (&page->links, cl, list);
@@ -157,8 +164,11 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
       cl->off = off;
       pfn = _zeropage_private (cl);
     }
+
   ipte_t old = cacheobj_map (obj, off, pfn, roshared, protmask);
-  printf ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  (void)old;
+
   return pfn;
 }
 
@@ -171,7 +181,7 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 {
   struct physmem_page *page = _get_entry (pfn);
 
-  printf ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj,
+  MEMCACHE_PRINT ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj,
 	  off, protmask);
   spinlock (&page->lock);
 
@@ -186,8 +196,10 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       page->links_no++;
     }
 
+
   ipte_t old = cacheobj_map (obj, off, pfn, true, protmask);
-  printf ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  (void)old;
 
   spinunlock (&page->lock);
 }
@@ -205,7 +217,7 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   pfn_t outpfn;
   struct physmem_page *page = _get_entry (pfn);
 
-  printf ("MEMCACHE: Unshare %lx %p %lx (mask: %x)\n", pfn, obj, off,
+  MEMCACHE_PRINT ("MEMCACHE: Unshare %lx %p %lx (mask: %x)\n", pfn, obj, off,
 	  protmask);
   spinlock (&page->lock);
 
@@ -221,14 +233,14 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
     }
   else if (page->links_no == 1)
     {
-      printf ("MEMCACHE: ONLY ONE LINK!\n");
+      MEMCACHE_PRINT ("MEMCACHE: ONLY ONE LINK!\n");
       /* Only one link. No need to alloc a new page. */
       outpfn = pfn;
     }
   else
     {
       struct cobj_link *v, *t, *found;
-      printf ("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
+      MEMCACHE_PRINT ("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
 
       /*
          First, find and remove the link.
@@ -257,11 +269,52 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
    */
   assert (outpfn != PFN_INVALID);
   ipte_t old = cacheobj_map (obj, off, outpfn, false, protmask);
-  printf ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  (void)old;
 
   spinunlock (&page->lock);
 
   return outpfn;
+}
+
+void
+memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
+{
+  struct physmem_page *page = _get_entry (pfn);
+  struct cobj_link *n;
+  bool del = false;
+
+  MEMCACHE_PRINT ("MEMCACHE: Remove Obj %p off %lx from PFN %lx (is zeropfn (%lx)? %d)\n",
+	  obj, off, pfn, zeropfn, pfn == zeropfn);
+
+
+  if (pfn == zeropfn)
+    return;
+
+  spinlock (&page->lock);
+  assert (page->links_no != 0);
+
+  LIST_FOREACH(n, &page->links, list)
+    {
+      MEMCACHE_PRINT("MEMCACHE: PFN %d cobj: %p off %ld\n",
+	     pfn, n->cobj, n->off);
+      MEMCACHE_PRINT ("%d && %d\n", n->cobj == obj, n->off == off);
+      if ((n->cobj == obj) && (n->off == off))
+	break;
+    }
+
+  assert (n != NULL);
+  LIST_REMOVE (n, list);
+  if (--page->links_no == 0)
+    del = true;
+  spinunlock (&page->lock);
+
+  if (del)
+    {
+      memctrl_delpage (page);
+      pfn_free(pfn);
+    }
+  slab_free (n);
 }
 
 static void

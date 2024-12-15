@@ -7,6 +7,12 @@
 #include "internal.h"
 #include "vm.h"
 
+#ifndef VMOBJ_DEBUG
+#define VMOBJ_PRINT(...)
+#else
+#define VMOBJ_PRINT printf
+#endif
+
 struct slab vmobjlocks;
 struct slab vmobjs;
 struct slab cobjmappings;
@@ -25,6 +31,7 @@ vmobj_new (bool private, size_t size)
 
   obj = slab_alloc (&vmobjs);
   obj->lock = slab_alloc (&vmobjlocks);
+  VMOBJ_PRINT("VMOBJ %p: Alloc lock %p\n", obj, obj->lock);
   port_alloc_kernel ((void *) obj, KOT_VMOBJ, &obj->control_port);
   port_alloc_kernel ((void *) obj, KOT_VMOBJ_NAME, &obj->name_port);
   spinlock_init (obj->lock);
@@ -46,7 +53,9 @@ vmobj_shadowcopy (struct vmobjref *ref)
   spinlock (obj->lock);
   new->lock = obj->lock;	/* Shadow chains share the same lock. */
   cacheobj_shadow (&obj->cobj, &new->cobj);
-  obj->private = true;
+  new->private = true;
+  port_alloc_kernel ((void *) new, KOT_VMOBJ, &new->control_port);
+  port_alloc_kernel ((void *) new, KOT_VMOBJ_NAME, &new->name_port);
 
   struct vmobjref newref = (struct vmobjref)
   {.obj = new, };
@@ -62,6 +71,30 @@ vmobj_shadowcopy (struct vmobjref *ref)
   spinunlock (obj->lock);
 
   return newref;
+}
+
+void
+vmobj_zeroref (struct vmobj *obj)
+{
+  VMOBJ_PRINT("VMOBJ %p: CTRL PORT IS %p\n", obj, portref_unsafe_get(&obj->control_port));
+  VMOBJ_PRINT("VMOBJ %p: NAME PORT IS %p\n", obj, portref_unsafe_get(&obj->name_port));
+  if (vmobjref_isnull(&obj->shadow))
+    {
+      VMOBJ_PRINT("VMOBJ %p: FREE LOCK %p\n", obj, obj->lock);
+      slab_free((void *)obj->lock);
+    }
+  else
+    {
+      VMOBJ_PRINT("VMOBJ %p: CONSUME SHADOW  %p\n", obj, vmobjref_unsafe_get(&obj->shadow));
+      vmobjref_consume(&obj->shadow);
+    }
+  VMOBJ_PRINT("VMOBJ %p: UNLINK CTRL PORT %p\n", obj, portref_unsafe_get(&obj->control_port));
+  port_unlink_kernel(&obj->control_port);
+  VMOBJ_PRINT("VMOBJ %p: UNLINK NAME PORT %p\n", obj, portref_unsafe_get(&obj->name_port));
+  port_unlink_kernel(&obj->name_port);
+  VMOBJ_PRINT("VMOBJ %p: DESTROY CACHEOBJ %p\n", obj, &obj->cobj);
+  cacheobj_destroy(&obj->cobj);
+  slab_free(obj);
 }
 
 
@@ -80,7 +113,7 @@ _vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
 	{
 	  struct vmobj *copy_obj = obj->copy;
 	  ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	  printf ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %" PRIx64
+	  VMOBJ_PRINT ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %" PRIx64
 		  "\n", &copy_obj->cobj, off, copy_ipte.raw);
 	  if (ipte_empty (&copy_ipte))
 	    memcache_zeropage_new (&copy_obj->cobj, off, true,
@@ -105,7 +138,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   struct vmobj *vmobj;
 
   spinlock (tgtobj->lock);
-  printf ("VMOBJ: FAULT FOR OBJECT %p START =============================\n",
+  VMOBJ_PRINT ("VMOBJ: FAULT FOR OBJECT %p START =============================\n",
 	  tgtobj);
   vmobj = tgtobj;
 _fault_redo:
@@ -181,7 +214,7 @@ _fault_redo:
 	  ret = false;
 	  break;
 	}
-      printf ("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
+      VMOBJ_PRINT ("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
       if (tgtobj != vmobj)
 	{
 	  /*
@@ -197,7 +230,7 @@ _fault_redo:
 	    {
 	      struct vmobj *copy_obj = tgtobj->copy;
 	      ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	      printf ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"
+	      VMOBJ_PRINT ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"
 		      PRIx64 "\n", ipte_pfn (&ipte), &copy_obj->cobj, off,
 		      ipte.raw);
 	      if (ipte_empty (&copy_ipte))
@@ -225,7 +258,7 @@ _fault_redo:
       ret = true;
       break;
     }
-  printf ("VMOBJ FAULT END =============================\n");
+  VMOBJ_PRINT ("VMOBJ FAULT END =============================\n");
   spinunlock (tgtobj->lock);
   return ret;
 }
@@ -315,7 +348,7 @@ memobj_bootstrap (struct memobj **out)
   while (i != UADDR_INVALID)
     {
       maxaddr = i;
-      printf ("%lx -> %lx\n", i - base, l1e);
+      VMOBJ_PRINT ("%lx -> %lx\n", i - base, l1e);
       _memobj_addl1e ((struct memobj *) mobj, i - base, l1e, &clean, &dirty);
       i = hal_umap_next (NULL, i, NULL, &l1e);
     }

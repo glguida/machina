@@ -11,6 +11,12 @@
 
 #define MIN(_a,_b) ((_a) < (_b) ? (_a) : (_b))
 
+#ifdef MSGBUF_DEBUG
+#define MSGBUF_PRINT printf
+#else
+#define MSGBUF_PRINT(...)
+#endif
+
 struct slab msgbufs;
 
 #define __ZADDR_T unsigned
@@ -99,6 +105,7 @@ ___mkptr (unsigned addr, size_t size, uintptr_t opq)
 {
   struct msgbuf_zone *z = (struct msgbuf_zone *) opq;
   struct msgbuf_zentry *ze = slab_alloc (&msgbufs);
+  MSGBUF_PRINT("MSGBUFSLAB: ALLOC %p\n", ze);
 
   rb_tree_insert_node (&z->rbtree, (void *) ze);
   ze->addr = addr;
@@ -111,6 +118,7 @@ ___freeptr (struct msgbuf_zentry *ze, uintptr_t opq)
 {
   struct msgbuf_zone *z = (struct msgbuf_zone *) opq;
   rb_tree_remove_node (&z->rbtree, (void *) ze);
+  MSGBUF_PRINT("MSGBUFSLAB: FREE %p\n", ze);
   slab_free (ze);
 }
 
@@ -121,8 +129,10 @@ msgbuf_free (struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb)
 {
   long uidx;
 
+  MSGBUF_PRINT("MSGBUF: UNSHARING %lx (%ld bytes)\n", mb->uaddr, MSGBUF_SIZE);
   unshare_kva (umap, mb->uaddr, MSGBUF_SIZE);
   kmap_ensure_range (mb->kaddr, MSGBUF_SIZE, 0);
+  MSGBUF_PRINT("MSGBUF: FREEING %lx (%ld bytes)\n", mb->kaddr, MSGBUF_SIZE);
   kva_free (mb->kaddr, MSGBUF_SIZE);
   uidx = mb->uaddr >> MSGBUF_SHIFT;
   zone_free (z, uidx, 1);
@@ -166,6 +176,20 @@ msgbuf_alloc (struct umap *umap, struct msgbuf_zone *z, struct msgbuf *mb)
   mb->kaddr = kaddr;
 
   return true;
+}
+
+void
+msgbuf_destroy (struct msgbuf_zone *z)
+{
+  struct msgbuf_zentry *next;
+
+  while ((next = RB_TREE_MIN(&z->rbtree)) != NULL)
+    {
+      MSGBUF_PRINT ("MSGBUF: FREEING NODE IDX %d:%d\n", next->addr, next->addr + next->size);
+      rb_tree_remove_node (&z->rbtree, (void *) next);
+      MSGBUF_PRINT("MSGBUFSLAB: FREE %p\n", next);
+      slab_free (next);
+    }
 }
 
 void

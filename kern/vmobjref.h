@@ -4,6 +4,9 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
+#ifndef __VMOBJREF_H__
+#define __VMOBJREF_H__
+
 struct vmobj;
 typedef struct vmobjref {
        struct vmobj *obj;
@@ -12,6 +15,7 @@ typedef struct vmobjref {
 #define VMOBJREF_NULL ((struct vmobjref){.obj = NULL})
 
 unsigned long *vmobj_refcnt(struct vmobj *obj);
+void vmobj_zeroref(struct vmobj *obj);
 
 static inline void _vmobj_inc(struct vmobj *obj)
 {
@@ -34,7 +38,6 @@ static inline unsigned long _vmobj_dec(struct vmobj *obj)
       unsigned long *ptr = vmobj_refcnt(obj);
       cnt = __atomic_fetch_sub (ptr, 1, __ATOMIC_RELEASE);
       assert (cnt != 0);
-      obj = NULL;
     }
   return cnt - 1;
 }
@@ -71,7 +74,9 @@ vmobjref_unsafe_get (struct vmobjref *ref)
 static inline void
 vmobjref_consume (struct vmobjref *ref)
 {
-  /* XXX: DELETE IF */ _vmobj_dec(ref->obj);
+  if (_vmobj_dec(ref->obj) == 0)
+    vmobj_zeroref(ref->obj);
+  ref->obj = NULL;
 }
 
 static inline void
@@ -81,4 +86,6 @@ vmobjref_move (struct vmobjref *to, struct vmobjref *from)
   from->obj = NULL;
 }
 
+
+#endif
 

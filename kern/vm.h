@@ -138,6 +138,8 @@ ipte_t imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
 ipte_t imap_lookup (struct imap *im, unsigned long off);
 void imap_foreach (struct imap *im,
 		   void (*fn) (unsigned long off, ipte_t * ipte));
+void
+imap_free (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq);
 
 /**INDENT-OFF**/
 struct cacheobj_mapping
@@ -179,6 +181,7 @@ ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 		     bool roshared, mcn_vmprot_t protmask);
 ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
+void cacheobj_destroy (struct cacheobj *cobj);
 
 void memcache_init (void);
 pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
@@ -187,6 +190,7 @@ void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 		     mcn_vmprot_t protmask);
 pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 			mcn_vmprot_t protmask);
+void memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off);
 
 /**INDENT-OFF**/
 struct cobj_link
@@ -206,6 +210,7 @@ struct physmem_page
 /**INDENT-ON**/
 
 void memctrl_newpage (struct physmem_page *page);
+void memctrl_delpage (struct physmem_page *page);
 
 #include "vmobjref.h"
 
@@ -292,6 +297,7 @@ struct msgbuf_zone
 };
 
 void msgbuf_new (struct msgbuf_zone *z, vaddr_t vastart, vaddr_t vaend);
+void msgbuf_destroy (struct msgbuf_zone *z);
 
 /*
   Machina VM Map.
@@ -322,9 +328,12 @@ struct vmmap
 struct msgbuf;
 bool vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf);
 bool vmmap_alloctls (struct vmmap *map, uaddr_t * tls);
+void vmmap_freemsgbuf (struct vmmap *map, struct msgbuf *msgbuf);
+void vmmap_freetls (struct vmmap *map, uaddr_t uaddr);
 void vmmap_enter (struct vmmap *map);
 void vmmap_bootstrap (struct vmmap *map);
 void vmmap_setup (struct vmmap *map);
+void vmmap_destroy (struct vmmap *map);
 
 mcn_return_t vmmap_alloc (struct vmmap *map, struct vmobjref objref,
 			  mcn_vmoff_t off, size_t size, mcn_vmprot_t curprot,
@@ -340,6 +349,7 @@ mcn_return_t vmmap_region (struct vmmap *map, vaddr_t * addr, size_t *size,
 bool vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqfault);
 void vmmap_setupregions (struct vmmap *map);
 void vmmap_printregions (struct vmmap *map);
+void vmmap_destroyregions (struct vmmap *map);
 
 
 

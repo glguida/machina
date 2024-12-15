@@ -4,6 +4,9 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
+#ifndef __TASKREF_H__
+#define __TASKREF_H__
+
 struct task;
 typedef struct taskref {
        struct task *obj;
@@ -12,6 +15,7 @@ typedef struct taskref {
 #define TASKREF_NULL ((struct taskref){.obj = NULL})
 
 unsigned long *task_refcnt(struct task *obj);
+void task_zeroref(struct task *obj);
 
 static inline void _task_inc(struct task *obj)
 {
@@ -34,7 +38,6 @@ static inline unsigned long _task_dec(struct task *obj)
       unsigned long *ptr = task_refcnt(obj);
       cnt = __atomic_fetch_sub (ptr, 1, __ATOMIC_RELEASE);
       assert (cnt != 0);
-      obj = NULL;
     }
   return cnt - 1;
 }
@@ -71,7 +74,9 @@ taskref_unsafe_get (struct taskref *ref)
 static inline void
 taskref_consume (struct taskref *ref)
 {
-  /* XXX: DELETE IF */ _task_dec(ref->obj);
+  if (_task_dec(ref->obj) == 0)
+    task_zeroref(ref->obj);
+  ref->obj = NULL;
 }
 
 static inline void
@@ -81,4 +86,6 @@ taskref_move (struct taskref *to, struct taskref *from)
   from->obj = NULL;
 }
 
+
+#endif
 

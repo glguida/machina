@@ -18,6 +18,14 @@ vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
   return ret;
 }
 
+void
+vmmap_freemsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
+{
+  spinlock(&map->lock);
+  msgbuf_free (&map->umap, &map->msgbuf_zone, msgbuf);
+  spinunlock(&map->lock);
+}
+
 bool
 vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
 {
@@ -69,6 +77,12 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
 }
 
 void
+vmmap_freetls (struct vmmap *map, uaddr_t uaddr)
+{
+  printf("TLS FREEING NOT SUPPORTED RIGHT NOW. CHANGE TLS IMPL!\n");
+}
+
+void
 vmmap_enter (struct vmmap *map)
 {
   spinlock(&map->lock);
@@ -77,9 +91,17 @@ vmmap_enter (struct vmmap *map)
 }
 
 void
+vmmap_destroy (struct vmmap *map)
+{
+  vmmap_destroyregions (map);
+  msgbuf_destroy(&map->msgbuf_zone);
+  umap_free (&map->umap);
+}
+
+
+void
 vmmap_bootstrap (struct vmmap *map)
 {
-
   vmmap_setupregions (map);
   umap_bootstrap (&map->umap);
   msgbuf_new (&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
@@ -88,7 +110,7 @@ vmmap_bootstrap (struct vmmap *map)
 void
 vmmap_setup (struct vmmap *map)
 {
-
+  vmmap_setupregions (map);
   umap_init (&map->umap);
   msgbuf_new (&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
 }

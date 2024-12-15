@@ -83,20 +83,11 @@ create_thread2 (struct taskref tr, long pc, long sp)
   uctxt_setip (threadref_unsafe_get(&threadref)->uctxt, pc);
   uctxt_setsp (threadref_unsafe_get(&threadref)->uctxt, sp);
 
-  sched_resume(threadref_unsafe_get(&threadref));
+  thread_resume(threadref_unsafe_get(&threadref));
 
   threadref_consume(&threadref);
   return KERN_SUCCESS;
 }
-
-#if 0
-struct taskref
-convert_port_to_task (ipc_port_t port)
-{
-  struct task *t = port_getkobj (ipcport_unsafe_get (port), KOT_TASK);
-  return taskref_fromraw (t);
-}
-#endif
 
 void
 ipc_kern_exec (void)
