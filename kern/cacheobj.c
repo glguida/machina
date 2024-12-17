@@ -20,6 +20,58 @@ _ipte_print (unsigned long off, ipte_t * ipte)
   COBJ_PRINT ("CACHEOBJ: DUMP: %lx %lx\n", off, *ipte);
 }
 
+static void
+ipte_unbox (ipte_t ipte, pfn_t *outpfn, unsigned *outflags)
+{
+  unsigned flags;
+  mcn_vmprot_t prot;
+  bool p, w, x;
+
+  COBJ_PRINT ("IPTE IS %lx (pfn: %lx protmask: %lx p: %d) ",
+	      ipte, ipte_present (&ipte) ? ipte_pfn (&ipte) : 0,
+	      ipte_present (&ipte) ? ipte_protmask (&ipte) : 0,
+	      ipte_present (&ipte));
+
+  if (!ipte_present (&ipte))
+    {
+      COBJ_PRINT ("\n");
+      if (outpfn)
+	*outpfn = PFN_INVALID;
+      if (outflags)
+	*outflags = 0;
+      return;
+    }
+
+  prot = (MCN_VMPROT_ALL & ~ipte_protmask (&ipte));
+
+  p = prot & MCN_VMPROT_READ;
+  w = !ipte_roshared (&ipte) && (prot &  MCN_VMPROT_WRITE);
+  x = prot & MCN_VMPROT_EXECUTE;
+
+  COBJ_PRINT ("P: %d W: %d X: %d ", p, w, x);
+
+  if (!p)
+    {
+      COBJ_PRINT ("\n");
+      if (outpfn)
+	*outpfn = PFN_INVALID;
+      if (outflags)
+	*outflags = 0;
+      return;
+    }
+
+  flags = HAL_PTE_U | HAL_PTE_P;
+  flags |= w ? HAL_PTE_W : 0;
+  flags |= x ? HAL_PTE_X : 0;
+
+  COBJ_PRINT ("FLAGS: %lx\n", flags);
+
+  if (outpfn)
+    *outpfn = ipte_pfn (&ipte);
+  if (outflags)
+    *outflags = flags;
+}
+
 void
 cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 {
@@ -29,7 +81,45 @@ cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 
   writelock (&cobj->lock);
   LIST_INSERT_HEAD (&cobj->mappings, cobjm, list);
+  /*
+    Unneeded really, but let's be paranoid for now.
+  */
+  for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
+       i += PAGE_SIZE)
+    {
+      umap_unmap (cobjm->umap, i);
+    }
+  umap_commit (cobjm->umap);
   writeunlock (&cobj->lock);
+}
+
+ipte_t
+cacheobj_updatemapping (struct cacheobj *cobj, mcn_vmoff_t off, struct cacheobj_mapping *cobjm)
+{
+  mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+  mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+ ipte_t ipte;
+ pfn_t pfn;
+ unsigned flags;
+
+ off = trunc_page (off);
+
+ COBJ_PRINT ("CACHEOBJ: %p: filling-in cobj-mapping %p\n",
+	     cobj, off, cobjm);
+
+ writelock (&cobj->lock);
+ ipte = imap_lookup (&cobj->map, off);
+ ipte_unbox (ipte, &pfn, &flags);
+ assert (off >= obj_offstart);
+ assert (off < obj_offend);
+
+ COBJ_PRINT ("UMAP %p: map at va %lx pfn %lx with flags %d\n",
+	     cobjm->umap, cobjm->start + off - obj_offstart, pfn, flags);
+ umap_map (cobjm->umap, cobjm->start + off - obj_offstart, pfn, flags, NULL);
+ umap_commit (cobjm->umap);
+ writeunlock (&cobj->lock);
+
+ return ipte;
 }
 
 void
@@ -72,7 +162,9 @@ ipte_t
 cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 	      bool roshared, mcn_vmprot_t protmask)
 {
-  ipte_t ret;
+  ipte_t old;
+  struct cacheobj_mapping *cobjm;
+
   off = trunc_page (off);
 
   COBJ_PRINT
@@ -80,10 +172,26 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
      cobj, off, pfn, roshared, protmask);
 
   writelock (&cobj->lock);
-  ret = imap_map (&cobj->map, off, pfn, roshared, protmask);
+  old = imap_map (&cobj->map, off, pfn, roshared, protmask);
+
+  /*
+    Update all cobj mappings.
+  */
+
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    COBJ_PRINT ("CACHEOBJ %p: Clearing umap %p va %lx (off %lx)\n",
+	    cobj, cobjm->umap, cobjm->start + off - obj_offstart, off);
+    umap_unmap (cobjm->umap, cobjm->start + off - obj_offstart);
+    umap_commit (cobjm->umap);
+  }
   writeunlock (&cobj->lock);
 
-  return ret;
+  return old;
 }
 
 ipte_t

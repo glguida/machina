@@ -175,6 +175,7 @@ struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
 void cacheobj_addmapping (struct cacheobj *cobj,
 			  struct cacheobj_mapping *cobjm);
+ipte_t cacheobj_updatemapping (struct cacheobj *cobj, mcn_vmoff_t off, struct cacheobj_mapping *cobjm);
 void cacheobj_delmapping (struct cacheobj *cobj,
 			  struct cacheobj_mapping *cobjm);
 ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
@@ -184,11 +185,12 @@ void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
 void cacheobj_destroy (struct cacheobj *cobj);
 
 void memcache_init (void);
-pfn_t memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
+void memcache_existingpage (struct cacheobj *obj, mcn_vmoff_t off, pfn_t pfn, mcn_vmprot_t protmask);
+void memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
 			     bool roshared, mcn_vmprot_t protmask);
 void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 		     mcn_vmprot_t protmask);
-pfn_t memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+void memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 			mcn_vmprot_t protmask);
 void memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off);
 
@@ -238,11 +240,12 @@ struct vmobj
 void vmobj_init (void);
 struct vmobjref vmobj_new (bool private, size_t size);
 struct vmobjref vmobj_shadowcopy (struct vmobjref *ref);
+struct vmobjref vmobj_bootstrap (uaddr_t *base, size_t *size);
 void vmobj_addregion (struct vmobj *vmobj, struct vm_region *vmreg,
 		      struct umap *umap);
 void vmobj_delregion (struct vmobj *vmobj, struct vm_region *vmreg);
 bool vmobj_fault (struct vmobj *vmobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
-		  pfn_t * outpfn);
+		  struct vm_region *vmreg);
 struct portref vmobj_getctrlport (struct vmobj *vmobj);
 struct portref vmobj_getnameport (struct vmobj *vmobj);
 

@@ -257,6 +257,7 @@ task_bootstrap (struct taskref *taskref)
 
   t = slab_alloc (&tasks);
   vmmap_bootstrap (&t->vmmap);
+
   spinlock_init (&t->lock);
   ipcspace_setup (&t->ipcspace);
   port_alloc_kernel ((void *) t, KOT_TASK, &t->self);

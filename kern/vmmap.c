@@ -105,13 +105,19 @@ vmmap_destroy (struct vmmap *map)
   umap_free (&map->umap);
 }
 
-
 void
 vmmap_bootstrap (struct vmmap *map)
 {
+  uaddr_t base;
+  size_t size;
+  struct vmobjref bootstrapobj;
+
   vmmap_setupregions (map);
-  umap_bootstrap (&map->umap);
+  umap_init (&map->umap);
   msgbuf_new (&map->msgbuf_zone, VM_MAP_MSGBUF_START, VM_MAP_MSGBUF_END);
+
+  bootstrapobj = vmobj_bootstrap (&base, &size);
+  vmmap_map (map, base, bootstrapobj, 0, size, MCN_VMPROT_ALL, MCN_VMPROT_ALL);
 }
 
 void

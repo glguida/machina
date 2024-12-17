@@ -98,6 +98,20 @@ _get_entry (pfn_t pfn)
 pfn_t zeropfn = PFN_INVALID;
 struct physmem_page *zeropage;
 
+static void
+_existingpage_private (pfn_t pfn, struct cobj_link *cl)
+{
+  struct physmem_page *page;
+
+  page = _get_entry (pfn);
+  assert (page->links_no == 0);
+
+  spinlock_init (&page->lock);
+  LIST_INSERT_HEAD (&page->links, cl, list);
+  page->links_no = 1;
+  memctrl_newpage (page);
+}
+
 static pfn_t
 _zeropage_private (struct cobj_link *cl)
 {
@@ -145,7 +159,28 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   return newpfn;
 }
 
-pfn_t
+void
+memcache_existingpage (struct cacheobj *obj, mcn_vmoff_t off, pfn_t pfn, mcn_vmprot_t protmask)
+{
+  struct cobj_link *cl;
+
+  assert (pfn != PFN_INVALID);
+  assert (pfn != zeropfn);
+
+  cl = slab_alloc (&cobjlinks);
+  assert (cl != NULL);
+  cl->cobj = obj;
+  cl->off = off;
+  _existingpage_private (pfn, cl);
+
+  MEMCACHE_PRINT ("MEMCACHE: %p offset %lx: Mapping existing %lx protmask %lx\n",
+		  obj, off, pfn, (long)protmask);
+  ipte_t old = cacheobj_map (obj, off, pfn, false, protmask);
+  MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
+  (void)old;
+}
+
+void
 memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
 		       mcn_vmprot_t protmask)
 {
@@ -167,8 +202,6 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
   ipte_t old = cacheobj_map (obj, off, pfn, roshared, protmask);
   MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
   (void)old;
-
-  return pfn;
 }
 
 /*
@@ -209,7 +242,7 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 
   OBJ will receive a private copy of PFN at offset OFF.
 */
-pfn_t
+void
 memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 		  mcn_vmprot_t protmask)
 {
@@ -272,8 +305,6 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   (void)old;
 
   spinunlock (&page->lock);
-
-  return outpfn;
 }
 
 void

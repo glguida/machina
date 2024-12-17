@@ -558,7 +558,6 @@ vmmap_region (struct vmmap *map, vaddr_t * addr, size_t *size,
 bool
 vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
 {
-  pfn_t pfn;
   bool ret = false;
   struct vm_region *reg;
 
@@ -602,19 +601,7 @@ vmmap_fault (struct vmmap *map, vaddr_t va, mcn_vmprot_t reqprot)
 	}
       ret =
 	vmobj_fault (vmobjref_unsafe_get (&reg->objref),
-		     reg->off + va - reg->start, reqprot, &pfn);
-      if (ret)
-	{
-	  VMMAP_PRINT ("VMMAP: fault resolved to pfn %lx\n", pfn);
-	  unsigned flags = HAL_PTE_P | HAL_PTE_U;
-	  if (reqprot & MCN_VMPROT_WRITE)
-	    flags |= HAL_PTE_W;
-	  if (reqprot & MCN_VMPROT_EXECUTE)
-	    flags |= HAL_PTE_X;
-	  umap_map (&map->umap, va, pfn, flags, NULL);
-	  umap_commit (&map->umap);
-	  ret = true;
-	}
+		     reg->off + va - reg->start, reqprot, reg);
       break;
     }
 

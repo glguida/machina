@@ -24,6 +24,61 @@ vmobj_refcnt (struct vmobj *vmobj)
 }
 
 struct vmobjref
+vmobj_bootstrap (uaddr_t *outbase, size_t *outsize)
+{
+  struct vmobjref ref;
+  hal_l1e_t base_l1e;
+  uaddr_t base, i;
+  size_t size;
+
+  /*
+    First Loop: Find base and size.
+  */
+  size = 0;
+  base = hal_umap_next (NULL, 0, NULL, &base_l1e);
+  for (i = base; i != UADDR_INVALID; i = hal_umap_next (NULL, i, NULL, NULL))
+    size = i - base;
+  size += PAGE_SIZE;
+
+  /*
+    Create object.
+  */
+  ref = vmobj_new (true, size);
+  struct vmobj *vmobj = vmobjref_unsafe_get (&ref);
+
+  VMOBJ_PRINT ("VMOBJ %p BOOTSTRAP: BASE %lx Size %lx\n",
+	       vmobj, base, size);
+
+  /*
+    Second loop: Add pages to object.
+  */
+  hal_l1e_t l1e = base_l1e;
+  for (i = base; i != UADDR_INVALID; i = hal_umap_next (NULL, i, NULL, &l1e))
+    {
+      pfn_t pfn;
+      unsigned flags;
+      mcn_vmprot_t protmask;
+
+      VMOBJ_PRINT ("VMOBJ %p BOOTSTRAP: ADDR %lx PTE %lx\n", vmobj, i, l1e);
+
+      hal_l1e_unbox (l1e, &pfn, &flags);
+      assert (pfn != PFN_INVALID);
+      assert (flags & HAL_PTE_P);
+      assert (flags & HAL_PTE_U);
+      protmask = 0;
+      protmask |= (flags & HAL_PTE_W) ? 0 : MCN_VMPROT_WRITE;
+      protmask |= (flags & HAL_PTE_X) ? 0 : MCN_VMPROT_EXECUTE;
+
+      memcache_existingpage (&vmobj->cobj, i - base, pfn, protmask);
+    }
+
+  cpu_umap_exit();
+  *outbase = base;
+  *outsize = size;
+  return ref;
+}
+
+struct vmobjref
 vmobj_new (bool private, size_t size)
 {
   struct vmobj *obj;
@@ -103,7 +158,7 @@ vmobj_zeroref (struct vmobj *obj)
 
   If we're requesting a writable map, push the shared zero page to the copy.
 */
-static pfn_t
+static void
 _vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
 		       mcn_vmprot_t reqprot)
 {
@@ -119,10 +174,12 @@ _vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
 	    memcache_zeropage_new (&copy_obj->cobj, off, true,
 				   MCN_VMPROT_NONE);
 	}
-      return memcache_zeropage_new (&obj->cobj, off, false, MCN_VMPROT_NONE);
+      memcache_zeropage_new (&obj->cobj, off, false, MCN_VMPROT_NONE);
     }
   else
-    return memcache_zeropage_new (&obj->cobj, off, true, MCN_VMPROT_NONE);
+    {
+      memcache_zeropage_new (&obj->cobj, off, true, MCN_VMPROT_NONE);
+    }
 }
 
 
@@ -131,7 +188,7 @@ _vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
 */
 bool
 vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
-	     pfn_t * outpfn)
+	     struct vm_region *vmreg)
 {
   bool ret;
   ipte_t ipte;
@@ -144,7 +201,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 _fault_redo:
 
   VMOBJ_PRINT ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
-  ipte = cacheobj_lookup (&vmobj->cobj, off);
+  ipte = cacheobj_updatemapping (&vmobj->cobj, off, vmreg->cobjm);
 
   VMOBJ_PRINT ("IPTE IS %" PRIx64 "\n", ipte.raw);
   switch (ipte_status (&ipte))
@@ -165,7 +222,7 @@ _fault_redo:
 	  /*
 	     Private objects can request zero pages directly.
 	   */
-	  *outpfn = _vmobj_insertzeropage (tgtobj, off, reqprot);
+	  _vmobj_insertzeropage (tgtobj, off, reqprot);
 	  ret = true;
 	}
       else
@@ -237,12 +294,11 @@ _fault_redo:
 		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off,
 				ipte_protmask (&ipte));
 	    }
-	  *outpfn =
-	    memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
-			      ipte_protmask (&ipte));
+	  memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
+			    ipte_protmask (&ipte));
 	}
       else
-	*outpfn = ipte_pfn (&ipte);
+	ipte_pfn (&ipte);
       ret = true;
       break;
     case STIPTE_PRIVATE:
@@ -254,11 +310,13 @@ _fault_redo:
 	  ret = false;
 	  break;
 	}
-      *outpfn = ipte_pfn (&ipte);
+      ipte_pfn (&ipte);
       ret = true;
       break;
     }
+
   VMOBJ_PRINT ("VMOBJ FAULT END =============================\n");
+
   spinunlock (tgtobj->lock);
   return ret;
 }
