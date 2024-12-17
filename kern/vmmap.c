@@ -7,6 +7,12 @@
 #include "internal.h"
 #include <machina/vm_param.h>
 
+#ifdef VMMAP_DEBUG
+#define VMMAP_PRINT printf
+#else
+#define VMMAP_PRINT(...)
+#endif
+
 bool
 vmmap_allocmsgbuf (struct vmmap *map, struct msgbuf *msgbuf)
 {
@@ -85,6 +91,7 @@ vmmap_freetls (struct vmmap *map, uaddr_t uaddr)
 void
 vmmap_enter (struct vmmap *map)
 {
+  VMMAP_PRINT ("VMMAP %p: ENTERING UMAP %p\n", map, &map->umap);
   spinlock(&map->lock);
   cpu_umap_enter (&map->umap);
   spinunlock(&map->lock);

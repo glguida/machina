@@ -367,13 +367,17 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
   end = round_page (start + size);
   size = end - start;
 
+  VMMAP_PRINT ("VMMAP %p: Make hole %lx %lx\n", map, start, size);
+
   /*
      Save first and last section.
    */
   reg = region_find (map, end);
   assert (reg->start <= end);
   assert (end <= (reg->start + reg->size));
+
   vmreg_copy (&last, reg);
+
   last.size = last.start + last.size - end;
   last.off = end - last.start + last.off;
   last.start = end;
@@ -393,6 +397,7 @@ _make_hole (struct vmmap *map, vaddr_t start, size_t size)
     {
       reg = next;
       assert (reg->start >= start);
+      VMMAP_PRINT ("VMMAP %p: Found overwritten region %lx %lx\n", map, reg->start, reg->size);
       if (start + size <= reg->start)
 	break;
 
@@ -483,6 +488,7 @@ vmmap_alloc (struct vmmap *map, struct vmobjref objref, mcn_vmoff_t off,
 void
 vmmap_free (struct vmmap *map, vaddr_t start, size_t size)
 {
+  VMMAP_PRINT ("VMMAP %p: Freeing start %lx size %lx\n", map, start, size);
   spinlock (&map->lock);
   _make_hole (map, start, size);
   reg_alloc_free (map, start, size);

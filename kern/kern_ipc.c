@@ -9,12 +9,18 @@
 #include <machina/error.h>
 #include <machina/message.h>
 
+#ifndef KIPC_DEBUG
+#define KIPC_PRINT(...)
+#else
+#define KIPC_PRINT printf
+#endif
+
 #include <ks.h>
 
 mcn_return_t
 simple (mcn_portid_t test)
 {
-  info ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", (long) test);
+  KIPC_PRINT ("SIMPLE MESSAGE RECEIVED (test: %ld)\n", (long) test);
   return KERN_SUCCESS;
 }
 
@@ -99,8 +105,10 @@ ipc_kern_exec (void)
     {
       kstest_replies_t kr;
 
-      info ("KERNEL SERVER INPUT:");
+#ifdef KIPC_DEBUG
+      KIPC_PRINT ("KERNEL SERVER INPUT:\n");
       message_debug (msgh);
+#endif
       /*
          MIG-generated code will make a copy of the remote port when
          generating a reply. Create here a reference that will be
@@ -112,7 +120,11 @@ ipc_kern_exec (void)
       kstest_server (msgh, (mcn_msgheader_t *) & kr);
       /* Done with the request. Consume and free it. */
       ipc_intmsg_consume (msgh);
+
+#ifdef KIPC_DEBUG
       message_debug (msgh);
+#endif
+
       kmem_free (0, (vaddr_t) msgh, msgh->msgh_size);
 
       mcn_msgsize_t size = ((mcn_msgheader_t *) & kr)->msgh_size;
@@ -121,10 +133,12 @@ ipc_kern_exec (void)
       assert (reply != NULL);
       memcpy (reply, &kr, size);
 
-      info ("KERNEL SERVER OUTPUT");
+#ifdef KIPC_DEBUG
+      KIPC_PRINT ("KERNEL SERVER OUTPUT");
       message_debug (reply);
+#endif
       rc = port_enqueue (reply, 0, true);
-      printf ("KERNEL SERVER ENQUEUE: %d\n", rc);
+      KIPC_PRINT ("KERNEL SERVER ENQUEUE: %d\n", rc);
       if (rc)
 	{
 	  ipc_intmsg_consume (reply);

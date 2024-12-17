@@ -103,10 +103,18 @@ internalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
     {
       mcn_return_t rc;
       struct portref portref;
+
+#ifdef IPC_DEBUG
       ipcspace_debug (ps);
       IPC_PRINT ("RESOLVE OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
+#endif
+
       rc = ipcspace_resolve (ps, name, *idptr, &portref);
+
+#ifdef IPC_DEBUG
       ipcspace_debug (ps);
+#endif
+
       if (rc)
 	{
 	  *idptr = MCN_PORTID_NULL;
@@ -130,17 +138,28 @@ externalize_portarray (struct ipcspace *ps, uint8_t name, void *array,
   for (unsigned i = 0; i < number; i++, idptr++)
     {
       mcn_return_t rc;
+
+#ifdef IPC_DEBUG
       ipcspace_debug (ps);
+#endif
 
       if (ipcport_isnull (*idptr))
 	continue;
 
       struct portref portref = ipcport_to_portref (idptr);
       struct portright pr = portright_from_portref (name, portref);
+
+#ifdef IPC_DEBUG
       ipcspace_debug (ps);
       IPC_PRINT ("INSERT OP: %s %" PRIx64 "\n", typename_debug (name), *idptr);
+#endif
+
       rc = ipcspace_insertright (ps, &pr, idptr);
+
+#ifdef IPC_DEBUG
       ipcspace_debug (ps);
+#endif
+
       if (rc)
 	{
 	  *idptr = MCN_PORTID_NULL;
@@ -431,7 +450,9 @@ mcn_msg_send_from_kernel (mcn_msgheader_t * hdr, mcn_msgsize_t size)
   mcn_return_t rc;
   mcn_msgheader_t *int_msg;
 
+#ifdef IPC_DEBUG
   message_debug (hdr);
+#endif
   int_msg = (mcn_msgheader_t *) kmem_alloc (0, size);
   memcpy (int_msg, hdr, size);
   rc = port_enqueue (int_msg, 0, true);
@@ -456,7 +477,9 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   if ((ext_size < sizeof (mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
     return MSGIO_SEND_INVALID_DATA;
 
+#ifdef IPC_DEBUG
   message_debug ((mcn_msgheader_t *) ext_msg);
+#endif
 
   mcn_msgheader_t *int_msg = (mcn_msgheader_t *) kmem_alloc (0, ext_size);
   ps = task_getipcspace (cur_task ());
@@ -468,7 +491,9 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
       return rc;
     }
 
+#ifdef IPC_DEBUG
   message_debug (int_msg);
+#endif
 
   rc = port_enqueue (int_msg, timeout, false);
   if (rc)
@@ -507,10 +532,18 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
     }
 
   const mcn_msgsize_t size = intmsg->msgh_size;
+
   IPC_PRINT ("Internal received %d bytes\n", size);
+#ifdef IPC_DEBUG
   message_debug (intmsg);
+#endif
+
   externalize (ps, intmsg, (volatile mcn_msgheader_t *) cur_kmsgbuf (), size);
+
+#ifdef IPC_DEBUG
   message_debug ((mcn_msgheader_t *) cur_kmsgbuf ());
+#endif
+
   task_putipcspace (cur_task (), ps);
 
   /*

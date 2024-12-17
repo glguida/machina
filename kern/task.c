@@ -279,7 +279,6 @@ task_bootstrap (struct taskref *taskref)
   thread_resume(threadref_unsafe_get(&threadref));
   threadref_consume(&threadref);
 
-  vmmap_printregions (&t->vmmap);
   struct vmobjref ref = vmobj_new (true, 3 * 4096);
   //  struct vmobjref ref2 = vmobjref_clone(&ref);
   vmmap_map (&t->vmmap, 0x1000, ref, 0, 4 * 4096, MCN_VMPROT_ALL,

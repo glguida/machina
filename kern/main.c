@@ -54,8 +54,6 @@ main (int argc, char *argv[])
   atomic_cpumask_set (&idlemap, cpu_id ());
 
   task_bootstrap (&bootstrap_taskref);
-  hal_umap_load (NULL);
-  printf ("here");
 
   port_alloc_kernel (NULL, KOT_THREAD, &portref);
   struct portref send = portref_dup(&portref);
@@ -163,9 +161,9 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
-  printf ("cur_thread(): %p\n", cur_thread ());
-  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
-  uctxt_print (uctxt);
+  //  printf ("cur_thread(): %p\n", cur_thread ());
+  //  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
+  //  uctxt_print (uctxt);
 
   req = MCN_VMPROT_READ;
   req |= pfi & HAL_PF_INFO_WRITE ? MCN_VMPROT_WRITE : 0;

@@ -68,7 +68,6 @@ entry_sysc (uctxt_t * u,
 	mcn_portid_t id;
 
 	rc = task_allocate_port (cur_task (), &id);
-	printf ("Allocated port %d [%ld]\n", rc, id);
 	if (rc)
 	  ret = MCN_PORTID_NULL;
 	else

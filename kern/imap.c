@@ -10,6 +10,12 @@
 
 #include "internal.h"
 
+#ifdef IMAP_DEBUG
+#define IMAP_PRINT printf
+#else
+#define IMAP_PRINT(...)
+#endif
+
 /*
   Indirect Map.
 
@@ -67,7 +73,7 @@ _get_entry (struct imap *im, unsigned long off, const bool set, ipte_t newval)
   if ((l3idx == 0) && (l2idx == 0))
     {
       ipte_t *l1ptr;
-      debug ("%s L1: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
+      IMAP_PRINT ("IMAP: %s L1: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
       l1ptr = _gettable (&im->l1, set);
       if (l1ptr == NULL)
 	return IPTE_EMPTY;
@@ -78,7 +84,7 @@ _get_entry (struct imap *im, unsigned long off, const bool set, ipte_t newval)
     }
   else if (l3idx == 0)
     {
-      debug ("%s L2: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
+      IMAP_PRINT ("IMAP %s L2: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
       ipte_t *l2ptr, *l1ptr;
       l2ptr = _gettable (&im->l2, set);
       if (l2ptr == NULL)
@@ -97,7 +103,7 @@ _get_entry (struct imap *im, unsigned long off, const bool set, ipte_t newval)
     }
   else
     {
-      debug ("%s L3: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
+      IMAP_PRINT ("IMAP: %s L3: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
       ipte_t *l3ptr, *l2ptr, *l1ptr;
       l3ptr = _gettable (&im->l3, set);
       if (l3ptr == NULL)

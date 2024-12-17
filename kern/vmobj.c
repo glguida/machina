@@ -143,14 +143,14 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   vmobj = tgtobj;
 _fault_redo:
 
-  info ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
+  VMOBJ_PRINT ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
   ipte = cacheobj_lookup (&vmobj->cobj, off);
 
-  info ("IPTE IS %" PRIx64 "\n", ipte.raw);
+  VMOBJ_PRINT ("IPTE IS %" PRIx64 "\n", ipte.raw);
   switch (ipte_status (&ipte))
     {
     case STIPTE_EMPTY:
-      info ("IPTE EMPTY");
+      VMOBJ_PRINT ("IPTE EMPTY");
 
       /*
          If we have a shadow, search for a page there.
@@ -179,7 +179,7 @@ _fault_redo:
       break;
 
     case STIPTE_PAGINGIN:
-      info ("IPTE PAGING IN");
+      VMOBJ_PRINT ("IPTE PAGING IN");
       /*
          XXX: WAIT.
        */
@@ -188,7 +188,7 @@ _fault_redo:
       break;
 
     case STIPTE_PAGINGOUT:
-      info ("IPTE PAGING OUT");
+      VMOBJ_PRINT ("IPTE PAGING OUT");
       /*
          XXX: WAIT.
        */
@@ -197,7 +197,7 @@ _fault_redo:
       break;
 
     case STIPTE_PAGED:
-      info ("IPTE PAGED");
+      VMOBJ_PRINT ("IPTE PAGED");
 
       /*
          XXX: PAGER REQUEST.
@@ -207,7 +207,7 @@ _fault_redo:
       break;
 
     case STIPTE_ROSHARED:
-      info ("IPTE ROSHARED (reqprot: %x, protmask: %x)", reqprot,
+      VMOBJ_PRINT ("IPTE ROSHARED (reqprot: %x, protmask: %x)", reqprot,
 	    ipte_protmask (&ipte));
       if (reqprot & ipte_protmask (&ipte))
 	{
@@ -246,7 +246,7 @@ _fault_redo:
       ret = true;
       break;
     case STIPTE_PRIVATE:
-      info ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
+      VMOBJ_PRINT ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
 	    ipte_protmask (&ipte));
       assert (tgtobj == vmobj);	/* A shadowed page cannot point to a private page. */
       if (reqprot & ipte_protmask (&ipte))

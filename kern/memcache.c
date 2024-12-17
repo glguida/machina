@@ -6,11 +6,10 @@
 
 #include "internal.h"
 
-//#define MEMCACHE_DEBUG
 #ifndef MEMCACHE_DEBUG
 #define MEMCACHE_PRINT(...)
 #else
-#define MEMCACHE_PRINT(...) MEMCACHE_PRINT(__VA_ARGS__)
+#define MEMCACHE_PRINT printf
 #endif
 
 /*
@@ -298,7 +297,6 @@ memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
     {
       MEMCACHE_PRINT("MEMCACHE: PFN %d cobj: %p off %ld\n",
 	     pfn, n->cobj, n->off);
-      MEMCACHE_PRINT ("%d && %d\n", n->cobj == obj, n->off == off);
       if ((n->cobj == obj) && (n->off == off))
 	break;
     }
