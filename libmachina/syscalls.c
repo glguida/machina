@@ -15,17 +15,14 @@
 
 __thread void *__local_msgbuf = NULL;
 
-void __attribute__((constructor (0))) __machina_sysinit (void)
-{
-  __local_msgbuf = (void *) syscall0 (__syscall_msgbuf);
-  printf ("constructor! %p\n", __local_msgbuf);
-}
-
 void *
 syscall_msgbuf (void)
 {
-  //  return __local_msgbuf;
-  return (void *) syscall0 (__syscall_msgbuf);
+  if (__local_msgbuf == NULL)
+    {
+      __local_msgbuf = (void *) syscall0 (__syscall_msgbuf);
+    }
+  return __local_msgbuf;
 }
 
 mcn_return_t
