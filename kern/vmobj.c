@@ -23,6 +23,10 @@ vmobj_refcnt (struct vmobj *vmobj)
   return &vmobj->_ref_count;
 }
 
+/*
+  Assumption: We have just booted, and we're running on the BSP. The
+  userspace binary of the bootstrap process is mapped.
+*/
 struct vmobjref
 vmobj_bootstrap (uaddr_t *outbase, size_t *outsize)
 {
@@ -380,44 +384,3 @@ vmobj_init (void)
   slab_register (&cobjmappings, "COBJMAPPINGS",
 		 sizeof (struct cacheobj_mapping), NULL, 0);
 }
-
-
-#if 0
-/*
-  Assumption: We have just booted, and we're running on the BSP. The
-  userspace binary of the bootstrap process is mapped.
-*/
-uaddr_t
-memobj_bootstrap (struct memobj **out)
-{
-  volatile struct vmobj *obj;
-  struct pglist clean, dirty;
-
-  pglist_init (&clean);
-  pglist_init (&dirty);
-
-  mobj = memobj_new (true);
-
-  hal_l1e_t l1e;
-  uaddr_t i, base;
-  uaddr_t maxaddr = 0;
-  i = hal_umap_next (NULL, 0, NULL, &l1e);
-  base = i;
-  while (i != UADDR_INVALID)
-    {
-      maxaddr = i;
-      VMOBJ_PRINT ("%lx -> %lx\n", i - base, l1e);
-      _memobj_addl1e ((struct memobj *) mobj, i - base, l1e, &clean, &dirty);
-      i = hal_umap_next (NULL, i, NULL, &l1e);
-    }
-
-  maxaddr += PAGE_SIZE;
-  mobj->size = maxaddr;
-  if (out)
-    *out = (struct memobj *) mobj;
-
-  assert (pglist_pages (&clean) == 0);
-  assert (pglist_pages (&dirty) == 0);
-  return base;
-}
-#endif
