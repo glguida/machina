@@ -15,6 +15,20 @@
 #define PORT_PRINT(...)
 #endif
 
+#if PORT_LOCK_MEASURE
+
+DEFINE_LOCK_MEASURE(port_lock_msr);
+
+#define port_lock(_p) spinlock_measured (&(_p)->lock, &port_lock_msr)
+#define port_unlock(_p) spinunlock_measured (&(_p)->lock, &port_lock_msr)
+
+#else
+
+#define port_lock(_p) spinlock (&(_p)->lock)
+#define port_unlock(_p) spinunlock (&(_p)->lock)
+
+#endif
+
 struct slab ports;
 struct slab msgqs;
 
@@ -24,26 +38,14 @@ port_refcnt (struct port *p)
   return &p->_ref_count;
 }
 
-void
-port_lock_dual (struct port *p1, struct port *p2)
-{
-  spinlock_dual (&p1->lock, &p2->lock);
-}
-
-void
-port_unlock_dual (struct port *p1, struct port *p2)
-{
-  spinunlock_dual (&p1->lock, &p2->lock);
-}
-
 bool
 port_dead (struct port *port)
 {
   bool r;
 
-  spinlock (&port->lock);
+  port_lock (port);
   r = port->type == PORT_DEAD;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return r;
 }
 
@@ -52,9 +54,9 @@ port_kernel (struct port *port)
 {
   bool r;
 
-  spinlock (&port->lock);
+  port_lock (port);
   r = port->type == PORT_KERNEL;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return r;
 }
 
@@ -63,9 +65,9 @@ port_type (struct port *port)
 {
   enum port_type ty;
 
-  spinlock (&port->lock);
+  port_lock (port);
   ty = port->type;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return ty;
 }
 
@@ -162,7 +164,7 @@ port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout, bool force)
   if (port == NULL)
     return MSGIO_SEND_INVALID_DEST;
 
-  spinlock (&port->lock);
+  port_lock (port);
   switch (port->type)
     {
     case PORT_KERNEL:
@@ -182,7 +184,7 @@ port_enqueue (mcn_msgheader_t * msgh, unsigned long timeout, bool force)
       rc = MSGIO_MSG_IPC_SPACE | KERN_FAILURE;
       break;
     }
-  spinunlock (&port->lock);
+  port_unlock (port);
   return rc;
 }
 
@@ -192,57 +194,28 @@ port_dequeue (struct port *port, unsigned long timeout,
 {
   mcn_return_t rc;
 
-  spinlock (&port->lock);
+  port_lock (port);
   switch (port->type)
     {
     default:
-      spinunlock (&port->lock);
+      port_unlock (port);
       rc = MSGIO_RCV_INVALID_NAME;
       break;
 
     case PORT_DEAD:
       /* Messages to dead ports are ignored. */
-      spinunlock (&port->lock);
+      port_unlock (port);
       rc = MSGIO_RCV_PORT_DIED;
       break;
 
     case PORT_QUEUE:
       {
 	rc = portqueue_deq (&port->queue, timeout, msghp);
-	spinunlock (&port->lock);
+	port_unlock (port);
 	break;
       }
     }
   return rc;
-}
-
-void
-port_double_lock (struct port *porta, struct port *portb)
-{
-  /*
-     This is used to ensure atomicity on message send receive.
-   */
-  if (porta == portb)
-    spinlock (&porta->lock);
-  else
-    {
-      /* Pointer value defines lock ordering. */
-      spinlock (&MIN (porta, portb)->lock);
-      spinlock (&MAX (porta, portb)->lock);
-    }
-}
-
-void
-port_double_unlock (struct port *porta, struct port *portb)
-{
-  /* Reverse of 'port_double_lock' */
-  if (porta == portb)
-    spinunlock (&porta->lock);
-  else
-    {
-      spinunlock (&MAX (porta, portb)->lock);
-      spinunlock (&MIN (porta, portb)->lock);
-    }
 }
 
 static void *
@@ -263,13 +236,13 @@ port_get_taskref (struct port *port)
   struct task *t;
   struct taskref ret;
 
-  spinlock (&port->lock);
+  port_lock (port);
   t = port_getkobj (port, KOT_TASK);
   if (t != NULL)
     ret = taskref_fromraw (t);
   else
     ret = TASKREF_NULL;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return ret;
 }
 
@@ -279,13 +252,13 @@ port_get_threadref (struct port *port)
   struct thread *th;
   struct threadref ret;
 
-  spinlock (&port->lock);
+  port_lock (port);
   th = port_getkobj (port, KOT_THREAD);
   if (th != NULL)
     ret = threadref_fromraw (th);
   else
     ret = THREADREF_NULL;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return ret;
 }
 
@@ -295,7 +268,7 @@ port_get_vmobjref (struct port *port)
   struct vmobj *vmobj;
   struct vmobjref ret;
 
-  spinlock (&port->lock);
+  port_lock (port);
   vmobj = port_getkobj (port, KOT_VMOBJ);
   if (vmobj != NULL)
     {
@@ -303,7 +276,7 @@ port_get_vmobjref (struct port *port)
     }
   else
     ret = VMOBJREF_NULL;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return ret;
 }
 
@@ -313,7 +286,7 @@ port_get_vmobjref_from_name (struct port *port)
   struct vmobj *vmobj;
   struct vmobjref ret;
 
-  spinlock (&port->lock);
+  port_lock (port);
   vmobj = port_getkobj (port, KOT_VMOBJ_NAME);
   if (vmobj != NULL)
     {
@@ -321,7 +294,7 @@ port_get_vmobjref_from_name (struct port *port)
     }
   else
     ret = VMOBJREF_NULL;
-  spinunlock (&port->lock);
+  port_unlock (port);
   return ret;
 }
 
@@ -330,9 +303,9 @@ port_get_host_from_name (struct port *port)
 {
   struct host *host;
 
-  spinlock (&port->lock);
+  port_lock (port);
   host = port_getkobj (port, KOT_HOST_NAME);
-  spinunlock (&port->lock);
+  port_unlock (port);
 
   return host;
 }
@@ -342,9 +315,9 @@ port_get_host_from_ctrl (struct port *port)
 {
   struct host *host;
 
-  spinlock (&port->lock);
+  port_lock (port);
   host = port_getkobj (port, KOT_HOST_CTRL);
-  spinunlock (&port->lock);
+  port_unlock (port);
 
   return host;
 }
@@ -369,12 +342,12 @@ port_unlink_kernel (struct portref *portref)
 {
   struct port *p = portref_unsafe_get(portref);
 
-  spinlock (&p->lock);
+  port_lock (p);
   assert (p->type == PORT_KERNEL);
   p->kernel.obj = NULL;
   p->kernel.kot = 0;
   p->type = PORT_DEAD;
-  spinunlock (&p->lock);
+  port_unlock (p);
 
   portref_consume (portref);
 }
@@ -398,6 +371,7 @@ port_unlink_queue (struct portref *portref)
 {
   struct port *p = portref_unsafe_get(portref);
 
+  port_lock (p);
   spinlock (&p->lock);
   assert (p->type == PORT_QUEUE);
 
@@ -407,7 +381,7 @@ port_unlink_queue (struct portref *portref)
   msgq_discard(&p->queue.msgq);
 
   p->type = PORT_DEAD;
-  spinunlock (&p->lock);
+  port_unlock (p);
 
   portref_consume (portref);
 }

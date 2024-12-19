@@ -475,7 +475,10 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   const mcn_msgsize_t ext_size = ext_msg->msgh_size;
 
   if ((ext_size < sizeof (mcn_msgheader_t)) || (ext_size > MSGBUF_SIZE))
-    return MSGIO_SEND_INVALID_DATA;
+    {
+      nuxperf_inc (&pmachina_ipc_send_invaliddata);
+      return MSGIO_SEND_INVALID_DATA;
+    }
 
 #ifdef IPC_DEBUG
   message_debug ((mcn_msgheader_t *) ext_msg);
@@ -487,6 +490,7 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   task_putipcspace (cur_task (), ps);
   if (rc)
     {
+      nuxperf_inc (&pmachina_ipc_send_internfailed);
       kmem_free (0, (vaddr_t) int_msg, ext_size);
       return rc;
     }
@@ -498,11 +502,13 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   rc = port_enqueue (int_msg, timeout, false);
   if (rc)
     {
+      nuxperf_inc (&pmachina_ipc_send_enqueuefailed);
       ipc_intmsg_consume (int_msg);
       kmem_free (0, (vaddr_t) int_msg, ext_size);
       return rc;
     }
 
+  nuxperf_inc (&pmachina_ipc_send_success);
   return MSGIO_SUCCESS;
 }
 
@@ -519,6 +525,7 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
   rc = ipcspace_resolve_receive (ps, recv_port, &recv_pref);
   if (rc)
     {
+      nuxperf_inc(&pmachina_ipc_recv_invalidname);
       task_putipcspace (cur_task (), ps);
       return MSGIO_RCV_INVALID_NAME;
     }
@@ -527,6 +534,7 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
   portref_consume (&recv_pref);
   if (rc)
     {
+      nuxperf_inc(&pmachina_ipc_recv_dequeuefailed);
       task_putipcspace (cur_task (), ps);
       return rc;
     }
@@ -553,6 +561,7 @@ ipc_msgrecv (mcn_portid_t recv_port, mcn_msgopt_t opt, unsigned long timeout,
   assert (intmsg->msgh_local == 0);
 
   kmem_free (0, (vaddr_t) intmsg, size);
+  nuxperf_inc (&pmachina_ipc_recv_success);
   return MSGIO_SUCCESS;
 }
 

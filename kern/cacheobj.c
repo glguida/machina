@@ -7,7 +7,6 @@
 #include "internal.h"
 #include "vm.h"
 
-//#define CACHEOBJ_DEBUG
 #ifndef CACHEOBJ_DEBUG
 #define COBJ_PRINT(...)
 #else
@@ -75,6 +74,7 @@ ipte_unbox (ipte_t ipte, pfn_t *outpfn, unsigned *outflags)
 void
 cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 {
+  nuxperf_inc (&pmachina_cacheobj_addmapping);
 
   COBJ_PRINT ("CACHEOBJECT: %p: adding region to object: %lx %lx\n", cobj,
 	  cobjm->start, cobjm->size);
@@ -102,6 +102,8 @@ cacheobj_updatemapping (struct cacheobj *cobj, mcn_vmoff_t off, struct cacheobj_
  pfn_t pfn;
  unsigned flags;
 
+ nuxperf_inc (&pmachina_cacheobj_updatemapping);
+
  off = trunc_page (off);
 
  COBJ_PRINT ("CACHEOBJ: %p: filling-in cobj-mapping %p\n",
@@ -128,6 +130,8 @@ cacheobj_delmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
   COBJ_PRINT ("CACHEOBJECT: %p: delete region to object: %lx %lx\n", cobj,
 	  cobjm->start, cobjm->size);
 
+  nuxperf_inc (&pmachina_cacheobj_delmapping);
+
   writelock (&cobj->lock);
   LIST_REMOVE (cobjm, list);
   for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
@@ -151,6 +155,8 @@ cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow)
 {
   COBJ_PRINT ("CACHEOBJ: shadow %p to %p\n", orig, shadow);
 
+  nuxperf_inc (&pmachina_cacheobj_shadow);
+
   writelock (&orig->lock);
   /* shadow is unitialised. Shouldn't get the lock. */
   cacheobj_init (shadow, orig->size);
@@ -164,6 +170,8 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 {
   ipte_t old;
   struct cacheobj_mapping *cobjm;
+
+  nuxperf_inc (&pmachina_cacheobj_map);
 
   off = trunc_page (off);
 
@@ -198,6 +206,8 @@ ipte_t
 cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off)
 {
   ipte_t ret;
+
+  nuxperf_inc (&pmachina_cacheobj_lookup);
 
   readlock (&cobj->lock);
   ret = imap_lookup (&cobj->map, off);

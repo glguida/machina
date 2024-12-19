@@ -14,6 +14,11 @@
 #define THREAD_PRINT printf
 #endif
 
+#if THREAD_LOCK_MEASURE
+DEFINE_LOCK_MEASURE(thread_lock_msr);
+#endif
+
+
 struct slab threads;
 
 unsigned long *
@@ -105,7 +110,7 @@ thread_getport (struct thread *th)
 {
   struct portref ret;
 
-  spinlock (&th->lock);
+  thread_lock (th);
   switch (th->status)
     {
     case SCHED_RUNNING:
@@ -121,7 +126,7 @@ thread_getport (struct thread *th)
 	     th->status, th);
       break;
     }
-  spinunlock (&th->lock);
+  thread_unlock (th);
 
   return ret;
 }
@@ -129,12 +134,12 @@ thread_getport (struct thread *th)
 static void
 thread_abort (struct thread *th, bool intimer, bool setret)
 {
-  spinlock (&th->lock);
+  thread_lock (th);
   if (th->waitq != NULL)
     {
-      spinlock (&th->waitq->lock);
+      waitq_lock (th->waitq);
       TAILQ_REMOVE (&th->waitq->queue, th, sched_list);
-      spinunlock (&th->waitq->lock);
+      waitq_unlock (th->waitq);
 
       if (!intimer)
 	timer_remove (&th->timeout);
@@ -144,7 +149,7 @@ thread_abort (struct thread *th, bool intimer, bool setret)
 	uctxt_setret (th->uctxt, KERN_THREAD_TIMEDOUT);
     }
   _sched_abort (th);
-  spinunlock (&th->lock);
+  thread_unlock (th);
 }
 
 static void
@@ -164,7 +169,7 @@ thread_wait (struct waitq *wq, unsigned long timeout)
 {
   struct thread *curth = cur_thread ();
 
-  spinlock (&curth->lock);
+  thread_lock (curth);
   assert (curth->status == SCHED_RUNNING);
   if (timeout != 0)
     {
@@ -175,12 +180,12 @@ thread_wait (struct waitq *wq, unsigned long timeout)
       timer_register (t, timeout * 1000 * 1000);
     }
   curth->waitq = wq;
-  spinlock (&wq->lock);
+  waitq_lock (wq);
   TAILQ_INSERT_TAIL (&wq->queue, curth, sched_list);
-  spinunlock (&wq->lock);
+  waitq_unlock (wq);
 
   _sched_suspend(curth);
-  spinunlock (&curth->lock);
+  thread_unlock (curth);
 }
 
 bool
@@ -188,38 +193,37 @@ thread_wakeone (struct waitq *wq)
 {
   struct thread *th = NULL;
 
-  spinlock (&wq->lock);
+  waitq_lock (wq);
   if (!TAILQ_EMPTY (&wq->queue))
     {
       th = TAILQ_FIRST (&wq->queue);
       TAILQ_REMOVE (&wq->queue, th, sched_list);
     }
-  spinunlock (&wq->lock);
+  waitq_unlock (wq);
 
   if (th == NULL)
     return false;
 
-  spinlock(&th->lock);
-  assert (th->status == SCHED_STOPPED);
-  assert (th->suspend != 0);
+  thread_lock (th);
+  assert ((th->status == SCHED_STOPPED) || th->sched_op.op_suspend);
   assert (th->waitq == wq);
   timer_remove (&th->timeout);
   th->waitq = NULL;
 
   _sched_resume(th);
-  spinunlock(&th->lock);
+  thread_unlock (th);
   return true;
 }
 
 void
 thread_destroy (struct thread *th)
 {
-  spinlock (&th->lock);
+  thread_lock (th);
   if (th->waitq != NULL)
     {
-      spinlock (&th->waitq->lock);
+      waitq_lock (th->waitq);
       TAILQ_REMOVE (&th->waitq->queue, th, sched_list);
-      spinunlock (&th->waitq->lock);
+      waitq_lock (th->waitq);
 
       timer_remove (&th->timeout);
       th->waitq = NULL;
@@ -233,23 +237,23 @@ thread_destroy (struct thread *th)
   */
   port_unlink_kernel(&th->self);
 
-  spinunlock (&th->lock);
+  thread_unlock (th);
 }
 
 void
 thread_suspend (struct thread *th)
 {
-  spinlock (&th->lock);
+  thread_lock (th);
   _sched_suspend (th);
-  spinunlock (&th->lock);
+  thread_unlock (th);
 }
 
 void
 thread_resume (struct thread *th)
 {
-  spinlock (&th->lock);
+  thread_lock (th);
   _sched_resume (th);
-  spinunlock (&th->lock);
+  thread_unlock (th);
 }
 
 #if 0
@@ -259,7 +263,7 @@ thread_vtalrm (int64_t diff)
   struct thread *th = cur_thread ();
   struct timer *t = &th->vtt_alarm;
 
-  spinlock (&th->lock);
+  thread_lock (th);
   timer_remove (t);
   t->time = timer_gettime () + diff;
   t->opq = (void *) th;
@@ -267,7 +271,7 @@ thread_vtalrm (int64_t diff)
   t->valid = 1;
   debug ("Setting vtalm at %" PRIx64 "\n", t->time);
   timer_register (t);
-  spinunlock (&th->lock);
+  thread_unlock (th);
 }
 #endif
 

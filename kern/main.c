@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <nux/nux.h>
 #include <nux/hal.h>
+#include <nux/nuxperf.h>
 #include <machina/error.h>
 
 #include "internal.h"
@@ -19,13 +20,48 @@ cpumask_t idlemap;
 void
 cpu_kick (void)
 {
-  cpu_ipi_mask (idlemap);
+  nuxperf_inc (&pmachina_cpu_kick);
+  once_cpumask (idlemap, cpu_ipi(i));
 }
-
-__thread char test_2[40];
 
 struct taskref bootstrap_taskref;
 static int smp_sync = 0;
+
+static struct timer timer;
+
+static void
+_print_perfctr (void *unused, nuxperf_t *ctr)
+{
+  printf ("ctr: %-20s\t%20ld\n", ctr->name, ctr->val);
+}
+
+static void _timer_handler (void *opq)
+{
+  struct task *t = taskref_unsafe_get (&bootstrap_taskref);
+
+  mcn_return_t rc;
+  struct portref pr;
+  struct ipcspace *ps;
+  ps = task_getipcspace (t);
+  rc = ipcspace_resolve (ps, MCN_MSGTYPE_COPYSEND, 3, &pr);
+  task_putipcspace (t, ps);
+  if (!rc)
+    user_simple (portref_to_ipcport (&pr));
+
+  nuxperf_foreach (_print_perfctr, NULL);
+  nuxperf_reset();
+  nuxmeasure_print ();
+  nuxmeasure_reset();
+}
+
+void
+start_timer (void)
+{
+  timer.valid = 1;
+  timer.opq = NULL;
+  timer.handler = _timer_handler;
+  timer_register (&timer, 1L * 1000 * 1000 * 1000);
+}
 
 int
 main (int argc, char *argv[])
@@ -64,8 +100,8 @@ main (int argc, char *argv[])
   printf ("Test id is %ld\n", id);
   assert (rc == KERN_SUCCESS);
 
-  taskref_consume(&bootstrap_taskref);
-
+  start_timer();
+  
   smp_sync = 1;
   __sync_synchronize ();
   cpu_ipi (cpu_id ());
@@ -135,9 +171,16 @@ entry_alarm (uctxt_t * uctxt)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
-  info ("TMR: %" PRIu64 " us", timer_gettime ());
-  uctxt_print (uctxt);
   timer_run ();
+
+  if (!timer.valid)
+    {
+      timer.valid = 1;
+      timer.opq = NULL;
+      timer.handler = _timer_handler;
+      timer_register (&timer, 1L * 1000 * 1000 * 1000);
+    }
+
   return kern_return ();
 }
 
@@ -161,9 +204,9 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
-  //  printf ("cur_thread(): %p\n", cur_thread ());
-  //  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
-  //  uctxt_print (uctxt);
+  printf ("cur_thread(): %p\n", cur_thread ());
+  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
+  uctxt_print (uctxt);
 
   req = MCN_VMPROT_READ;
   req |= pfi & HAL_PF_INFO_WRITE ? MCN_VMPROT_WRITE : 0;
@@ -199,3 +242,8 @@ entry_irq (uctxt_t * uctxt, unsigned irq, bool lvl)
   info ("IRQ %d", irq);
   return uctxt;
 }
+
+#undef NUXPERF
+#undef NUXPERF_DECLARE
+#define NUXPERF_DEFINE
+#include "perf.h"

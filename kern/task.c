@@ -16,6 +16,20 @@
 #define TASK_PRINT(...)
 #endif
 
+#if TASK_LOCK_MEASURE
+
+DEFINE_LOCK_MEASURE(task_lock_msr);
+
+#define task_lock(_t) spinlock_measured (&(_t)->lock, &task_lock_msr)
+#define task_unlock(_t) spinunlock_measured (&(_t)->lock, &task_lock_msr)
+
+#else
+
+#define task_lock(_t) spinlock (&(_t)->lock)
+#define task_unlock(_t) spinunlock (&(_t)->lock)
+
+#endif
+
 struct slab tasks;
 struct slab portcaps;
 
@@ -30,9 +44,9 @@ task_getport (struct task *t)
 {
   struct portref ret;
 
-  spinlock (&t->lock);
+  task_lock (t);
   ret = portref_dup (&t->self);
-  spinunlock (&t->lock);
+  task_unlock (t);
   return ret;
 }
 
@@ -57,7 +71,7 @@ task_self (void)
 struct ipcspace *
 task_getipcspace (struct task *t)
 {
-  spinlock (&t->lock);
+  task_lock (t);
   return &t->ipcspace;
 }
 
@@ -65,7 +79,7 @@ void
 task_putipcspace (struct task *t, struct ipcspace *ps)
 {
   assert (&t->ipcspace == ps);
-  spinunlock (&t->lock);
+  task_unlock (t);
 }
 
 mcn_return_t
@@ -115,7 +129,7 @@ task_vm_map (struct task *t, vaddr_t * addr, size_t size, unsigned long mask,
       TASK_PRINT ("TASK: New shadow copy is %p\n", vmobjref_unsafe_get (&ref));
     }
 
-  spinlock (&t->lock);
+  task_lock (t);
   if (anywhere)
     {
       rc = vmmap_alloc (&t->vmmap, ref, off, size, curprot, maxprot, addr);
@@ -126,7 +140,7 @@ task_vm_map (struct task *t, vaddr_t * addr, size_t size, unsigned long mask,
       rc = KERN_SUCCESS;
     }
 
-  spinunlock (&t->lock);
+  task_unlock (t);
   return rc;
 }
 
@@ -138,12 +152,12 @@ task_vm_region (struct task *t, vaddr_t * addr, size_t *size,
 {
   mcn_return_t rc;
 
-  spinlock (&t->lock);
+  task_lock (t);
   rc =
     vmmap_region (&t->vmmap, addr, size, curprot, maxprot, inherit, shared,
 		  portref, off);
   TASK_PRINT ("TASK: size is %lx\n", *size);
-  spinunlock (&t->lock);
+  task_unlock (t);
   return rc;
 }
 
@@ -172,9 +186,9 @@ task_create_thread(struct task *t, struct threadref *ref)
       return KERN_RESOURCE_SHORTAGE;
     }
 
-  spinlock (&t->lock);
+  task_lock (t);
   LIST_INSERT_HEAD (&t->threads, th, list_entry);
-  spinunlock (&t->lock);
+  task_unlock (t);
 
   /*
     The thread saved both in the task's thread list and the scheduler
@@ -206,12 +220,12 @@ _task_destroy_thread(struct thread *th)
   assert(th->status == SCHED_REMOVED);
   spinunlock(&th->lock);
 
-  spinlock(&t->lock);
+  task_lock (t);
   LIST_REMOVE (th, list_entry);
   TASK_PRINT("TASK STATUS IS %s\n", t->status == TASK_DESTROYING ? "DESTROYING" : "ACTIVE");
   if ((t->status == TASK_DESTROYING) && LIST_EMPTY(&t->threads))
     TAILQ_INSERT_TAIL (&cur_cpu ()->dead_tasks, t, task_list);
-  spinunlock(&t->lock);
+  task_unlock (t);
 
   /*
     Thread is removed, so there's no pointers in the scheduler. It has
@@ -230,14 +244,14 @@ task_destroy (struct task *t)
 {
   struct thread *th;
 
-  spinlock (&t->lock);
+  task_lock (t);
   TASK_PRINT("TASK %p: DESTROYING TASK (STATUS: %s)\n",
 	     t, t->status == TASK_ACTIVE ? "ACTIVE" : "DESTROYING");
 
 
   if (t->status == TASK_DESTROYING)
     {
-      spinunlock (&t->lock);
+      task_unlock (t);
       return;
     }
   t->status = TASK_DESTROYING;
@@ -245,7 +259,7 @@ task_destroy (struct task *t)
     {
       thread_destroy(th);
     }
-  spinunlock (&t->lock);
+  task_unlock (t);
 }
 
 void

@@ -6,7 +6,7 @@
 
 #include "internal.h"
 
-lock_t timers_lock = 0;
+lock_t timers_lock = {0, };
 /**INDENT-OFF**/
 static LIST_HEAD (, timer) timers = LIST_HEAD_INITIALIZER (timers);
 /**INDENT-ON**/
@@ -77,8 +77,8 @@ timer_register (struct timer *t, uint64_t nsecs)
 out:
   /* Update hw timer. */
   c = LIST_FIRST (&timers);
-  timer_alarm (c->time - curtime);
   spinunlock (&timers_lock);
+  timer_alarm (c->time - curtime);
 }
 
 void

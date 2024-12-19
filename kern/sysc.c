@@ -52,14 +52,17 @@ entry_sysc (uctxt_t * u,
   switch (a1)
     {
     case __syscall_msgbuf:
+      nuxperf_inc (&pmachina_sysc_msgbuf);
       ret = cur_umsgbuf ();
       break;
     case __syscall_msgrecv:
+      nuxperf_inc (&pmachina_sysc_msgrecv);
       ret =
 	ipc_msgrecv ((mcn_portid_t) a2, (mcn_msgopt_t) a3, a4,
 		     (mcn_portid_t) a5);
       break;
     case __syscall_msgsend:
+      nuxperf_inc (&pmachina_sysc_msgsend);
       ret = ipc_msgsend ((mcn_msgopt_t) a2, a3, (mcn_portid_t) a4);
       break;
     case __syscall_reply_port:
@@ -67,6 +70,7 @@ entry_sysc (uctxt_t * u,
 	mcn_return_t rc;
 	mcn_portid_t id;
 
+	nuxperf_inc (&pmachina_sysc_reply_port);
 	rc = task_allocate_port (cur_task (), &id);
 	if (rc)
 	  ret = MCN_PORTID_NULL;
@@ -75,6 +79,7 @@ entry_sysc (uctxt_t * u,
       }
       break;
     case __syscall_task_self:
+      nuxperf_inc (&pmachina_sysc_task_self);
       ret = task_self ();
       break;
     case __syscall_vm_map:
@@ -86,6 +91,8 @@ entry_sysc (uctxt_t * u,
 	struct vmobjref vmobjref;
 	vaddr_t vaddr;
 
+	nuxperf_inc (&pmachina_sysc_vm_map);
+	
 	ret = syscall_getport (a2, &task_pr);
 	if (ret)
 	  break;
@@ -144,6 +151,8 @@ entry_sysc (uctxt_t * u,
 	struct portref task_pr;
 	struct taskref tref;
 
+	nuxperf_inc (&pmachina_sysc_vm_allocate);
+
 	ret = syscall_getport (a2, &task_pr);
 	if (ret)
 	  break;
@@ -173,6 +182,8 @@ entry_sysc (uctxt_t * u,
       {
 	struct portref task_pr;
 	struct taskref tref;
+
+	nuxperf_inc (&pmachina_sysc_vm_region);
 
 	printf ("SYSC: VMREGION GETPORT %lx\n", a2);
 	ret = syscall_getport (a2, &task_pr);

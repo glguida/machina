@@ -14,10 +14,36 @@
 #include <nux/nux.h>
 #include <nux/cpumask.h>
 #include <nux/slab.h>
+#include <nux/nuxperf.h>
 #include <machina/kernparam.h>
 #include <machina/message.h>
-
 #include "ref.h"
+
+/*
+  Measure port spinlock.
+*/
+#define PORT_LOCK_MEASURE 0
+
+/*
+  Measure task spinlock.
+*/
+#define TASK_LOCK_MEASURE 0
+
+/*
+  Measure thrad spinlock.
+*/
+#define THREAD_LOCK_MEASURE 0
+
+/*
+  Measure sched spinlock.
+*/
+#define SCHED_LOCK_SPINLOCK 0
+
+/*
+  Measure waitq spinlock.
+*/
+#define WAITQ_LOCK_MEASURE 0
+
 
 /*
   RAM reserved for kernel allocation, when memory is low.
@@ -111,6 +137,30 @@ struct waitq
 };
 /**INDENT-ON**/
 
+#if WAITQ_LOCK_MEASURE
+DECLARE_LOCK_MEASURE(waitq_lock_msr);
+#endif
+
+static inline void
+waitq_lock (struct waitq *wq)
+{
+#if WAITQ_LOCK_MEASURE
+  spinlock_measured (&wq->lock, &waitq_lock_msr);
+#else
+  spinlock (&wq->lock);
+#endif
+}
+
+static inline void
+waitq_unlock (struct waitq *wq)
+{
+#if WAITQ_LOCK_MEASURE
+  spinunlock_measured (&wq->lock, &waitq_lock_msr);
+#else
+  spinunlock (&wq->lock);
+#endif
+}
+
 static inline void
 waitq_init (struct waitq *wq)
 {
@@ -123,9 +173,9 @@ waitq_empty (struct waitq *wq)
 {
   bool empty;
 
-  spinlock (&wq->lock);
+  waitq_lock (wq);
   empty = TAILQ_EMPTY (&wq->queue);
-  spinunlock (&wq->lock);
+  waitq_unlock (wq);
 
   return empty;
 }
@@ -428,6 +478,20 @@ struct thread
 };
 /**INDENT-ON**/
 
+#if THREAD_LOCK_MEASURE
+
+DECLARE_LOCK_MEASURE(thread_lock_msr);
+
+#define thread_lock(_t) spinlock_measured (&(_t)->lock, &thread_lock_msr)
+#define thread_unlock(_t) spinunlock_measured (&(_t)->lock, &thread_lock_msr)
+
+#else
+
+#define thread_lock(_t) spinlock (&(_t)->lock)
+#define thread_unlock(_t) spinunlock (&(_t)->lock)
+
+#endif
+
 struct thread *thread_idle (void);
 struct thread *thread_new (struct task *t);
 void thread_bootstrap (struct thread *th);
@@ -701,5 +765,8 @@ struct portref host_getctrlport (struct host *host);
 struct portref host_getnameport (struct host *host);
 
 #include "kern.h"
+
+#define NUXPERF_DECLARE
+#include "perf.h"
 
 #endif
