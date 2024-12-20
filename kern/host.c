@@ -18,11 +18,11 @@ host_init (void)
 struct portref
 host_getctrlport (struct host *host)
 {
-  return portref_dup (&host.ctrl);
+  return portref_dup (&host->ctrl);
 }
 
 struct portref
 host_getnameport (struct host *host)
 {
-  return portref_dup (&host.name);
+  return portref_dup (&host->name);
 }

@@ -760,6 +760,12 @@ message_debug (mcn_msgheader_t * msgh)
 
 void ipcspace_debug (struct ipcspace *ps);
 
+struct host
+{
+  struct portref name;
+  struct portref ctrl;
+};
+
 void host_init (void);
 struct portref host_getctrlport (struct host *host);
 struct portref host_getnameport (struct host *host);
