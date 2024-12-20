@@ -1525,6 +1525,22 @@ WriteFieldDecl(FILE *file, const argument_t *arg)
 }
 
 static void
+WriteRoutineStub(FILE *file, register const routine_t *rt)
+{
+    fprintf(file, "\n");
+    fprintf(file, "/* Weak stub implmenetation of %s %s */\n", rtRoutineKindToStr(rt->rtKind), rt->rtName);
+    fprintf(file, "__attribute__((weak)) %s %s\n",
+	    ServerSideType(rt), rt->rtServerName);
+    fprintf(file, "\t(");
+    WriteList(file, rt->rtArgs, WriteServerArgDecl, akbServerArg, ", ", "");
+    fprintf(file, ")\n");
+    fprintf(file, "{\n");
+    if (rt->rtServerReturn == rt->rtRetCode)
+        fprintf(file, "    return KERN_UNIMPLEMENTED;\n");
+    fprintf(file, "}\n");
+}
+
+static void
 WriteRoutine(FILE *file, register const routine_t *rt)
 {
     fprintf(file, "\n");
@@ -1611,6 +1627,8 @@ WriteServer(FILE *file, const statement_t *stats)
 	switch (stat->stKind)
 	{
 	  case skRoutine:
+	    if (GenServerStub)
+	        WriteRoutineStub(file, stat->stRoutine);
 	    WriteRoutine(file, stat->stRoutine);
 	    break;
 	  case skImport:

@@ -107,6 +107,10 @@
  *			Name the user-side internal header file <name>
  *		-sheader <name>
  *			NAme the server-side header file <name>
+ *		-serverprefix <name>
+ *			Name the server prefix from command line.
+ *		-serverstub
+ *			Generate weak stub implementation functions.
  *
  *  DESIGN:
  *	Mig uses a lexxer module created by lex from lexxer.l and
@@ -174,9 +178,18 @@ parseArgs(int argc, char **argv)
 		{
 		    --argc; ++argv;
 		    if (argc == 0)
-		      fatal ("missing name for -sheader option");
+		        fatal ("missing name for -sheader option");
 		    ServerHeaderFileName = strmake(argv[0]);
 		}
+		else if (streql(argv[0], "-serverprefix"))
+		{
+		    --argc; ++argv;
+		    if (argc == 0)
+		        fatal ("missing name for -serverprefix option");
+		    ServerPrefix = strmake(argv[0]);
+		}
+		else if (streql(argv[0], "-serverstub"))
+		    GenServerStub = TRUE;
 		else
 		    GenSymTab = TRUE;
 		break;

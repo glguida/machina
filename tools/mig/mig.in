@@ -105,6 +105,8 @@ do
 	-header ) header="$2"; migflags="$migflags $1 $2"; shift; shift;;
 	-sheader ) sheader="$2"; migflags="$migflags $1 $2"; shift; shift;;
 	-iheader ) iheader="$2"; migflags="$migflags $1 $2"; shift; shift;;
+	-serverprefix ) migflags="$migflags $1 $2"; shift; shift;;
+	-serverstub ) migflags="$migflags $1"; shift;;
 	-32 ) migflags="$migflags $1"; cppflags="$cppflags -DMIG_32BIT"; shift;;
 
 	-I ) cppflags="$cppflags $1 $2"; shift; shift;;

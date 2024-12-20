@@ -101,6 +101,7 @@ bool BeQuiet = FALSE;
 bool BeVerbose = FALSE;
 bool UseMsgRPC = FALSE;
 bool GenSymTab = FALSE;
+bool GenServerStub = FALSE;
 bool Is32Bit = FALSE;
 
 bool IsKernelUser = FALSE;
