@@ -1,4 +1,4 @@
-LIBRARY=kmach3
+FATOBJ=kmach3
 
 CFLAGS+=-I$(SRCDIR)/../include -I$(SRCDIR) -Wno-endif-labels -DKERNEL
 

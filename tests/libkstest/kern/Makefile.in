@@ -7,8 +7,11 @@ always_mig: @MIG@ @MIGCOM@
 
 %_server.c %_server.h: $(SRCDIR)/../%.defs always_mig
 	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*_server.c -user /dev/null -sheader $*_server.h $<
+SRCS+= ks_server.c
 
-SRCS+= ks_server.c ks.c
+CFLAGS+=-I$(SRCDIR)/../include
+
+SRCS+= ks.c ks_sysc.c
 
 @COMPILE_IN_KERNEL@
 @COMPILE_LIBNUX@

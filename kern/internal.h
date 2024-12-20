@@ -770,7 +770,14 @@ void host_init (void);
 struct portref host_getctrlport (struct host *host);
 struct portref host_getnameport (struct host *host);
 
-#include "kern.h"
+#include "kmig.h"
+
+/*
+  A Kernel Syscall Demux handler lives in a special section.
+*/
+#define __syscall_demux __attribute__((section(".data_ext1"),used))
+#define KERNEL_SYSCALL_DEMUX(_fn)		\
+  uintptr_t __syscall_demux _fn##_ptr = (uintptr_t)(_fn)
 
 #define NUXPERF_DECLARE
 #include "perf.h"
