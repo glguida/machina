@@ -230,9 +230,6 @@ main (void)
 
   ptr = (int *) 0x3000;
   printf ("ptr is %lx\n", *ptr);
-
-
-  while (1);
   return 42;
 }
 
