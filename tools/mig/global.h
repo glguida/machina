@@ -85,8 +85,13 @@
 #include <sys/types.h>
 #include "str.h"
 
-#define FALSE false
-#define TRUE true
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 extern bool BeQuiet;	/* no warning messages */
 extern bool BeVerbose;	/* summarize types, routines */

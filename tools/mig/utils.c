@@ -95,8 +95,8 @@
 #include "write.h"
 #include "utils.h"
 
-#define FALSE false
-#define TRUE true
+#define FALSE 0
+#define TRUE 1
 
 extern int vfprintf(FILE *file, const char *fmt, va_list);
 
