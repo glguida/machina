@@ -4,12 +4,23 @@
   SPDX-License-Identifier:	BSD-2-Clause
 */
 
-#ifndef _KERN_H
-#define _KERN_H
+#ifndef _KMIG_H
+#define _KMIG_H
+
+/*
+  MIG dependencies for MIG kernel code.
+*/
 
 #include <machina/types.h>
 
 #include "internal.h"
+
+/*
+  A Kernel MIG Server Demux pointer lives in a special section.
+*/
+#define __kernel_server __attribute__((section(".data_ext0"),used))
+#define KERNEL_SERVER_DEMUX(_fn)		\
+  uintptr_t __kernel_server  _fn##_ptr = (uintptr_t)(_fn)
 
 /*
   Task References.

@@ -86,5 +86,5 @@ type mcn_procset_name_t = mcn_portid_t
 		;
 
 #if	KERNEL_SERVER
-simport <kern.h>;
+simport <kmig.h>;
 #endif

@@ -1,11 +1,16 @@
 LIBRARY=ks_user
-SRCS+= ks.c
+SRCS+= ks_user.c
+
+CFLAGS+=-I$(SRCDIR)/../include -I$(SRCDIR) -I$(BUILDDIR)
+SRCS+=kslib.c
 
 .PHONY: always_mig
 always_mig: @MIG@ @MIGCOM@
 
-%.c %.h: $(SRCDIR)/../%.defs always_mig
-	@MIG@ -isystem $(SRCROOT)/include -server /dev/null -user $*.c -header $*.h $<
+%_user.c %_user.h: $(SRCDIR)/../%.defs always_mig
+	@MIG@ -isystem $(SRCROOT)/include -server /dev/null -user $*_user.c -header $*_user.h $<
+
+kslib.c: ks_user.h
 
 @COMPILE_LIBMACHINA@
 @COMPILE_LIBNUX_USER@

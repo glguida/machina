@@ -391,6 +391,14 @@ WriteEpilog(FILE *file, const statement_t *stats)
     fprintf(file, "\n");
 
     /*
+     * If Kernel Server, declare which function is the Server Demux.
+     */
+    if (IsKernelServer) {
+        fprintf(file, "KERNEL_SERVER_DEMUX(%s);\n", ServerDemux);
+        fprintf(file, "\n");
+    }
+
+    /*
      * Then, the <subsystem>_server_routine routine
      */
     fprintf(file, "mig_external mig_routine_t %s_routine\n", ServerDemux);

@@ -1,2 +1,3 @@
 SUBDIRS= libkutest libkstest libcstest test
 
+test: libkutest libkstest libcstest

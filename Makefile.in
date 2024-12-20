@@ -23,9 +23,11 @@ endif
 
 bootstrap: libmachina
 
-tests: tools/mig
+tests: tools/mig libmachina
 
 tests kern bootstrap: nux
+
+kern: tests
 
 machina_qemu: kern bootstrap
 	cp $(APXH) $@

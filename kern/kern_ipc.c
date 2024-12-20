@@ -15,7 +15,8 @@
 #define KIPC_PRINT printf
 #endif
 
-extern bool kstest_server (mcn_msgheader_t *, mcn_msgheader_t *);
+extern uintptr_t _data_ext0_start[];
+extern uintptr_t _data_ext0_end[];
 
 void
 ipc_kern_exec (void)
@@ -26,6 +27,7 @@ ipc_kern_exec (void)
   while (msgq_deq (&cur_cpu ()->kernel_msgq, &msgh))
     {
       char buf [MSGBUF_SIZE];
+      bool (**demux)(mcn_msgheader_t *, mcn_msgheader_t *);
 
 #ifdef KIPC_DEBUG
       KIPC_PRINT ("KERNEL SERVER INPUT:\n");
@@ -39,7 +41,16 @@ ipc_kern_exec (void)
       if (!ipcport_isnull (msgh->msgh_remote))
 	ipcport_forceref (msgh->msgh_remote);
 
-      kstest_server (msgh, (mcn_msgheader_t *) buf);
+      /*
+	Iterate through all the server demux linked to the kernel,
+	until we find one that handles the message.
+	Otherwhise we return the last unhandled demux message, which
+	will contain an error.
+      */
+      for (demux = (void *)_data_ext0_start; (void *)demux < (void *)_data_ext0_end; demux++)
+	if ((*demux)(msgh, (mcn_msgheader_t *)buf))
+	  break;
+
       /* Done with the request. Consume and free it. */
       ipc_intmsg_consume (msgh);
 
