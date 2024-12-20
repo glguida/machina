@@ -1,0 +1,5 @@
+OBJS+= @KUTEST_BUILDDIR@/$(OBJDIR)/kutest.o
+
+# This test is special, generates MIG functions that are called
+# directly by the kernel. It is temporary.
+CFLAGS+= -I@KUTEST_BUILDDIR@

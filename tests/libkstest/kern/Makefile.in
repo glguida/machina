@@ -1,12 +1,14 @@
-LIBRARY=ks_kern
+FATOBJ=kstest
+
+CFLAGS+= -I$(BUILDDIR)
 
 .PHONY: always_mig
 always_mig: @MIG@ @MIGCOM@
 
-%.c %.h: $(SRCDIR)/../%.defs always_mig
-	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*.c -user /dev/null -sheader $*.h $<
+%_server.c %_server.h: $(SRCDIR)/../%.defs always_mig
+	@MIG@ -DKERNEL_SERVER -isystem $(SRCROOT)/include -server $*_server.c -user /dev/null -sheader $*_server.h $<
 
-SRCS+= ks.c
+SRCS+= ks_server.c ks.c
 
 @COMPILE_IN_KERNEL@
 @COMPILE_LIBNUX@

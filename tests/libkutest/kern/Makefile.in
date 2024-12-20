@@ -1,6 +1,5 @@
-LIBRARY=ku_kern
+FATOBJ=kutest
 SRCS+= ku.c
 
 @COMPILE_LIBEC@
 @COMPILE_LIBNUX@
-

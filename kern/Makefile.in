@@ -7,19 +7,11 @@ NUX_KERNEL=machina
 
 CFLAGS+=-I$(SRCDIR)
 
-# Add libkstest
-CFLAGS+=-I$(BUILDROOT)/tests/libkstest/kern -I$(SRCROOT)/tests/libkstest/kern
-LDFLAGS+=-L$(BUILDROOT)/tests/libkstest/kern/$(OBJDIR)
-LDADD+=-lks_kern
-LIBDEPS+=$(BUILDROOT)/tests/libkstest/kern/$(OBJDIR)/libks_kern.a
-
-# Add libkutest
-CFLAGS+=-I$(BUILDROOT)/tests/libkutest/kern -I$(SRCROOT)/tests/libkutest/kern
-LDFLAGS+=-L$(BUILDROOT)/tests/libkutest/kern/$(OBJDIR)
-LDADD+=-lku_kern
-LIBDEPS+=$(BUILDROOT)/tests/libkutest/kern/$(OBJDIR)/libku_kern.a
-
 SRCS+= main.c msgbuf.c physmem.c memcache.c memctrl.c task.c vashare.c vmmap.c vmobj.c thread.c sysc.c ipc.c ipcspace.c port.c kern_ipc.c sched.c timer.c vmreg.c cacheobj.c imap.c host.c 
+
+# Kernel modules
+@KMOD_KSTEST@
+@KMOD_KUTEST@
 
 @COMPILE_LIBEC@
 @COMPILE_LIBNUX@

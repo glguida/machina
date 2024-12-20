@@ -1,6 +1,6 @@
 AC_INIT([MACHINA],[0.0])
 
-AC_CONFIG_MACRO_DIRS([nux/m4])
+AC_CONFIG_MACRO_DIRS([nux/m4 m4])
 AC_CONFIG_SUBDIRS(nux)
 nux_dir=nux
 libec_dir=nux/libec
@@ -11,6 +11,9 @@ AC_NUXROOT_DIR([${nux_dir}])
 AC_LIBEC_DIR([${libec_dir}])
 
 AC_SUBST(COMPILE_IN_KERNEL,["include "'$(SRCROOT)'"/kern/compile-in-kernel.mk"])
+AC_KMOD_DIR(kstest, tests/libkstest/kern)
+AC_KMOD_DIR(kutest, tests/libkutest/kern)
+
 AC_LIB_DIR(libmachina,libmachina)
 AC_LIB_DIR(libmach3,libmach3/user)
 AC_LIB_DIR(libkmach3,libmach3/kern)
