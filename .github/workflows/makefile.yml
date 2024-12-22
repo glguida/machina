@@ -25,8 +25,8 @@ jobs:
 
     - name: Setup environment
       run: |
-        echo "${{ github.workspace }}/toolchain/install/bin" >> $GITHUB_PATH
-        chmod +x toolchain/install/bin/*
+        echo "${{ github.workspace }}/toolchain/bin" >> $GITHUB_PATH
+        chmod +x toolchain/bin/*
 
     - name: Build AMD64
       run: |
