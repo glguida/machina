@@ -14,40 +14,31 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Cache toolchain
-      id: cache-toolchain
-      uses: actions/cache@v3
-      with:
-        path: toolchain
-        key: ${{ runner.os }}-toolchain-${{ hashFiles('toolchain/**') }}
-        restore-keys: |
-          ${{ runner.os }}-toolchain-
-
     - name: Download GCC Toolchain
-      if: steps.cache-toolchain.outputs.cache-hit != 'true'
-      uses: dawidd6/action-download-artifact@v2
+      if: steps.cache-check.outputs.cache-hit != 'true'
+      uses: dawidd6/action-download-artifact@v6
       with:
         github_token: ${{ github.token }}
         workflow: makefile.yml
-        name: cross-toolchains
+        name: gcc-toolchain
         repo: glguida/gcc_toolchain_build
-        path: toolchain
 
-    - name: Setup environment
+    - name: Untar Toolchain
       run: |
-        echo "${{ github.workspace }}/toolchain/bin" >> $GITHUB_PATH
-        chmod +x toolchain/bin/*
+        tar xfvJ gcc_toolchain.tar.xz
+        TOOLCHAIN_PATH=${{ github.workspace }}/gcc_toolchain_install
+        echo "$TOOLCHAIN_PATH/bin" >> "$GITHUB_PATH"
 
     - name: Submodules fetch
       run: |
         git submodule update --init --recursive
 
-    - name: Build AMD64
-      run: |
-        ./configure ARCH=amd64
-        make -j$(nproc)
-
     - name: Build RISCV64
       run: |
         ./configure ARCH=riscv64
+        make -j$(nproc)
+
+    - name: Build AMD64
+      run: |
+        ./configure ARCH=amd64
         make -j$(nproc)
