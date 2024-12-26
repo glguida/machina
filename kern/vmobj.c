@@ -17,6 +17,23 @@ struct slab vmobjlocks;
 struct slab vmobjs;
 struct slab cobjmappings;
 
+static bool
+_default_pgreq_empty(void *opq, struct cacheobj *cobj, mcn_vmoff_t off, mcn_vmprot_t reqprot)
+{
+  /*
+    Zero-fill objects. No protection mask by the pager.
+  */
+  memcache_zeropage_new (cobj, off, true, MCN_VMPROT_NONE);
+  return true;
+}
+
+static struct objpager _default_pager =
+  {
+    .opq = NULL,
+    .pgreq_empty = _default_pgreq_empty,
+  };
+
+
 unsigned long *
 vmobj_refcnt (struct vmobj *vmobj)
 {
@@ -47,7 +64,7 @@ vmobj_bootstrap (uaddr_t *outbase, size_t *outsize)
   /*
     Create object.
   */
-  ref = vmobj_new (true, size);
+  ref = vmobj_new (NULL, size);
   struct vmobj *vmobj = vmobjref_unsafe_get (&ref);
 
   VMOBJ_PRINT ("VMOBJ %p BOOTSTRAP: BASE %lx Size %lx\n",
@@ -83,7 +100,7 @@ vmobj_bootstrap (uaddr_t *outbase, size_t *outsize)
 }
 
 struct vmobjref
-vmobj_new (bool private, size_t size)
+vmobj_new (struct objpager *pager, size_t size)
 {
   struct vmobj *obj;
   struct vmobjref ref;
@@ -94,7 +111,12 @@ vmobj_new (bool private, size_t size)
   port_alloc_kernel ((void *) obj, KOT_VMOBJ, &obj->control_port);
   port_alloc_kernel ((void *) obj, KOT_VMOBJ_NAME, &obj->name_port);
   spinlock_init (obj->lock);
-  obj->private = private;
+
+  if (pager == NULL)
+    obj->pager = &_default_pager;
+  else
+    obj->pager = pager;
+
   cacheobj_init (&obj->cobj, size);
   obj->shadow = VMOBJREF_NULL;
   obj->copy = NULL;
@@ -112,7 +134,6 @@ vmobj_shadowcopy (struct vmobjref *ref)
   spinlock (obj->lock);
   new->lock = obj->lock;	/* Shadow chains share the same lock. */
   cacheobj_shadow (&obj->cobj, &new->cobj);
-  new->private = true;
   port_alloc_kernel ((void *) new, KOT_VMOBJ, &new->control_port);
   port_alloc_kernel ((void *) new, KOT_VMOBJ_NAME, &new->name_port);
 
@@ -156,37 +177,6 @@ vmobj_zeroref (struct vmobj *obj)
   slab_free(obj);
 }
 
-
-/*
-  Insert a zero page in the VM object.
-
-  If we're requesting a writable map, push the shared zero page to the copy.
-*/
-static void
-_vmobj_insertzeropage (struct vmobj *obj, mcn_vmoff_t off,
-		       mcn_vmprot_t reqprot)
-{
-  if (reqprot & MCN_VMPROT_WRITE)
-    {
-      if (obj->copy)
-	{
-	  struct vmobj *copy_obj = obj->copy;
-	  ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	  VMOBJ_PRINT ("VMOBJ: PUSHING ZERO PAGE to OBJ %p OFF %lx (ipte: %" PRIx64
-		  "\n", &copy_obj->cobj, off, copy_ipte.raw);
-	  if (ipte_empty (&copy_ipte))
-	    memcache_zeropage_new (&copy_obj->cobj, off, true,
-				   MCN_VMPROT_NONE);
-	}
-      memcache_zeropage_new (&obj->cobj, off, false, MCN_VMPROT_NONE);
-    }
-  else
-    {
-      memcache_zeropage_new (&obj->cobj, off, true, MCN_VMPROT_NONE);
-    }
-}
-
-
 /*
   Request the PFN for the object, with permission reqprot.
 */
@@ -197,84 +187,83 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   bool ret;
   ipte_t ipte;
   struct vmobj *vmobj;
+#define PAGER(_o) ((_o)->pager)
+#define PAGER_OPQ(_o) ((_o)->pager->opq)
 
   spinlock (tgtobj->lock);
-  VMOBJ_PRINT ("VMOBJ: FAULT FOR OBJECT %p START =============================\n",
-	  tgtobj);
   vmobj = tgtobj;
-_fault_redo:
 
-  VMOBJ_PRINT ("PAGE FAULT AT CACHE OBJECT %p OFFSET %lx\n", &vmobj->cobj, off);
+  nuxperf_inc (&pmachina_vmobj_faults);
+  VMOBJ_PRINT ("=== VMOBJ: FAULT FOR OBJECT %p START: COBJ %p OFF %lx ===\n",
+	       tgtobj, &vmobj->cobj, off);
+
+ _fault_redo:
+
+  /*
+    First, make sure that the page table is up-to-date with the cache object.
+  */
   ipte = cacheobj_updatemapping (&vmobj->cobj, off, vmreg->cobjm);
 
   VMOBJ_PRINT ("IPTE IS %" PRIx64 "\n", ipte.raw);
   switch (ipte_status (&ipte))
     {
     case STIPTE_EMPTY:
-      VMOBJ_PRINT ("IPTE EMPTY");
-
       /*
-         If we have a shadow, search for a page there.
-       */
+	Never accessed this page before.
+      */
+
+      nuxperf_inc (&pmachina_vmobj_fault_empty);
+      VMOBJ_PRINT ("IPTE EMPTY");
       if (vmobjref_unsafe_get (&vmobj->shadow) != NULL)
 	{
+	  /*
+	    If we have a shadow, search for a page there.
+	  */
+	  nuxperf_inc (&pmachina_vmobj_fault_empty_shdw);
 	  vmobj = vmobjref_unsafe_get (&vmobj->shadow);
 	  goto _fault_redo;
-	}
-      else if (vmobj->private)
-	{
-	  /*
-	     Private objects can request zero pages directly.
-	   */
-	  _vmobj_insertzeropage (tgtobj, off, reqprot);
-	  ret = true;
 	}
       else
 	{
 	  /*
-	     XXX: PAGER REQUEST HERE.
-	   */
-	  fatal ("PAGER REQUEST UNIMPLEMENTED.");
-	  ret = false;
+	    Issue a request to the pager.
+	  */
+	  nuxperf_inc (&pmachina_vmobj_pgreq_empty);
+	  VMOBJ_PRINT("PAGER %p REQUEST\n", vmobj->pager);
+	  ret = PAGER(vmobj)->pgreq_empty(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
 	}
       break;
 
     case STIPTE_PAGINGIN:
+      nuxperf_inc (&pmachina_vmobj_pgreq_pgin);
       VMOBJ_PRINT ("IPTE PAGING IN");
-      /*
-         XXX: WAIT.
-       */
-      fatal ("PAGEIN UNIMPLEMENTED.");
-      ret = false;
+      ret = PAGER(vmobj)->pgreq_pgin(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
       break;
 
     case STIPTE_PAGINGOUT:
+      nuxperf_inc (&pmachina_vmobj_pgreq_pgout);
       VMOBJ_PRINT ("IPTE PAGING OUT");
-      /*
-         XXX: WAIT.
-       */
-      fatal ("PAGEIN UNIMPLEMENTED.");
-      ret = false;
+      ret = PAGER(vmobj)->pgreq_pgout(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
       break;
 
     case STIPTE_PAGED:
+      nuxperf_inc (&pmachina_vmobj_pgreq_paged);
       VMOBJ_PRINT ("IPTE PAGED");
-
-      /*
-         XXX: PAGER REQUEST.
-       */
-      fatal ("PAGER REQUEST UNIMPLEMENTED.");
-      ret = false;
+      ret = PAGER(vmobj)->pgreq_paged(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
       break;
 
     case STIPTE_ROSHARED:
+      nuxperf_inc (&pmachina_vmobj_fault_ro);
       VMOBJ_PRINT ("IPTE ROSHARED (reqprot: %x, protmask: %x)", reqprot,
 	    ipte_protmask (&ipte));
+
       if (reqprot & ipte_protmask (&ipte))
 	{
+	  nuxperf_inc (&pmachina_vmobj_fault_ro_unlock);
 	  ret = false;
 	  break;
 	}
+
       VMOBJ_PRINT ("IPTE ROSHARED IS SHADOW? %d\n", tgtobj != vmobj);
       if (tgtobj != vmobj)
 	{
@@ -282,6 +271,7 @@ _fault_redo:
 	     If we are in shadow fault, we have to share it with the
 	     target imap fisrt.
 	   */
+	  nuxperf_inc (&pmachina_vmobj_fault_ro_shdw);
 	  memcache_share (ipte_pfn (&ipte), &tgtobj->cobj, off,
 			  ipte_protmask (&ipte));
 	}
@@ -291,13 +281,18 @@ _fault_redo:
 	    {
 	      struct vmobj *copy_obj = tgtobj->copy;
 	      ipte_t copy_ipte = cacheobj_lookup (&copy_obj->cobj, off);
-	      VMOBJ_PRINT ("VMOBJ: PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"
+
+	      VMOBJ_PRINT ("PUSHING PFN %lx to OBJ %p OFF %lx (ipte: %"
 		      PRIx64 "\n", ipte_pfn (&ipte), &copy_obj->cobj, off,
 		      ipte.raw);
 	      if (ipte_empty (&copy_ipte))
-		memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off,
-				ipte_protmask (&ipte));
+		{
+		  nuxperf_inc (&pmachina_vmobj_fault_ro_push);
+		  memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off,
+				  ipte_protmask (&ipte));
+		}
 	    }
+	  nuxperf_inc (&pmachina_vmobj_fault_ro_unshare);
 	  memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
 			    ipte_protmask (&ipte));
 	}
@@ -306,11 +301,13 @@ _fault_redo:
       ret = true;
       break;
     case STIPTE_PRIVATE:
+      nuxperf_inc (&pmachina_vmobj_fault_priv);
       VMOBJ_PRINT ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
 	    ipte_protmask (&ipte));
       assert (tgtobj == vmobj);	/* A shadowed page cannot point to a private page. */
       if (reqprot & ipte_protmask (&ipte))
 	{
+	  nuxperf_inc (&pmachina_vmobj_fault_priv_unlock);
 	  ret = false;
 	  break;
 	}
@@ -323,6 +320,9 @@ _fault_redo:
 
   spinunlock (tgtobj->lock);
   return ret;
+
+#undef PAGER_OPQ
+#undef PAGER
 }
 
 void
