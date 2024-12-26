@@ -26,6 +26,22 @@ NUXPERF(pmachina_ipc_recv_invalidname);
 NUXPERF(pmachina_ipc_recv_dequeuefailed);
 NUXPERF(pmachina_ipc_recv_success);
 
+NUXPERF(pmachina_vmobj_faults);
+NUXPERF(pmachina_vmobj_fault_empty);
+NUXPERF(pmachina_vmobj_fault_empty_shdw);
+NUXPERF(pmachina_vmobj_fault_ro);
+NUXPERF(pmachina_vmobj_fault_ro_unlock);
+NUXPERF(pmachina_vmobj_fault_ro_shdw);
+NUXPERF(pmachina_vmobj_fault_ro_push);
+NUXPERF(pmachina_vmobj_fault_ro_unshare);
+NUXPERF(pmachina_vmobj_fault_priv);
+NUXPERF(pmachina_vmobj_fault_priv_unlock);
+
+NUXPERF(pmachina_vmobj_pgreq_empty);
+NUXPERF(pmachina_vmobj_pgreq_pgin);
+NUXPERF(pmachina_vmobj_pgreq_pgout);
+NUXPERF(pmachina_vmobj_pgreq_paged);
+
 NUXPERF(pmachina_cacheobj_addmapping);
 NUXPERF(pmachina_cacheobj_updatemapping);
 NUXPERF(pmachina_cacheobj_delmapping);

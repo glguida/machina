@@ -216,6 +216,23 @@ void memctrl_delpage (struct physmem_page *page);
 
 #include "vmobjref.h"
 
+struct objpager
+{
+  void *opq;
+  /* Request a page on a mapping that was empty */
+  bool (*pgreq_empty)(void *opq, struct cacheobj *cobj,
+		      mcn_vmoff_t off, mcn_vmprot_t reqprot);
+  /* Request a page on a mapping that's paging in */
+  bool (*pgreq_pgin)(void *opq, struct cacheobj *cobj,
+		     mcn_vmoff_t off, mcn_vmprot_t reqprot);
+  /* Request a page on a mapping that's paging out */
+  bool (*pgreq_pgout)(void *opq, struct cacheobj *cobj,
+		      mcn_vmoff_t off, mcn_vmprot_t reqprot);
+  /* Request a page on a mapping that's paged */
+  bool (*pgreq_paged)(void *opq, struct cacheobj *cobj,
+		      mcn_vmoff_t off, mcn_vmprot_t reqprot);
+};
+
 struct vmobj
 {
   unsigned long _ref_count;
@@ -225,9 +242,11 @@ struct vmobj
      chain.
    */
   lock_t *lock;
+
+  const struct objpager *pager;
+
   struct portref control_port;
   struct portref name_port;
-  bool private;
   struct cacheobj cobj;
   /*
      Shadow is a reference. Copy is not.
@@ -238,7 +257,7 @@ struct vmobj
 };
 
 void vmobj_init (void);
-struct vmobjref vmobj_new (bool private, size_t size);
+struct vmobjref vmobj_new (struct objpager *pager, size_t size);
 struct vmobjref vmobj_shadowcopy (struct vmobjref *ref);
 struct vmobjref vmobj_bootstrap (uaddr_t *base, size_t *size);
 void vmobj_addregion (struct vmobj *vmobj, struct vm_region *vmreg,

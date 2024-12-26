@@ -168,7 +168,7 @@ task_vm_allocate (struct task *t, vaddr_t * addr, size_t size, bool anywhere)
 
   TASK_PRINT ("TASK: allocating task %p size %lx anywhere %d\n", t, size,
 	  anywhere);
-  ref = vmobj_new (true, size);
+  ref = vmobj_new (NULL, size);
 
   return task_vm_map (t, addr, size, 0, anywhere, ref, 0, 0,
 		      MCN_VMPROT_DEFAULT, MCN_VMPROT_ALL,
@@ -294,7 +294,7 @@ task_bootstrap (struct taskref *taskref)
   thread_resume(threadref_unsafe_get(&threadref));
   threadref_consume(&threadref);
 
-  struct vmobjref ref = vmobj_new (true, 3 * 4096);
+  struct vmobjref ref = vmobj_new (NULL, 3 * 4096);
   //  struct vmobjref ref2 = vmobjref_clone(&ref);
   vmmap_map (&t->vmmap, 0x1000, ref, 0, 4 * 4096, MCN_VMPROT_ALL,
 	     MCN_VMPROT_ALL);
