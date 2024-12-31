@@ -387,3 +387,20 @@ memcache_init (void)
 
   slab_register (&cobjlinks, "COBJLINKS", sizeof (struct cobj_link), NULL, 0);
 }
+
+void
+memcache_tick(struct physmem_page *page)
+{
+  bool accessed;
+  struct cobj_link *v;
+
+  accessed = false;
+  spinlock (&page->lock);
+  LIST_FOREACH (v, &page->links, list)
+    accessed |= cacheobj_tick (v->cobj, v->off);
+  spinunlock (&page->lock);
+
+  (void)accessed;
+
+}
+

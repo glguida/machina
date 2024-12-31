@@ -33,9 +33,50 @@ memctrl_newpage (struct physmem_page *page)
 void
 memctrl_delpage (struct physmem_page *page)
 {
+  nuxperf_inc (&pmachina_clock_delpage);
   spinlock (&clock_lock);
   spinlock (&page->lock);
   TAILQ_REMOVE (&clock_queue, page, pageq);
   spinunlock (&page->lock);
   spinunlock (&clock_lock);
+}
+
+/*
+  A Clock Tick.
+*/
+void
+memctrl_do_tick (void)
+{
+  struct physmem_page *page;
+
+  nuxperf_inc (&pmachina_clock_tick);
+  spinlock (&clock_lock);
+  page = TAILQ_FIRST(&clock_queue);
+  TAILQ_REMOVE (&clock_queue, page, pageq);
+  TAILQ_INSERT_TAIL(&clock_queue, page, pageq);
+  memcache_tick (page);
+  spinunlock (&clock_lock);    
+}
+
+
+static unsigned long _memctrl_pending_ticks;
+
+/*
+  Enable a single tick on the clock.
+*/
+void
+memctrl_tick_one (void)
+{
+  __atomic_fetch_add (&_memctrl_pending_ticks, 1, __ATOMIC_RELAXED);
+}
+
+void
+memctrl_run_clock (void)
+{
+  unsigned long pending;
+
+  pending = __atomic_exchange_n (&_memctrl_pending_ticks, 0, __ATOMIC_RELAXED);
+
+  for (unsigned long i = 0; i < pending; i++)
+    memctrl_do_tick ();
 }

@@ -44,6 +44,7 @@ NUXPERF(pmachina_vmobj_pgreq_paged);
 
 NUXPERF(pmachina_clock_newpage);
 NUXPERF(pmachina_clock_delpage);
+NUXPERF(pmachina_clock_tick);
 
 NUXPERF(pmachina_cacheobj_addmapping);
 NUXPERF(pmachina_cacheobj_updatemapping);

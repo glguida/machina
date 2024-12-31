@@ -133,6 +133,9 @@ kern_return (void)
 
   ipc_kern_exec ();
 
+  void memctrl_run_clock ();
+  memctrl_run_clock ();
+
   uctxt = sched_next ();
 
   {

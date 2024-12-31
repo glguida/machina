@@ -224,6 +224,32 @@ _ipte_unlink_page (void *cobjopq, unsigned long off, ipte_t *ipte)
   memcache_cobjremove (ipte_pfn (ipte), cobjopq, off);
 }
 
+bool
+cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off)
+{
+  bool accessed;
+  struct cacheobj_mapping *cobjm;
+
+  accessed = false;
+  writelock (&cobj->lock);
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    unsigned flags;
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    /* Clear A-bit, accumulate old flags. */
+    flags = umap_chflags (cobjm->umap, cobjm->start + off - obj_offstart, 0, HAL_PTE_A);
+    if ((flags & (HAL_PTE_P|HAL_PTE_A)) == (HAL_PTE_P|HAL_PTE_A))
+      accessed |= true;
+    umap_commit (cobjm->umap);
+  }
+  writeunlock (&cobj->lock);
+
+  return accessed;
+}
+
 void
 cacheobj_destroy (struct cacheobj *cobj)
 {
