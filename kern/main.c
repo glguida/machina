@@ -32,7 +32,7 @@ static struct timer timer;
 static void
 _print_perfctr (void *unused, nuxperf_t *ctr)
 {
-  printf ("ctr: %-20s\t%20ld\n", ctr->name, ctr->val);
+  printf ("ctr: %-32s\t%20ld\n", ctr->name, ctr->val);
 }
 
 static void _timer_handler (void *opq)
@@ -52,6 +52,8 @@ static void _timer_handler (void *opq)
   nuxperf_reset();
   nuxmeasure_print ();
   nuxmeasure_reset();
+
+  printf ("CPUID: %d\n", cpu_id());
 }
 
 void
@@ -207,9 +209,9 @@ entry_pf (uctxt_t * uctxt, vaddr_t va, hal_pfinfo_t pfi)
   if (cur_thread ()->uctxt != UCTXT_IDLE)
     *cur_thread ()->uctxt = *uctxt;
 
-  printf ("cur_thread(): %p\n", cur_thread ());
-  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
-  uctxt_print (uctxt);
+  //  printf ("cur_thread(): %p\n", cur_thread ());
+  //  info ("CPU #%d Pagefault at %08lx (%x)", cpu_id (), va, pfi);
+  //  uctxt_print (uctxt);
 
   req = MCN_VMPROT_READ;
   req |= pfi & HAL_PF_INFO_WRITE ? MCN_VMPROT_WRITE : 0;

@@ -81,15 +81,7 @@ cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 
   writelock (&cobj->lock);
   LIST_INSERT_HEAD (&cobj->mappings, cobjm, list);
-  /*
-    Unneeded really, but let's be paranoid for now.
-  */
-  for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
-       i += PAGE_SIZE)
-    {
-      umap_unmap (cobjm->umap, i);
-    }
-  umap_commit (cobjm->umap);
+
   writeunlock (&cobj->lock);
 }
 
@@ -148,6 +140,7 @@ _ipte_roshare (unsigned long off, ipte_t * ipte)
 {
   assert (ipte->p);
   ipte->roshared = 1;
+  /* XXX: HOLD ON, SHOULDN'T REMOVE WRITABLE HERE? */
 }
 
 void

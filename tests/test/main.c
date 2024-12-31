@@ -230,6 +230,19 @@ main (void)
 
   ptr = (int *) 0x3000;
   printf ("ptr is %lx\n", *ptr);
+
+
+  /*
+    Test over-allocation: Allocate 100Gb.
+  */
+  const unsigned long bigsize = 100L * 1024 * 1024 * 1024;
+  printf ("vm allocate %lx\n",
+	  syscall_vm_allocate (syscall_task_self (), &addr, bigsize, 1));
+
+  /* Now populate it. */
+  for (unsigned long i = 0; i < (bigsize >> 12); i++)
+    *(volatile int *)(addr + i * 4096) = i;
+
   return 42;
 }
 
