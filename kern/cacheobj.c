@@ -81,15 +81,7 @@ cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 
   writelock (&cobj->lock);
   LIST_INSERT_HEAD (&cobj->mappings, cobjm, list);
-  /*
-    Unneeded really, but let's be paranoid for now.
-  */
-  for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
-       i += PAGE_SIZE)
-    {
-      umap_unmap (cobjm->umap, i);
-    }
-  umap_commit (cobjm->umap);
+
   writeunlock (&cobj->lock);
 }
 
@@ -148,6 +140,7 @@ _ipte_roshare (unsigned long off, ipte_t * ipte)
 {
   assert (ipte->p);
   ipte->roshared = 1;
+  /* XXX: HOLD ON, SHOULDN'T REMOVE WRITABLE HERE? */
 }
 
 void
@@ -222,6 +215,32 @@ _ipte_unlink_page (void *cobjopq, unsigned long off, ipte_t *ipte)
   COBJ_PRINT("CACHEOBJ: UNLINKING OBJ %p OFF %d ipte: %lx\n",
 	 cobjopq, off, *ipte);
   memcache_cobjremove (ipte_pfn (ipte), cobjopq, off);
+}
+
+bool
+cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off)
+{
+  bool accessed;
+  struct cacheobj_mapping *cobjm;
+
+  accessed = false;
+  writelock (&cobj->lock);
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    unsigned flags;
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    /* Clear A-bit, accumulate old flags. */
+    flags = umap_chflags (cobjm->umap, cobjm->start + off - obj_offstart, 0, HAL_PTE_A);
+    if ((flags & (HAL_PTE_P|HAL_PTE_A)) == (HAL_PTE_P|HAL_PTE_A))
+      accessed |= true;
+    umap_commit (cobjm->umap);
+  }
+  writeunlock (&cobj->lock);
+
+  return accessed;
 }
 
 void

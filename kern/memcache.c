@@ -118,8 +118,9 @@ _zeropage_private (struct cobj_link *cl)
   pfn_t pfn;
   struct physmem_page *page;
 
-  pfn = pfn_alloc (0);
-  assert (pfn != PFN_INVALID);
+  pfn = userpfn_alloc ();
+  if (pfn == PFN_INVALID)
+    return pfn;
   page = _get_entry (pfn);
 
   spinlock_init (&page->lock);
@@ -140,8 +141,9 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   void *dst, *src;
 
   assert (pfn != PFN_INVALID);
-  newpfn = pfn_alloc (0);
-  assert (newpfn != PFN_INVALID);
+  newpfn = userpfn_alloc ();
+  if (newpfn == PFN_INVALID)
+    return newpfn;
 
   src = pfn_get (pfn);
   dst = pfn_get (newpfn);
@@ -151,7 +153,8 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
 
   page = _get_entry (newpfn);
   spinlock_init (&page->lock);
-
+  /* Remove from old list. */
+  LIST_REMOVE (cl, list);
   LIST_INSERT_HEAD (&page->links, cl, list);
   page->links_no = 1;
 
@@ -197,6 +200,11 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
       cl->cobj = obj;
       cl->off = off;
       pfn = _zeropage_private (cl);
+      if (pfn == PFN_INVALID)
+	{
+	  slab_free (cl);
+	  return;
+	}
     }
 
   ipte_t old = cacheobj_map (obj, off, pfn, roshared, protmask);
@@ -262,6 +270,12 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       cl->cobj = obj;
       cl->off = off;
       outpfn = _zeropage_private (cl);
+      if (outpfn == PFN_INVALID)
+	{
+	  slab_free (cl);
+	  spinunlock (&page->lock);
+	  return;
+	}
     }
   else if (page->links_no == 1)
     {
@@ -275,15 +289,13 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       MEMCACHE_PRINT ("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
 
       /*
-         First, find and remove the link.
+         First, find the link.
        */
       found = NULL;
       LIST_FOREACH_SAFE (v, &page->links, list, t)
       {
 	if ((v->cobj == obj) && (v->off == off))
 	  {
-	    page->links_no -= 1;
-	    LIST_REMOVE (v, list);
 	    found = v;
 	    break;
 	  }
@@ -291,9 +303,15 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       assert (found != NULL);
 
       /*
-         Then, allocate a page and link it to the object.
+         Then, allocate a page and move the link to the new one.
        */
       outpfn = _duplicate_private (pfn, found);
+      if (outpfn == PFN_INVALID)
+	{
+	  spinunlock (&page->lock);
+	  return;
+	}
+      page->links_no -= 1;
     }
 
   /*
@@ -352,7 +370,7 @@ physmemdb_init (void)
   unsigned long maxpfn = hal_physmem_maxrampfn ();
   unsigned long l0_entries = NUM_ENTRIES;
   unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
-  size_t l1_size = sizeof (struct physpage *) * l1_entries;
+  size_t l1_size = sizeof (struct physmem_page *) * l1_entries;
 
   physmem_db = (struct physmem_page **) kmem_alloc (0, l1_size);
   memset (physmem_db, 0, l1_size);
@@ -369,3 +387,20 @@ memcache_init (void)
 
   slab_register (&cobjlinks, "COBJLINKS", sizeof (struct cobj_link), NULL, 0);
 }
+
+void
+memcache_tick(struct physmem_page *page)
+{
+  bool accessed;
+  struct cobj_link *v;
+
+  accessed = false;
+  spinlock (&page->lock);
+  LIST_FOREACH (v, &page->links, list)
+    accessed |= cacheobj_tick (v->cobj, v->off);
+  spinunlock (&page->lock);
+
+  (void)accessed;
+
+}
+

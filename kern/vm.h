@@ -171,6 +171,7 @@ struct cacheobj
 };
 /**INDENT-ON**/
 
+struct physmem_page;
 struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
 void cacheobj_addmapping (struct cacheobj *cobj,
@@ -182,7 +183,9 @@ ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 		     bool roshared, mcn_vmprot_t protmask);
 ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
+bool cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_destroy (struct cacheobj *cobj);
+
 
 void memcache_init (void);
 void memcache_existingpage (struct cacheobj *obj, mcn_vmoff_t off, pfn_t pfn, mcn_vmprot_t protmask);
@@ -193,6 +196,7 @@ void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 void memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
 			mcn_vmprot_t protmask);
 void memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off);
+void memcache_tick(struct physmem_page *page);
 
 /**INDENT-OFF**/
 struct cobj_link
@@ -211,6 +215,7 @@ struct physmem_page
 };
 /**INDENT-ON**/
 
+void memctrl_tick_one (void);
 void memctrl_newpage (struct physmem_page *page);
 void memctrl_delpage (struct physmem_page *page);
 

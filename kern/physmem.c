@@ -23,7 +23,19 @@
   'reserved_pages' free for immediate use by the kernel.
 */
 
+/*
+  The pages available in the system. Calculated at boot.
+*/
 static unsigned long total_pages;
+
+/*
+  When we're below the watermark, clock starts, one tick per allocation.
+*/
+static unsigned long watermark_pages;
+
+/*
+  The system will try to keep reserved pages free all the time.
+*/
 static unsigned long reserved_pages;
 
 
@@ -41,6 +53,11 @@ static unsigned long reserved_pages;
 static inline void
 physmem_check (void)
 {
+  assert (pfn_avail() > reserved_pages);
+  if (pfn_avail() <= watermark_pages)
+    {
+      memctrl_tick_one ();
+    }
 }
 
 static inline pfn_t
@@ -61,11 +78,24 @@ physmem_pfnfree (pfn_t pfn)
   stree_pfnfree (pfn);
 }
 
+pfn_t
+userpfn_alloc (void)
+{
+  if (pfn_avail () <= reserved_pages)
+    {
+      memctrl_tick_one ();
+      return PFN_INVALID;
+    }
+
+  return physmem_pfnalloc (0);
+}
+
 void
 physmem_init (void)
 {
   total_pages = pfn_avail ();
   reserved_pages = MIN (RESERVED_MEMORY / PAGE_SIZE, total_pages >> 4);
+  watermark_pages = total_pages / 2;
 
   info ("Total Memory:    \t%ld Kb.", total_pages * PAGE_SIZE / 1024);
   info ("Reserved Memory: \t%ld Kb.", reserved_pages * PAGE_SIZE / 1024);
