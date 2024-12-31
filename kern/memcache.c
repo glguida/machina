@@ -370,7 +370,7 @@ physmemdb_init (void)
   unsigned long maxpfn = hal_physmem_maxrampfn ();
   unsigned long l0_entries = NUM_ENTRIES;
   unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
-  size_t l1_size = sizeof (struct physpage *) * l1_entries;
+  size_t l1_size = sizeof (struct physmem_page *) * l1_entries;
 
   physmem_db = (struct physmem_page **) kmem_alloc (0, l1_size);
   memset (physmem_db, 0, l1_size);
