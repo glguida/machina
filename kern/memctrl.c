@@ -15,16 +15,17 @@
 
 static lock_t clock_lock;
 /**INDENT-OFF**/
-static TAILQ_HEAD (, physmem_page) clock_queue;
+static TAILQ_HEAD (, physmem_page) clock_queue = TAILQ_HEAD_INITIALIZER(clock_queue);
 /**INDENT-ON**/
 
 
 void
 memctrl_newpage (struct physmem_page *page)
 {
+  nuxperf_inc (&pmachina_clock_newpage);
   spinlock (&clock_lock);
   spinlock (&page->lock);
-  TAILQ_INSERT_HEAD (&clock_queue, page, pageq);
+  TAILQ_INSERT_TAIL (&clock_queue, page, pageq);
   spinunlock (&page->lock);
   spinunlock (&clock_lock);
 }

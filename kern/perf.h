@@ -42,9 +42,13 @@ NUXPERF(pmachina_vmobj_pgreq_pgin);
 NUXPERF(pmachina_vmobj_pgreq_pgout);
 NUXPERF(pmachina_vmobj_pgreq_paged);
 
+NUXPERF(pmachina_clock_newpage);
+NUXPERF(pmachina_clock_delpage);
+
 NUXPERF(pmachina_cacheobj_addmapping);
 NUXPERF(pmachina_cacheobj_updatemapping);
 NUXPERF(pmachina_cacheobj_delmapping);
 NUXPERF(pmachina_cacheobj_shadow);
 NUXPERF(pmachina_cacheobj_map);
 NUXPERF(pmachina_cacheobj_lookup);
+
