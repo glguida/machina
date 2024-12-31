@@ -61,6 +61,11 @@
 */
 void physmem_init (void);
 
+/*
+  Allocator for user pages. Might fail.
+*/
+pfn_t userpfn_alloc (void);
+
 
 /*
   KVA Share: Shared area between kernel and userspace.
