@@ -147,6 +147,15 @@ imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
   return _get_entry (im, off, true, new);
 }
 
+/*
+  Unmap the pte at offset off. Returns the old pfn.
+*/
+ipte_t
+imap_unmap (struct imap *im, unsigned long off)
+{
+  return _get_entry (im, off, true, IPTE_EMPTY);
+}
+
 
 /*
   Get the pte at offset off.

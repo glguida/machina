@@ -135,6 +135,7 @@ struct imap
 void imap_init (struct imap *im);
 ipte_t imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
 		 mcn_vmprot_t mask);
+ipte_t imap_unmap (struct imap *im, unsigned long off);
 ipte_t imap_lookup (struct imap *im, unsigned long off);
 void imap_foreach (struct imap *im,
 		   void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq);
