@@ -163,64 +163,64 @@ imap_lookup (struct imap *im, unsigned long off)
 
 void
 _scan_l1 (ipte_t * l1ptr, unsigned long base,
-	  void (*fn) (unsigned long, ipte_t *))
+	  void (*fn) (void *, unsigned long, ipte_t *), void *opq)
 {
   for (unsigned i = 0; i < IENTRIES; i++)
     if (l1ptr[i].p)
-      fn (base + (unsigned long) i * PAGE_SIZE, l1ptr + i);
+      fn (opq, base + (unsigned long) i * PAGE_SIZE, l1ptr + i);
 }
 
 void
 _scan_l2 (ipte_t * l2ptr, unsigned long base,
-	  void (*fn) (unsigned long, ipte_t *))
+	  void (*fn) (void *, unsigned long, ipte_t *), void *opq)
 {
   for (unsigned i = 0; i < IENTRIES; i++)
     {
       ipte_t *l1ptr = _gettable (l2ptr + i, false);
       if (!l1ptr)
 	continue;
-      _scan_l1 (l1ptr, base + (i << (PAGE_SHIFT + ISHIFT)), fn);
+      _scan_l1 (l1ptr, base + (i << (PAGE_SHIFT + ISHIFT)), fn, opq);
       _puttable (l2ptr[i], l1ptr);
     }
 }
 
 void
 _scan_l3 (ipte_t * l3ptr, unsigned long base,
-	  void (*fn) (unsigned long, ipte_t *))
+	  void (*fn) (void *, unsigned long, ipte_t *), void *opq)
 {
   for (unsigned i = 0; i < IENTRIES; i++)
     {
       ipte_t *l2ptr = _gettable (l3ptr + i, false);
       if (!l2ptr)
 	continue;
-      _scan_l2 (l2ptr, base + (i << (PAGE_SHIFT + ISHIFT + ISHIFT)), fn);
+      _scan_l2 (l2ptr, base + (i << (PAGE_SHIFT + ISHIFT + ISHIFT)), fn, opq);
       _puttable (l3ptr[i], l2ptr);
     }
 }
 
 void
-imap_foreach (struct imap *im, void (*fn) (unsigned long off, ipte_t * ipte))
+imap_foreach (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq)
 {
   ipte_t *table;
 
   table = _gettable (&im->l1, false);
   if (table)
     {
-      _scan_l1 (table, 0, fn);
+      _scan_l1 (table, 0, fn, opq);
       _puttable (im->l1, table);
     }
 
   table = _gettable (&im->l2, false);
   if (table)
     {
-      _scan_l2 (table, 0, fn);
+      _scan_l2 (table, 0, fn, opq);
       _puttable (im->l2, table);
     }
 
   table = _gettable (&im->l3, false);
   if (table)
     {
-      _scan_l3 (table, 0, fn);
+      _scan_l3 (table, 0, fn, opq);
       _puttable (im->l3, table);
     }
 }

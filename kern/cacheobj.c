@@ -136,8 +136,9 @@ cacheobj_delmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 }
 
 static void
-_ipte_roshare (unsigned long off, ipte_t * ipte)
+_ipte_roshare (void *opq, unsigned long off, ipte_t * ipte)
 {
+  (void)opq;
   assert (ipte->p);
   ipte->roshared = 1;
   /* XXX: HOLD ON, SHOULDN'T REMOVE WRITABLE HERE? */
@@ -153,7 +154,7 @@ cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow)
   writelock (&orig->lock);
   /* shadow is unitialised. Shouldn't get the lock. */
   cacheobj_init (shadow, orig->size);
-  imap_foreach (&orig->map, _ipte_roshare);
+  imap_foreach (&orig->map, _ipte_roshare, NULL);
   writeunlock (&orig->lock);
 }
 
