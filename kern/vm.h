@@ -186,6 +186,7 @@ ipte_t cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off);
 ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
 bool cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off);
+void cacheobj_foreach (struct cacheobj *cobj, void (*fn)(void *obj, unsigned long off, ipte_t *ipte));
 void cacheobj_destroy (struct cacheobj *cobj);
 
 

@@ -282,9 +282,15 @@ cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off)
 }
 
 void
+cacheobj_foreach (struct cacheobj *cobj, void (*fn)(void *obj, unsigned long off, ipte_t *ipte))
+{
+  imap_foreach (&cobj->map, fn, cobj);
+}
+
+void
 cacheobj_destroy (struct cacheobj *cobj)
 {
-  imap_free (&cobj->map, _ipte_unlink_page, cobj);
+  imap_free (&cobj->map, _never_called, NULL);
   assert (LIST_EMPTY(&cobj->mappings));
 }
 
