@@ -246,15 +246,6 @@ cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off)
   return ret;
 }
 
-static void
-_ipte_unlink_page (void *cobjopq, unsigned long off, ipte_t *ipte)
-{
-  assert (ipte->p);
-  COBJ_PRINT("CACHEOBJ: UNLINKING OBJ %p OFF %d ipte: %lx\n",
-	 cobjopq, off, *ipte);
-  memcache_cobjremove (ipte_pfn (ipte), cobjopq, off);
-}
-
 bool
 cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off)
 {
@@ -285,6 +276,13 @@ void
 cacheobj_foreach (struct cacheobj *cobj, void (*fn)(void *obj, unsigned long off, ipte_t *ipte))
 {
   imap_foreach (&cobj->map, fn, cobj);
+}
+
+static void
+_never_called (void *opq, unsigned long off, ipte_t *pte)
+{
+  fatal ("destroyed cacheobject %p still has mappings? %lx (%"PRIx64"\n",
+	 opq, off, pte->raw);
 }
 
 void

@@ -354,6 +354,9 @@ memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
   LIST_REMOVE (n, list);
   if (--page->links_no == 0)
     del = true;
+
+  cacheobj_unmap (obj, off);
+
   spinunlock (&page->lock);
 
   if (del)

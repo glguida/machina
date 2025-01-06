@@ -153,6 +153,16 @@ vmobj_shadowcopy (struct vmobjref *ref)
   return newref;
 }
 
+static void
+_cacheobj_unlink_page (struct cacheobj *cobj, unsigned long off, ipte_t *ipte)
+{
+  assert (ipte->p);
+  VMOBJ_PRINT("CACHEOBJ: UNLINKING OBJ %p OFF %d ipte: %lx\n",
+	 cobj, off, *ipte);
+
+  memcache_cobjremove (ipte_pfn (ipte), cobj, off);
+}
+
 void
 vmobj_zeroref (struct vmobj *obj)
 {
@@ -173,6 +183,8 @@ vmobj_zeroref (struct vmobj *obj)
   VMOBJ_PRINT("VMOBJ %p: UNLINK NAME PORT %p\n", obj, portref_unsafe_get(&obj->name_port));
   port_unlink_kernel(&obj->name_port);
   VMOBJ_PRINT("VMOBJ %p: DESTROY CACHEOBJ %p\n", obj, &obj->cobj);
+
+  cacheobj_foreach(&obj->cobj, (void (*)(void *, mcn_vmoff_t, ipte_t *))_cacheobj_unlink_page);
   cacheobj_destroy(&obj->cobj);
   slab_free(obj);
 }
