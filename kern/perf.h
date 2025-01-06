@@ -51,5 +51,6 @@ NUXPERF(pmachina_cacheobj_updatemapping);
 NUXPERF(pmachina_cacheobj_delmapping);
 NUXPERF(pmachina_cacheobj_shadow);
 NUXPERF(pmachina_cacheobj_map);
+NUXPERF(pmachina_cacheobj_unmap);
 NUXPERF(pmachina_cacheobj_lookup);
 

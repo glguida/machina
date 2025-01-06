@@ -197,6 +197,43 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 }
 
 ipte_t
+cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off)
+{
+  ipte_t old;
+  struct cacheobj_mapping *cobjm;
+
+  nuxperf_inc (&pmachina_cacheobj_unmap);
+
+  off = trunc_page (off);
+
+  COBJ_PRINT
+    ("CACHEOBJ: %p: unmapping offset %lx with pfn %lx (roshared: %d prot: %x)\n",
+     cobj, off, pfn, roshared, protmask);
+
+  writelock (&cobj->lock);
+  old = imap_unmap (&cobj->map, off);
+
+  /*
+    Update all cobj mappings.
+  */
+
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    COBJ_PRINT ("CACHEOBJ %p: Clearing umap %p va %lx (off %lx)\n",
+	    cobj, cobjm->umap, cobjm->start + off - obj_offstart, off);
+    umap_unmap (cobjm->umap, cobjm->start + off - obj_offstart);
+    umap_commit (cobjm->umap);
+  }
+  writeunlock (&cobj->lock);
+
+  return old;
+}
+
+ipte_t
 cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off)
 {
   ipte_t ret;

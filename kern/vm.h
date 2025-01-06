@@ -182,6 +182,7 @@ void cacheobj_delmapping (struct cacheobj *cobj,
 			  struct cacheobj_mapping *cobjm);
 ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 		     bool roshared, mcn_vmprot_t protmask);
+ipte_t cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off);
 ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
 bool cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off);
