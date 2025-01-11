@@ -206,9 +206,7 @@ cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off)
 
   off = trunc_page (off);
 
-  COBJ_PRINT
-    ("CACHEOBJ: %p: unmapping offset %lx with pfn %lx (roshared: %d prot: %x)\n",
-     cobj, off, pfn, roshared, protmask);
+  COBJ_PRINT ("CACHEOBJ: %p: unmapping offset %lx)\n", cobj, off);
 
   writelock (&cobj->lock);
   old = imap_unmap (&cobj->map, off);
