@@ -127,6 +127,7 @@ ipte_status (ipte_t * i)
 */
 struct imap
 {
+  ipte_t l0;
   ipte_t l1;
   ipte_t l2;
   ipte_t l3;

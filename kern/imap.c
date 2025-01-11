@@ -27,6 +27,7 @@
 void
 imap_init (struct imap *im)
 {
+  im->l0 = IPTE_EMPTY;
   im->l1 = IPTE_EMPTY;
   im->l2 = IPTE_EMPTY;
   im->l3 = IPTE_EMPTY;
@@ -70,7 +71,14 @@ _get_entry (struct imap *im, unsigned long off, const bool set, ipte_t newval)
   unsigned l3idx = L3IDX (off);
   ipte_t ret;
 
-  if ((l3idx == 0) && (l2idx == 0))
+  if ((l3idx == 0) && (l2idx == 0) && (l1idx == 0))
+    {
+      IMAP_PRINT ("IMAP: %s L0: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
+      ret = im->l0;
+      if (set)
+	im->l0 = newval;
+    }
+  else if ((l3idx == 0) && (l2idx == 0))
     {
       ipte_t *l1ptr;
       IMAP_PRINT ("IMAP: %s L1: %d-%d-%d", set ? "SET" : "GET", l3idx, l2idx, l1idx);
@@ -212,6 +220,9 @@ imap_foreach (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t 
 {
   ipte_t *table;
 
+  if (im->l0.p)
+    fn (opq, 0, &im->l0);
+
   table = _gettable (&im->l1, false);
   if (table)
     {
@@ -283,6 +294,9 @@ void
 imap_free (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq)
 {
   ipte_t *table;
+
+  if (im->l0.p)
+    fn (opq, 0, &im->l0);
 
   table = _gettable (&im->l1, false);
   if (table)
