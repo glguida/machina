@@ -164,6 +164,17 @@ imap_unmap (struct imap *im, unsigned long off)
   return _get_entry (im, off, true, IPTE_EMPTY);
 }
 
+/*
+  Unmap the pte at offset off, mark it as swapped out.
+*/
+ipte_t
+imap_swapout (struct imap *im, unsigned long off)
+{
+  ipte_t new;
+  new.raw = 0;
+  new.status = STIPTE_PAGED;
+  return _get_entry (im, off, true, new);
+}
 
 /*
   Get the pte at offset off.

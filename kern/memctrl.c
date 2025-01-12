@@ -17,7 +17,25 @@ static lock_t clock_lock;
 /**INDENT-OFF**/
 static TAILQ_HEAD (, physmem_page) clock_queue = TAILQ_HEAD_INITIALIZER(clock_queue);
 /**INDENT-ON**/
+static bool swapout_enabled = false;
 
+void
+memctrl_swapout_enable (void)
+{
+  __atomic_store_n (&swapout_enabled, true, __ATOMIC_RELAXED);
+}
+
+void
+memctrl_swapout_disable (void)
+{
+  __atomic_store_n (&swapout_enabled, false, __ATOMIC_RELAXED);
+}
+
+bool
+memctrl_swapout_enabled (void)
+{
+  return __atomic_load_n (&swapout_enabled, __ATOMIC_RELAXED);
+}
 
 void
 memctrl_newpage (struct physmem_page *page)
@@ -47,15 +65,34 @@ memctrl_delpage (struct physmem_page *page)
 void
 memctrl_do_tick (void)
 {
+  bool enabled;
+  bool accessed;
   struct physmem_page *page;
+  struct vmobjref vmobjref;
 
   nuxperf_inc (&pmachina_clock_tick);
+
+  enabled = memctrl_swapout_enabled ();
+
   spinlock (&clock_lock);
-  page = TAILQ_FIRST(&clock_queue);
-  TAILQ_REMOVE (&clock_queue, page, pageq);
-  TAILQ_INSERT_TAIL(&clock_queue, page, pageq);
-  memcache_tick (page);
-  spinunlock (&clock_lock);    
+  do
+    {
+      page = TAILQ_FIRST(&clock_queue);
+      TAILQ_REMOVE (&clock_queue, page, pageq);
+      TAILQ_INSERT_TAIL(&clock_queue, page, pageq);
+      accessed = memcache_tick (page);
+    }
+  while (accessed && enabled);
+
+  if (enabled)
+    {
+      vmobjref = vmobj_new (NULL, PAGE_SIZE);
+      memcache_swapout (page, &vmobjref);
+    }
+  spinunlock (&clock_lock);
+
+  if (enabled)
+    vmobjref_consume(&vmobjref);
 }
 
 

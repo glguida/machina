@@ -399,7 +399,7 @@ memcache_init (void)
   slab_register (&cobjlinks, "COBJLINKS", sizeof (struct cobj_link), NULL, 0);
 }
 
-void
+bool
 memcache_tick(struct physmem_page *page)
 {
   bool accessed;
@@ -411,7 +411,40 @@ memcache_tick(struct physmem_page *page)
     accessed |= cacheobj_tick (v->cobj, v->off);
   spinunlock (&page->lock);
 
-  (void)accessed;
-
+  return accessed;
 }
 
+bool
+memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref)
+{
+  struct cobj_link *v, *t;
+
+  struct vmobj *vmobj = vmobjref_unsafe_get (vmobjref);
+
+  memcache_share (page->pfn, &vmobj->cobj, 0, MCN_VMPROT_READ);
+
+  spinlock (&page->lock);
+  /*
+    Move the page from the original vmobject to a new vmobject
+    that will be passed to a pager.
+  */
+  LIST_FOREACH_SAFE (v, &page->links, list, t)
+    {
+      if (v->cobj == &vmobj->cobj)
+	{
+	  /*
+	    Skip swapping out the vmobject mapping we just created.
+	  */
+	  continue;
+	}
+      cacheobj_swapout (v->cobj, v->off, vmobjref_dup(vmobjref));
+      LIST_REMOVE(v, list);
+      page->links_no -= 1;
+      assert (page->links_no != 0);
+      slab_free(v);
+    }
+  spinunlock (&page->lock);
+  vmobj = NULL;
+
+  return false;
+}

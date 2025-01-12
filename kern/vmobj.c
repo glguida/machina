@@ -27,10 +27,17 @@ _default_pgreq_empty(void *opq, struct cacheobj *cobj, mcn_vmoff_t off, mcn_vmpr
   return true;
 }
 
+static void
+_default_pgreq_swapout(void *opq, vmobjref_t *vmobjref)
+{
+  vmobjref_consume(vmobjref);
+}
+
 static struct objpager _default_pager =
   {
     .opq = NULL,
     .pgreq_empty = _default_pgreq_empty,
+    .pgreq_swapout = _default_pgreq_swapout,
   };
 
 

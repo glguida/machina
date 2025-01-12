@@ -29,12 +29,20 @@
 static unsigned long total_pages;
 
 /*
-  When we're below the watermark, clock starts, one tick per allocation.
+  High Watermark: System is in what we might call a normal state: page
+  are being allocated and there's pressure on the physical memory.
 */
-static unsigned long watermark_pages;
+static unsigned long hiwm_pages;
 
 /*
-  The system will try to keep reserved pages free all the time.
+  Low Watermark: The pressure on the physical memory is starting to
+  require the kernel attention, as if it continues we might soon hit
+  the reserved pages limit.
+*/
+static unsigned long lowm_pages;
+
+/*
+  The system will try to keep at least reserved pages free all the time.
 */
 static unsigned long reserved_pages;
 
@@ -53,11 +61,26 @@ static unsigned long reserved_pages;
 static inline void
 physmem_check (void)
 {
-  assert (pfn_avail() > reserved_pages);
-  if (pfn_avail() <= watermark_pages)
-    {
-      memctrl_tick_one ();
-    }
+  /*
+    Main control for pages in the system:
+
+    - When pages are below watermark_high, clock starts. This effectively
+      refreshes the accessed bits. No swapout happens.
+
+    - When pages are below watermark low, a user page cannot be
+      allocated without issuing a swapout request.
+
+    - When pages are below reserved memory, user pages allocation
+      fail. Process requesting allocation will wait in a queue.
+  */
+
+  if (pfn_avail() <= hiwm_pages)
+    memctrl_tick_one ();
+
+  if (pfn_avail() <= lowm_pages)
+    memctrl_swapout_enable ();
+  else
+    memctrl_swapout_disable ();
 }
 
 static inline pfn_t
@@ -83,7 +106,7 @@ userpfn_alloc (void)
 {
   if (pfn_avail () <= reserved_pages)
     {
-      memctrl_tick_one ();
+      /* XXX: WAIT */
       return PFN_INVALID;
     }
 
@@ -95,12 +118,15 @@ physmem_init (void)
 {
   total_pages = pfn_avail ();
   reserved_pages = MIN (RESERVED_MEMORY / PAGE_SIZE, total_pages >> 4);
-  watermark_pages = total_pages / 2;
+  hiwm_pages = total_pages / 2;
+  lowm_pages = reserved_pages + (hiwm_pages - reserved_pages)/2;
 
   info ("Total Memory:    \t%ld Kb.", total_pages * PAGE_SIZE / 1024);
   info ("Reserved Memory: \t%ld Kb.", reserved_pages * PAGE_SIZE / 1024);
   info ("Available Memory:\t%ld Kb.",
 	(total_pages - reserved_pages) * PAGE_SIZE / 1024);
+  info ("Low Watermark:   \t%ld Kb.", lowm_pages * PAGE_SIZE / 1024);
+  info ("High Watermark:  \t%ld Kb.", hiwm_pages * PAGE_SIZE / 1024);
 
   nux_set_allocator (physmem_pfnalloc, physmem_pfnfree);
 }
