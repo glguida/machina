@@ -105,10 +105,12 @@ _existingpage_private (pfn_t pfn, struct cobj_link *cl)
 
   page = _get_entry (pfn);
   assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == pfn));
 
   spinlock_init (&page->lock);
   LIST_INSERT_HEAD (&page->links, cl, list);
   page->links_no = 1;
+  page->pfn = pfn;
   memctrl_newpage (page);
 }
 
@@ -126,7 +128,10 @@ _zeropage_private (struct cobj_link *cl)
   spinlock_init (&page->lock);
 
   LIST_INSERT_HEAD (&page->links, cl, list);
+  assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == pfn));
   page->links_no = 1;
+  page->pfn = pfn;
 
   memctrl_newpage (page);
 
@@ -156,7 +161,10 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   /* Remove from old list. */
   LIST_REMOVE (cl, list);
   LIST_INSERT_HEAD (&page->links, cl, list);
+  assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == newpfn));
   page->links_no = 1;
+  page->pfn = newpfn;
 
   memctrl_newpage (page);
   return newpfn;

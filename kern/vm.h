@@ -216,6 +216,7 @@ struct cobj_link
 struct physmem_page
 {
   lock_t lock;
+  pfn_t pfn;
   unsigned long links_no;
   LIST_HEAD (, cobj_link) links;
   TAILQ_ENTRY (physmem_page) pageq;
