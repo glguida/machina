@@ -88,6 +88,7 @@ physmem_pfnalloc (int low)
 {
   pfn_t pfn;
 
+  nuxperf_inc (&pmachina_physmem_pfnalloc);
   physmem_check ();
   pfn = stree_pfnalloc (low);
   PHYSMEM_PRINT("PHYSMEM: PFN %lx ALLOCATED.\n", pfn);
@@ -97,6 +98,7 @@ physmem_pfnalloc (int low)
 static inline void
 physmem_pfnfree (pfn_t pfn)
 {
+  nuxperf_inc (&pmachina_physmem_pfnfree);
   PHYSMEM_PRINT("PHYSMEM: PFN %lx FREED.\n", pfn);
   stree_pfnfree (pfn);
 }

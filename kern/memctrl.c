@@ -70,13 +70,12 @@ memctrl_do_tick (void)
   struct physmem_page *page;
   struct vmobjref vmobjref;
 
-  nuxperf_inc (&pmachina_clock_tick);
-
   enabled = memctrl_swapout_enabled ();
 
   spinlock (&clock_lock);
   do
     {
+      nuxperf_inc (&pmachina_clock_tick);
       page = TAILQ_FIRST(&clock_queue);
       TAILQ_REMOVE (&clock_queue, page, pageq);
       TAILQ_INSERT_TAIL(&clock_queue, page, pageq);
@@ -86,6 +85,7 @@ memctrl_do_tick (void)
 
   if (enabled)
     {
+      nuxperf_inc (&pmachina_clock_swapouts);
       vmobjref = vmobj_new (NULL, PAGE_SIZE);
       memcache_swapout (page, &vmobjref);
     }
