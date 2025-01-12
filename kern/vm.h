@@ -155,11 +155,14 @@ struct cacheobj_mapping
 
 struct cacheobj
 {
+
   rwlock_t lock;
   /*
      Size of the memory object.
    */
   size_t size;
+
+  const struct objpager *pager;
 
   /*
      Offset to PFN map.
@@ -251,8 +254,6 @@ struct vmobj
      chain.
    */
   lock_t *lock;
-
-  const struct objpager *pager;
 
   struct portref control_port;
   struct portref name_port;

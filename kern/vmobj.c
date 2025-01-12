@@ -113,9 +113,9 @@ vmobj_new (struct objpager *pager, size_t size)
   spinlock_init (obj->lock);
 
   if (pager == NULL)
-    obj->pager = &_default_pager;
+    obj->cobj.pager = &_default_pager;
   else
-    obj->pager = pager;
+    obj->cobj.pager = pager;
 
   cacheobj_init (&obj->cobj, size);
   obj->shadow = VMOBJREF_NULL;
@@ -133,6 +133,7 @@ vmobj_shadowcopy (struct vmobjref *ref)
 
   spinlock (obj->lock);
   new->lock = obj->lock;	/* Shadow chains share the same lock. */
+  new->cobj.pager = &_default_pager;
   cacheobj_shadow (&obj->cobj, &new->cobj);
   port_alloc_kernel ((void *) new, KOT_VMOBJ, &new->control_port);
   port_alloc_kernel ((void *) new, KOT_VMOBJ_NAME, &new->name_port);
@@ -199,8 +200,8 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   bool ret;
   ipte_t ipte;
   struct vmobj *vmobj;
-#define PAGER(_o) ((_o)->pager)
-#define PAGER_OPQ(_o) ((_o)->pager->opq)
+#define PAGER(_o) ((_o)->cobj.pager)
+#define PAGER_OPQ(_o) ((_o)->cobj.pager->opq)
 
   spinlock (tgtobj->lock);
   vmobj = tgtobj;
@@ -241,7 +242,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	    Issue a request to the pager.
 	  */
 	  nuxperf_inc (&pmachina_vmobj_pgreq_empty);
-	  VMOBJ_PRINT("PAGER %p REQUEST\n", vmobj->pager);
+	  VMOBJ_PRINT("PAGER %p REQUEST\n", vmobj->cobj.pager);
 	  ret = PAGER(vmobj)->pgreq_empty(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
 	}
       break;
