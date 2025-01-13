@@ -200,10 +200,12 @@ void memcache_init (void);
 void memcache_existingpage (struct cacheobj *obj, mcn_vmoff_t off, pfn_t pfn, mcn_vmprot_t protmask);
 void memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
 			     bool roshared, mcn_vmprot_t protmask);
-void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-		     mcn_vmprot_t protmask);
-void memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-			mcn_vmprot_t protmask);
+ipte_t memcache_page_lock (struct cacheobj *obj, mcn_vmoff_t off, struct physmem_page **page);
+void memcache_page_share (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+			  mcn_vmprot_t protmask);
+void memcache_page_unshare (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+			    mcn_vmprot_t protmask);
+void memcache_page_unlock (struct physmem_page *page);
 void memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off);
 bool memcache_tick(struct physmem_page *page);
 bool memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref);

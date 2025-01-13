@@ -224,14 +224,14 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
   Share Page.
 */
 void
-memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-		mcn_vmprot_t protmask)
+memcache_page_share (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+		     mcn_vmprot_t protmask)
 {
-  struct physmem_page *page = _get_entry (pfn);
-
   MEMCACHE_PRINT ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj,
 	  off, protmask);
-  spinlock (&page->lock);
+
+  pfn_t pfn = page->pfn;
+  assert (pfn != PFN_INVALID);
 
   if (pfn != zeropfn)
     {
@@ -248,8 +248,6 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   ipte_t old = cacheobj_map (obj, off, pfn, true, protmask);
   MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
   (void)old;
-
-  spinunlock (&page->lock);
 }
 
 
@@ -259,15 +257,16 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   OBJ will receive a private copy of PFN at offset OFF.
 */
 void
-memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+memcache_page_unshare (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
 		  mcn_vmprot_t protmask)
 {
   pfn_t outpfn;
-  struct physmem_page *page = _get_entry (pfn);
 
   MEMCACHE_PRINT ("MEMCACHE: Unshare %lx %p %lx (mask: %x)\n", pfn, obj, off,
 	  protmask);
-  spinlock (&page->lock);
+
+  pfn_t pfn = page->pfn;
+  assert (pfn != PFN_INVALID);
 
   if (pfn == zeropfn)
     {
@@ -329,8 +328,6 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   ipte_t old = cacheobj_map (obj, off, outpfn, false, protmask);
   MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
   (void)old;
-
-  spinunlock (&page->lock);
 }
 
 void
@@ -375,28 +372,41 @@ memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
   slab_free (n);
 }
 
-static void
-physmemdb_init (void)
+ipte_t
+memcache_page_lock (struct cacheobj *obj, mcn_vmoff_t off, struct physmem_page **outpage)
 {
-  unsigned long maxpfn = hal_physmem_maxrampfn ();
-  unsigned long l0_entries = NUM_ENTRIES;
-  unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
-  size_t l1_size = sizeof (struct physmem_page *) * l1_entries;
+  struct physmem_page *page;
 
-  physmem_db = (struct physmem_page **) kmem_alloc (0, l1_size);
-  memset (physmem_db, 0, l1_size);
-  info ("PFNDB L1: %p:%p\n", physmem_db, (void *) physmem_db + l1_size);
+ _lock_page_retry:
+  ipte_t ipte = cacheobj_lookup (obj, off);
+  if (ipte_present (&ipte))
+    {
+
+      /*
+	Now lock the page and check that it hasn't changed.
+      */
+      page = _get_entry (ipte_pfn(&ipte));
+      spinlock (&page->lock);
+      ipte_t check = cacheobj_lookup (obj, off);
+      if (check.raw != ipte.raw)
+	{
+	  spinunlock (&page->lock);
+	  goto _lock_page_retry;
+	}
+
+      *outpage = page;
+    }
+  else
+    *outpage = NULL;
+
+  return ipte;
 }
 
 void
-memcache_init (void)
+memcache_page_unlock (struct physmem_page *page)
 {
-  zeropfn = pfn_alloc (0);
-  assert (zeropfn != PFN_INVALID);
-  physmemdb_init ();
-  zeropage = _get_entry (zeropfn);
-
-  slab_register (&cobjlinks, "COBJLINKS", sizeof (struct cobj_link), NULL, 0);
+  if (page)
+    spinunlock (&page->lock);
 }
 
 bool
@@ -421,13 +431,15 @@ memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref)
 
   struct vmobj *vmobj = vmobjref_unsafe_get (vmobjref);
 
-  memcache_share (page->pfn, &vmobj->cobj, 0, MCN_VMPROT_READ);
-
-  spinlock (&page->lock);
   /*
     Move the page from the original vmobject to a new vmobject
     that will be passed to a pager.
   */
+
+  spinlock (&page->lock);
+
+  memcache_page_share (page, &vmobj->cobj, 0, MCN_VMPROT_READ);
+
   LIST_FOREACH_SAFE (v, &page->links, list, t)
     {
       if (v->cobj == &vmobj->cobj)
@@ -447,4 +459,28 @@ memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref)
   vmobj = NULL;
 
   return false;
+}
+
+static void
+physmemdb_init (void)
+{
+  unsigned long maxpfn = hal_physmem_maxrampfn ();
+  unsigned long l0_entries = NUM_ENTRIES;
+  unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
+  size_t l1_size = sizeof (struct physmem_page *) * l1_entries;
+
+  physmem_db = (struct physmem_page **) kmem_alloc (0, l1_size);
+  memset (physmem_db, 0, l1_size);
+  info ("PFNDB L1: %p:%p\n", physmem_db, (void *) physmem_db + l1_size);
+}
+
+void
+memcache_init (void)
+{
+  zeropfn = pfn_alloc (0);
+  assert (zeropfn != PFN_INVALID);
+  physmemdb_init ();
+  zeropage = _get_entry (zeropfn);
+
+  slab_register (&cobjlinks, "COBJLINKS", sizeof (struct cobj_link), NULL, 0);
 }
