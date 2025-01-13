@@ -81,15 +81,7 @@ cacheobj_addmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 
   writelock (&cobj->lock);
   LIST_INSERT_HEAD (&cobj->mappings, cobjm, list);
-  /*
-    Unneeded really, but let's be paranoid for now.
-  */
-  for (vaddr_t i = cobjm->start; i < cobjm->start + cobjm->size;
-       i += PAGE_SIZE)
-    {
-      umap_unmap (cobjm->umap, i);
-    }
-  umap_commit (cobjm->umap);
+
   writeunlock (&cobj->lock);
 }
 
@@ -144,10 +136,12 @@ cacheobj_delmapping (struct cacheobj *cobj, struct cacheobj_mapping *cobjm)
 }
 
 static void
-_ipte_roshare (unsigned long off, ipte_t * ipte)
+_ipte_roshare (void *opq, unsigned long off, ipte_t * ipte)
 {
+  (void)opq;
   assert (ipte->p);
   ipte->roshared = 1;
+  /* XXX: HOLD ON, SHOULDN'T REMOVE WRITABLE HERE? */
 }
 
 void
@@ -160,7 +154,7 @@ cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow)
   writelock (&orig->lock);
   /* shadow is unitialised. Shouldn't get the lock. */
   cacheobj_init (shadow, orig->size);
-  imap_foreach (&orig->map, _ipte_roshare);
+  imap_foreach (&orig->map, _ipte_roshare, NULL);
   writeunlock (&orig->lock);
 }
 
@@ -203,6 +197,41 @@ cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 }
 
 ipte_t
+cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off)
+{
+  ipte_t old;
+  struct cacheobj_mapping *cobjm;
+
+  nuxperf_inc (&pmachina_cacheobj_unmap);
+
+  off = trunc_page (off);
+
+  COBJ_PRINT ("CACHEOBJ: %p: unmapping offset %lx)\n", cobj, off);
+
+  writelock (&cobj->lock);
+  old = imap_unmap (&cobj->map, off);
+
+  /*
+    Update all cobj mappings.
+  */
+
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    COBJ_PRINT ("CACHEOBJ %p: Clearing umap %p va %lx (off %lx)\n",
+	    cobj, cobjm->umap, cobjm->start + off - obj_offstart, off);
+    umap_unmap (cobjm->umap, cobjm->start + off - obj_offstart);
+    umap_commit (cobjm->umap);
+  }
+  writeunlock (&cobj->lock);
+
+  return old;
+}
+
+ipte_t
 cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off)
 {
   ipte_t ret;
@@ -215,19 +244,83 @@ cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off)
   return ret;
 }
 
-static void
-_ipte_unlink_page (void *cobjopq, unsigned long off, ipte_t *ipte)
+bool
+cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off)
 {
-  assert (ipte->p);
-  COBJ_PRINT("CACHEOBJ: UNLINKING OBJ %p OFF %d ipte: %lx\n",
-	 cobjopq, off, *ipte);
-  memcache_cobjremove (ipte_pfn (ipte), cobjopq, off);
+  bool accessed;
+  struct cacheobj_mapping *cobjm;
+
+  accessed = false;
+  writelock (&cobj->lock);
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    unsigned flags;
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    /* Clear A-bit, accumulate old flags. */
+    flags = umap_chflags (cobjm->umap, cobjm->start + off - obj_offstart, 0, HAL_PTE_A);
+    if ((flags & (HAL_PTE_P|HAL_PTE_A)) == (HAL_PTE_P|HAL_PTE_A))
+      accessed |= true;
+    umap_commit (cobjm->umap);
+  }
+  writeunlock (&cobj->lock);
+
+  return accessed;
+}
+
+void
+cacheobj_swapout (struct cacheobj *cobj, mcn_vmoff_t off, struct vmobjref vmobjref)
+{
+  ipte_t ipte;
+  struct cacheobj *pgrcobj;
+  struct cacheobj_mapping *cobjm;
+
+  writelock (&cobj->lock);
+
+  COBJ_PRINT ("CACHEOBJ %p SWAPOUT: Swapping out offset %lx\n", cobj, off);
+  ipte = imap_swapout (&cobj->map, off);
+
+  /*
+    Update all cobj mappings.
+  */
+  LIST_FOREACH (cobjm, &cobj->mappings, list)
+  {
+    mcn_vmoff_t obj_offstart = trunc_page (cobjm->off);
+    mcn_vmoff_t obj_offend = round_page (cobjm->off + cobjm->size);
+    if ((off < obj_offstart) || (off >= obj_offend))
+      continue;
+    COBJ_PRINT ("CACHEOBJ %p SWAPOUT: Clearing umap %p va %lx (off %lx)\n",
+	    cobj, cobjm->umap, cobjm->start + off - obj_offstart, off);
+    umap_unmap (cobjm->umap, cobjm->start + off - obj_offstart);
+    umap_commit (cobjm->umap);
+  }
+
+  COBJ_PRINT ("CACHEOBJ %p SWAPOUT: Created VMOBJ %p and mapping PFN %lx\n", cobj, vmobjref_unsafe_get(&vmobjref), ipte_pfn(&ipte));
+  pgrcobj = &vmobjref_unsafe_get(&vmobjref)->cobj;
+  imap_map (&pgrcobj->map, 0, ipte_pfn(&ipte), true, MCN_VMPROT_READ);
+  cobj->pager->pgreq_swapout (cobj->pager->opq, &vmobjref);
+  writeunlock (&cobj->lock);
+}
+
+void
+cacheobj_foreach (struct cacheobj *cobj, void (*fn)(void *obj, unsigned long off, ipte_t *ipte))
+{
+  imap_foreach (&cobj->map, fn, cobj);
+}
+
+static void
+_never_called (void *opq, unsigned long off, ipte_t *pte)
+{
+  fatal ("destroyed cacheobject %p still has mappings? %lx (%"PRIx64"\n",
+	 opq, off, pte->raw);
 }
 
 void
 cacheobj_destroy (struct cacheobj *cobj)
 {
-  imap_free (&cobj->map, _ipte_unlink_page, cobj);
+  imap_free (&cobj->map, _never_called, NULL);
   assert (LIST_EMPTY(&cobj->mappings));
 }
 

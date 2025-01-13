@@ -105,10 +105,12 @@ _existingpage_private (pfn_t pfn, struct cobj_link *cl)
 
   page = _get_entry (pfn);
   assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == pfn));
 
   spinlock_init (&page->lock);
   LIST_INSERT_HEAD (&page->links, cl, list);
   page->links_no = 1;
+  page->pfn = pfn;
   memctrl_newpage (page);
 }
 
@@ -118,14 +120,18 @@ _zeropage_private (struct cobj_link *cl)
   pfn_t pfn;
   struct physmem_page *page;
 
-  pfn = pfn_alloc (0);
-  assert (pfn != PFN_INVALID);
+  pfn = userpfn_alloc ();
+  if (pfn == PFN_INVALID)
+    return pfn;
   page = _get_entry (pfn);
 
   spinlock_init (&page->lock);
 
   LIST_INSERT_HEAD (&page->links, cl, list);
+  assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == pfn));
   page->links_no = 1;
+  page->pfn = pfn;
 
   memctrl_newpage (page);
 
@@ -140,8 +146,9 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
   void *dst, *src;
 
   assert (pfn != PFN_INVALID);
-  newpfn = pfn_alloc (0);
-  assert (newpfn != PFN_INVALID);
+  newpfn = userpfn_alloc ();
+  if (newpfn == PFN_INVALID)
+    return newpfn;
 
   src = pfn_get (pfn);
   dst = pfn_get (newpfn);
@@ -151,9 +158,13 @@ _duplicate_private (pfn_t pfn, struct cobj_link *cl)
 
   page = _get_entry (newpfn);
   spinlock_init (&page->lock);
-
+  /* Remove from old list. */
+  LIST_REMOVE (cl, list);
   LIST_INSERT_HEAD (&page->links, cl, list);
+  assert (page->links_no == 0);
+  assert ((page->pfn == 0) || (page->pfn == newpfn));
   page->links_no = 1;
+  page->pfn = newpfn;
 
   memctrl_newpage (page);
   return newpfn;
@@ -197,6 +208,11 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
       cl->cobj = obj;
       cl->off = off;
       pfn = _zeropage_private (cl);
+      if (pfn == PFN_INVALID)
+	{
+	  slab_free (cl);
+	  return;
+	}
     }
 
   ipte_t old = cacheobj_map (obj, off, pfn, roshared, protmask);
@@ -208,14 +224,14 @@ memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off, bool roshared,
   Share Page.
 */
 void
-memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-		mcn_vmprot_t protmask)
+memcache_page_share (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+		     mcn_vmprot_t protmask)
 {
-  struct physmem_page *page = _get_entry (pfn);
-
   MEMCACHE_PRINT ("MEMCACHE: Share pfn %lx to obj %p off %lx (mask %lx)\n", pfn, obj,
 	  off, protmask);
-  spinlock (&page->lock);
+
+  pfn_t pfn = page->pfn;
+  assert (pfn != PFN_INVALID);
 
   if (pfn != zeropfn)
     {
@@ -232,8 +248,6 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   ipte_t old = cacheobj_map (obj, off, pfn, true, protmask);
   MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
   (void)old;
-
-  spinunlock (&page->lock);
 }
 
 
@@ -243,15 +257,16 @@ memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   OBJ will receive a private copy of PFN at offset OFF.
 */
 void
-memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
+memcache_page_unshare (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
 		  mcn_vmprot_t protmask)
 {
   pfn_t outpfn;
-  struct physmem_page *page = _get_entry (pfn);
 
   MEMCACHE_PRINT ("MEMCACHE: Unshare %lx %p %lx (mask: %x)\n", pfn, obj, off,
 	  protmask);
-  spinlock (&page->lock);
+
+  pfn_t pfn = page->pfn;
+  assert (pfn != PFN_INVALID);
 
   if (pfn == zeropfn)
     {
@@ -262,6 +277,12 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       cl->cobj = obj;
       cl->off = off;
       outpfn = _zeropage_private (cl);
+      if (outpfn == PFN_INVALID)
+	{
+	  slab_free (cl);
+	  spinunlock (&page->lock);
+	  return;
+	}
     }
   else if (page->links_no == 1)
     {
@@ -275,15 +296,13 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       MEMCACHE_PRINT ("MEMCACHE: NUMBER OF LINKS: %d\n", page->links_no);
 
       /*
-         First, find and remove the link.
+         First, find the link.
        */
       found = NULL;
       LIST_FOREACH_SAFE (v, &page->links, list, t)
       {
 	if ((v->cobj == obj) && (v->off == off))
 	  {
-	    page->links_no -= 1;
-	    LIST_REMOVE (v, list);
 	    found = v;
 	    break;
 	  }
@@ -291,9 +310,15 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
       assert (found != NULL);
 
       /*
-         Then, allocate a page and link it to the object.
+         Then, allocate a page and move the link to the new one.
        */
       outpfn = _duplicate_private (pfn, found);
+      if (outpfn == PFN_INVALID)
+	{
+	  spinunlock (&page->lock);
+	  return;
+	}
+      page->links_no -= 1;
     }
 
   /*
@@ -303,8 +328,6 @@ memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
   ipte_t old = cacheobj_map (obj, off, outpfn, false, protmask);
   MEMCACHE_PRINT ("ipte old: %lx (sizeof ipte: %lx)\n", old.raw, sizeof (old));
   (void)old;
-
-  spinunlock (&page->lock);
 }
 
 void
@@ -336,6 +359,9 @@ memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
   LIST_REMOVE (n, list);
   if (--page->links_no == 0)
     del = true;
+
+  cacheobj_unmap (obj, off);
+
   spinunlock (&page->lock);
 
   if (del)
@@ -346,13 +372,102 @@ memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off)
   slab_free (n);
 }
 
+ipte_t
+memcache_page_lock (struct cacheobj *obj, mcn_vmoff_t off, struct physmem_page **outpage)
+{
+  struct physmem_page *page;
+
+ _lock_page_retry:
+  ipte_t ipte = cacheobj_lookup (obj, off);
+  if (ipte_present (&ipte))
+    {
+
+      /*
+	Now lock the page and check that it hasn't changed.
+      */
+      page = _get_entry (ipte_pfn(&ipte));
+      spinlock (&page->lock);
+      ipte_t check = cacheobj_lookup (obj, off);
+      if (check.raw != ipte.raw)
+	{
+	  spinunlock (&page->lock);
+	  goto _lock_page_retry;
+	}
+
+      *outpage = page;
+    }
+  else
+    *outpage = NULL;
+
+  return ipte;
+}
+
+void
+memcache_page_unlock (struct physmem_page *page)
+{
+  if (page)
+    spinunlock (&page->lock);
+}
+
+bool
+memcache_tick(struct physmem_page *page)
+{
+  bool accessed;
+  struct cobj_link *v;
+
+  accessed = false;
+  spinlock (&page->lock);
+  LIST_FOREACH (v, &page->links, list)
+    accessed |= cacheobj_tick (v->cobj, v->off);
+  spinunlock (&page->lock);
+
+  return accessed;
+}
+
+bool
+memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref)
+{
+  struct cobj_link *v, *t;
+
+  struct vmobj *vmobj = vmobjref_unsafe_get (vmobjref);
+
+  /*
+    Move the page from the original vmobject to a new vmobject
+    that will be passed to a pager.
+  */
+
+  spinlock (&page->lock);
+
+  memcache_page_share (page, &vmobj->cobj, 0, MCN_VMPROT_READ);
+
+  LIST_FOREACH_SAFE (v, &page->links, list, t)
+    {
+      if (v->cobj == &vmobj->cobj)
+	{
+	  /*
+	    Skip swapping out the vmobject mapping we just created.
+	  */
+	  continue;
+	}
+      cacheobj_swapout (v->cobj, v->off, vmobjref_dup(vmobjref));
+      LIST_REMOVE(v, list);
+      page->links_no -= 1;
+      assert (page->links_no != 0);
+      slab_free(v);
+    }
+  spinunlock (&page->lock);
+  vmobj = NULL;
+
+  return false;
+}
+
 static void
 physmemdb_init (void)
 {
   unsigned long maxpfn = hal_physmem_maxrampfn ();
   unsigned long l0_entries = NUM_ENTRIES;
   unsigned long l1_entries = (maxpfn + l0_entries - 1) / l0_entries;
-  size_t l1_size = sizeof (struct physpage *) * l1_entries;
+  size_t l1_size = sizeof (struct physmem_page *) * l1_entries;
 
   physmem_db = (struct physmem_page **) kmem_alloc (0, l1_size);
   memset (physmem_db, 0, l1_size);

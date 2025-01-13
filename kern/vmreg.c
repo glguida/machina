@@ -15,7 +15,6 @@
 
 #include "internal.h"
 
-#define VMMAP_DEBUG
 #ifdef VMMAP_DEBUG
 #define VMMAP_PRINT printf
 #else

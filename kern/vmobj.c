@@ -27,10 +27,17 @@ _default_pgreq_empty(void *opq, struct cacheobj *cobj, mcn_vmoff_t off, mcn_vmpr
   return true;
 }
 
+static void
+_default_pgreq_swapout(void *opq, vmobjref_t *vmobjref)
+{
+  vmobjref_consume(vmobjref);
+}
+
 static struct objpager _default_pager =
   {
     .opq = NULL,
     .pgreq_empty = _default_pgreq_empty,
+    .pgreq_swapout = _default_pgreq_swapout,
   };
 
 
@@ -113,9 +120,9 @@ vmobj_new (struct objpager *pager, size_t size)
   spinlock_init (obj->lock);
 
   if (pager == NULL)
-    obj->pager = &_default_pager;
+    obj->cobj.pager = &_default_pager;
   else
-    obj->pager = pager;
+    obj->cobj.pager = pager;
 
   cacheobj_init (&obj->cobj, size);
   obj->shadow = VMOBJREF_NULL;
@@ -133,6 +140,7 @@ vmobj_shadowcopy (struct vmobjref *ref)
 
   spinlock (obj->lock);
   new->lock = obj->lock;	/* Shadow chains share the same lock. */
+  new->cobj.pager = &_default_pager;
   cacheobj_shadow (&obj->cobj, &new->cobj);
   port_alloc_kernel ((void *) new, KOT_VMOBJ, &new->control_port);
   port_alloc_kernel ((void *) new, KOT_VMOBJ_NAME, &new->name_port);
@@ -151,6 +159,16 @@ vmobj_shadowcopy (struct vmobjref *ref)
   spinunlock (obj->lock);
 
   return newref;
+}
+
+static void
+_cacheobj_unlink_page (struct cacheobj *cobj, unsigned long off, ipte_t *ipte)
+{
+  assert (ipte->p);
+  VMOBJ_PRINT("CACHEOBJ: UNLINKING OBJ %p OFF %d ipte: %lx\n",
+	 cobj, off, *ipte);
+
+  memcache_cobjremove (ipte_pfn (ipte), cobj, off);
 }
 
 void
@@ -173,6 +191,8 @@ vmobj_zeroref (struct vmobj *obj)
   VMOBJ_PRINT("VMOBJ %p: UNLINK NAME PORT %p\n", obj, portref_unsafe_get(&obj->name_port));
   port_unlink_kernel(&obj->name_port);
   VMOBJ_PRINT("VMOBJ %p: DESTROY CACHEOBJ %p\n", obj, &obj->cobj);
+
+  cacheobj_foreach(&obj->cobj, (void (*)(void *, mcn_vmoff_t, ipte_t *))_cacheobj_unlink_page);
   cacheobj_destroy(&obj->cobj);
   slab_free(obj);
 }
@@ -187,8 +207,9 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
   bool ret;
   ipte_t ipte;
   struct vmobj *vmobj;
-#define PAGER(_o) ((_o)->pager)
-#define PAGER_OPQ(_o) ((_o)->pager->opq)
+  struct physmem_page *page;
+#define PAGER(_o) ((_o)->cobj.pager)
+#define PAGER_OPQ(_o) ((_o)->cobj.pager->opq)
 
   spinlock (tgtobj->lock);
   vmobj = tgtobj;
@@ -200,9 +221,20 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
  _fault_redo:
 
   /*
-    First, make sure that the page table is up-to-date with the cache object.
+    Resolve the offset and lock the page, if the entry points to a page.
+
+    This ensures atomicity with the swapout operation.
   */
-  ipte = cacheobj_updatemapping (&vmobj->cobj, off, vmreg->cobjm);
+  ipte = memcache_page_lock (&vmobj->cobj, off, &page);
+
+  assert ((page == NULL) || (page->pfn = ipte_pfn(&ipte)));
+
+  /*
+    Make sure that the page table is up-to-date with the cache object.
+
+    NB: This is necessary only when page is present.
+  */
+  cacheobj_updatemapping (&vmobj->cobj, off, vmreg->cobjm);
 
   VMOBJ_PRINT ("IPTE IS %" PRIx64 "\n", ipte.raw);
   switch (ipte_status (&ipte))
@@ -211,6 +243,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       /*
 	Never accessed this page before.
       */
+      assert (page == NULL);
 
       nuxperf_inc (&pmachina_vmobj_fault_empty);
       VMOBJ_PRINT ("IPTE EMPTY");
@@ -229,7 +262,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	    Issue a request to the pager.
 	  */
 	  nuxperf_inc (&pmachina_vmobj_pgreq_empty);
-	  VMOBJ_PRINT("PAGER %p REQUEST\n", vmobj->pager);
+	  VMOBJ_PRINT("PAGER %p REQUEST\n", vmobj->cobj.pager);
 	  ret = PAGER(vmobj)->pgreq_empty(PAGER_OPQ(vmobj), &tgtobj->cobj, off, reqprot);
 	}
       break;
@@ -253,6 +286,7 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
       break;
 
     case STIPTE_ROSHARED:
+      assert (page != NULL);
       nuxperf_inc (&pmachina_vmobj_fault_ro);
       VMOBJ_PRINT ("IPTE ROSHARED (reqprot: %x, protmask: %x)", reqprot,
 	    ipte_protmask (&ipte));
@@ -269,11 +303,11 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	{
 	  /*
 	     If we are in shadow fault, we have to share it with the
-	     target imap fisrt.
+	     target imap first.
 	   */
 	  nuxperf_inc (&pmachina_vmobj_fault_ro_shdw);
-	  memcache_share (ipte_pfn (&ipte), &tgtobj->cobj, off,
-			  ipte_protmask (&ipte));
+	  memcache_page_share (page, &tgtobj->cobj, off,
+			       ipte_protmask (&ipte));
 	}
       if (reqprot & MCN_VMPROT_WRITE)
 	{
@@ -288,33 +322,35 @@ vmobj_fault (struct vmobj *tgtobj, mcn_vmoff_t off, mcn_vmprot_t reqprot,
 	      if (ipte_empty (&copy_ipte))
 		{
 		  nuxperf_inc (&pmachina_vmobj_fault_ro_push);
-		  memcache_share (ipte_pfn (&ipte), &copy_obj->cobj, off,
+		  memcache_page_share (page, &copy_obj->cobj, off,
 				  ipte_protmask (&ipte));
 		}
 	    }
 	  nuxperf_inc (&pmachina_vmobj_fault_ro_unshare);
-	  memcache_unshare (ipte_pfn (&ipte), &tgtobj->cobj, off,
-			    ipte_protmask (&ipte));
+	  memcache_page_unshare (page, &tgtobj->cobj, off,
+				 ipte_protmask (&ipte));
 	}
       else
 	ipte_pfn (&ipte);
       ret = true;
       break;
     case STIPTE_PRIVATE:
+      assert (page != NULL);
+      assert (tgtobj == vmobj);	/* A shadowed page cannot point to a private page. */
       nuxperf_inc (&pmachina_vmobj_fault_priv);
       VMOBJ_PRINT ("IPTE PRIVATE (reqprot: %x, protmask: %x", reqprot,
 	    ipte_protmask (&ipte));
-      assert (tgtobj == vmobj);	/* A shadowed page cannot point to a private page. */
       if (reqprot & ipte_protmask (&ipte))
 	{
 	  nuxperf_inc (&pmachina_vmobj_fault_priv_unlock);
 	  ret = false;
 	  break;
 	}
-      ipte_pfn (&ipte);
       ret = true;
       break;
     }
+
+  memcache_page_unlock (page);
 
   VMOBJ_PRINT ("VMOBJ FAULT END =============================\n");
 

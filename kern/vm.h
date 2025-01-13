@@ -127,6 +127,7 @@ ipte_status (ipte_t * i)
 */
 struct imap
 {
+  ipte_t l0;
   ipte_t l1;
   ipte_t l2;
   ipte_t l3;
@@ -135,9 +136,11 @@ struct imap
 void imap_init (struct imap *im);
 ipte_t imap_map (struct imap *im, unsigned long off, pfn_t pfn, bool roshared,
 		 mcn_vmprot_t mask);
+ipte_t imap_unmap (struct imap *im, unsigned long off);
+ipte_t imap_swapout (struct imap *im, unsigned long off);
 ipte_t imap_lookup (struct imap *im, unsigned long off);
 void imap_foreach (struct imap *im,
-		   void (*fn) (unsigned long off, ipte_t * ipte));
+		   void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq);
 void
 imap_free (struct imap *im, void (*fn) (void *opq, unsigned long off, ipte_t * ipte), void *opq);
 
@@ -153,11 +156,14 @@ struct cacheobj_mapping
 
 struct cacheobj
 {
+
   rwlock_t lock;
   /*
      Size of the memory object.
    */
   size_t size;
+
+  const struct objpager *pager;
 
   /*
      Offset to PFN map.
@@ -171,6 +177,7 @@ struct cacheobj
 };
 /**INDENT-ON**/
 
+struct physmem_page;
 struct vm_region;
 void cacheobj_init (struct cacheobj *cobj, size_t size);
 void cacheobj_addmapping (struct cacheobj *cobj,
@@ -180,19 +187,28 @@ void cacheobj_delmapping (struct cacheobj *cobj,
 			  struct cacheobj_mapping *cobjm);
 ipte_t cacheobj_map (struct cacheobj *cobj, mcn_vmoff_t off, pfn_t pfn,
 		     bool roshared, mcn_vmprot_t protmask);
+ipte_t cacheobj_unmap (struct cacheobj *cobj, mcn_vmoff_t off);
 ipte_t cacheobj_lookup (struct cacheobj *cobj, mcn_vmoff_t off);
 void cacheobj_shadow (struct cacheobj *orig, struct cacheobj *shadow);
+bool cacheobj_tick (struct cacheobj *cobj, mcn_vmoff_t off);
+void cacheobj_swapout (struct cacheobj *cobj, mcn_vmoff_t off, struct vmobjref vmobj);
+void cacheobj_foreach (struct cacheobj *cobj, void (*fn)(void *obj, unsigned long off, ipte_t *ipte));
 void cacheobj_destroy (struct cacheobj *cobj);
+
 
 void memcache_init (void);
 void memcache_existingpage (struct cacheobj *obj, mcn_vmoff_t off, pfn_t pfn, mcn_vmprot_t protmask);
 void memcache_zeropage_new (struct cacheobj *obj, mcn_vmoff_t off,
 			     bool roshared, mcn_vmprot_t protmask);
-void memcache_share (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-		     mcn_vmprot_t protmask);
-void memcache_unshare (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off,
-			mcn_vmprot_t protmask);
+ipte_t memcache_page_lock (struct cacheobj *obj, mcn_vmoff_t off, struct physmem_page **page);
+void memcache_page_share (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+			  mcn_vmprot_t protmask);
+void memcache_page_unshare (struct physmem_page *page, struct cacheobj *obj, mcn_vmoff_t off,
+			    mcn_vmprot_t protmask);
+void memcache_page_unlock (struct physmem_page *page);
 void memcache_cobjremove (pfn_t pfn, struct cacheobj *obj, mcn_vmoff_t off);
+bool memcache_tick(struct physmem_page *page);
+bool memcache_swapout (struct physmem_page *page, struct vmobjref *vmobjref);
 
 /**INDENT-OFF**/
 struct cobj_link
@@ -205,14 +221,18 @@ struct cobj_link
 struct physmem_page
 {
   lock_t lock;
+  pfn_t pfn;
   unsigned long links_no;
   LIST_HEAD (, cobj_link) links;
   TAILQ_ENTRY (physmem_page) pageq;
 };
 /**INDENT-ON**/
 
+void memctrl_tick_one (void);
 void memctrl_newpage (struct physmem_page *page);
 void memctrl_delpage (struct physmem_page *page);
+void memctrl_swapout_enable (void);
+void memctrl_swapout_disable (void);
 
 #include "vmobjref.h"
 
@@ -231,6 +251,8 @@ struct objpager
   /* Request a page on a mapping that's paged */
   bool (*pgreq_paged)(void *opq, struct cacheobj *cobj,
 		      mcn_vmoff_t off, mcn_vmprot_t reqprot);
+
+  void (*pgreq_swapout)(void *opq, struct vmobjref *vmobj);
 };
 
 struct vmobj
@@ -242,8 +264,6 @@ struct vmobj
      chain.
    */
   lock_t *lock;
-
-  const struct objpager *pager;
 
   struct portref control_port;
   struct portref name_port;
