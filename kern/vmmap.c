@@ -39,10 +39,11 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
   {
     TLS_VARIANT_I = 1,
     TLS_VARIANT_II = 2,
+    TLS_VARIANT_LE = 3
   } tlsv;
 
 #if MCN_MACHINE_RISCV64
-  tlsv = TLS_VARIANT_I;
+  tlsv = TLS_VARIANT_LE;
 #endif
 #if MCN_MACHINE_AMD64
   tlsv = TLS_VARIANT_II;
@@ -65,6 +66,9 @@ vmmap_alloctls (struct vmmap *map, uaddr_t * tls)
     {
     case TLS_VARIANT_I:
       *(unsigned long *) tlsmb.kaddr = tlsmb.uaddr;
+      *tls = (long) tlsmb.uaddr;
+      break;
+    case TLS_VARIANT_LE:
       *tls = (long) tlsmb.uaddr;
       break;
     default:
