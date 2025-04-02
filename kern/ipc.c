@@ -347,6 +347,78 @@ ipc_intmsg_consume (mcn_msgheader_t * intmsg)
 }
 
 static mcn_msgioret_t
+reexternalize (struct ipcspace *ps, mcn_msgheader_t * intmsg,
+	     volatile mcn_msgheader_t * extmsg, size_t size)
+{
+  mcn_msgioret_t rc;
+  mcn_portid_t local, remote;
+
+  /*
+    This if the function for the pseudo receive. The queueing has
+    failed, and Mach IPC requires us to send the message back ready to
+    be re-sent.
+  */
+  assert (size >= sizeof (mcn_msgheader_t));
+  assert (size <= MSGBUF_SIZE);
+
+  /*
+    The message is not been sent. The 'local' right (which is, the
+    receiving port right) has to be returned.
+  */
+  const mcn_msgtype_name_t locbits = MCN_MSGBITS_LOCAL (intmsg->msgh_bits);
+  struct portref local_pref = ipcport_to_portref (&intmsg->msgh_local);
+  struct portright local_pr = portright_from_portref (locbits, local_pref);
+  rc = ipcspace_insertright (ps, &local_pr, &local);
+  if (rc)
+    {
+      /*
+	On error, we lose the port. NOT ideal.
+      */
+      portright_consume(&local_pr);
+      local = MCN_PORTID_NULL;
+    }
+
+  remote = MCN_PORTID_NULL;
+  if (intmsg->msgh_remote != 0)
+    {
+      const mcn_msgtype_name_t rembits =
+	MCN_MSGBITS_REMOTE (intmsg->msgh_bits);
+      struct portref remote_pref = ipcport_to_portref (&intmsg->msgh_remote);
+      struct portright remote_pr = portright_from_portref (rembits, remote_pref);
+      rc = ipcspace_insertright (ps, &remote_pr, &remote);
+      if (rc)
+	{
+	  remote = MCN_PORTID_NULL;
+	  portright_consume (&remote_pr);
+	  /*
+	    On error, we lose the port. NOT ideal.
+	  */
+	}
+    }
+
+  if (intmsg->msgh_bits & MCN_MSGBITS_COMPLEX)
+    {
+      process_body (ps, (void *) (intmsg + 1),
+		    size - sizeof (mcn_msgheader_t), MSGITEMOP_EXTERNALIZE);
+    }
+
+  /*
+    Local and Remote have been switched during internalization. Switch them back.
+  */
+  extmsg->msgh_bits = MCN_MSGBITS(MCN_MSGBITS_LOCAL(intmsg->msgh_bits), MCN_MSGBITS_REMOTE(intmsg->msgh_bits));
+  extmsg->msgh_remote = local;
+  extmsg->msgh_local = remote;
+  extmsg->msgh_size = size;
+  extmsg->msgh_seqno = 0;	/* XXX: SEQNO */
+  extmsg->msgh_msgid = intmsg->msgh_msgid;
+
+  memcpy ((void *) (extmsg + 1), (void *) (intmsg + 1),
+	  size - sizeof (mcn_msgheader_t));
+
+  return MSGIO_SUCCESS;
+}
+
+static mcn_msgioret_t
 externalize (struct ipcspace *ps, mcn_msgheader_t * intmsg,
 	     volatile mcn_msgheader_t * extmsg, size_t size)
 {
@@ -502,9 +574,22 @@ ipc_msgsend (mcn_msgopt_t opt, unsigned long timeout, mcn_portid_t notify)
   rc = port_enqueue (int_msg, timeout, false);
   if (rc)
     {
+      mcn_msgioret_t rc2;
+
       nuxperf_inc (&pmachina_ipc_send_enqueuefailed);
-      ipc_intmsg_consume (int_msg);
+      /*
+	Pseudo-receive operation.
+
+	When enqueueing fails, Mach requires to send the message back.
+
+	Please note, we're retaking the IPC space lock, so the message will be changed.
+      */
+      ps = task_getipcspace (cur_task ());
+      rc2 = reexternalize (ps, int_msg, (volatile mcn_msgheader_t *) cur_kmsgbuf (), ext_size);
+      task_putipcspace (cur_task (), ps);
       kmem_free (0, (vaddr_t) int_msg, ext_size);
+      if (rc2)
+	rc = KERN_FAILURE;
       return rc;
     }
 
